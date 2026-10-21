@@ -1,0 +1,5 @@
+/target/
+/.tmp/
+/.cargo-home/
+/.claude/worktrees/
+/.claude/settings.local.json

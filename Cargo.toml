@@ -1,0 +1,43 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.96.0"
+license = "Apache-2.0"
+publish = false
+version = "0.1.0"
+
+[workspace.dependencies]
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unwrap_used = "deny"
+expect_used = "warn"
+print_stdout = "warn"
+
+# Build speed and disk: own crates keep line tables only (enough for backtraces, a fraction of
+# full debuginfo); dependencies get none and a little optimization so debug runs are not glacial.
+[profile.dev]
+debug = "line-tables-only"
+codegen-units = 16
+
+[profile.dev.package."*"]
+debug = false
+opt-level = 1
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+opt-level = 3
