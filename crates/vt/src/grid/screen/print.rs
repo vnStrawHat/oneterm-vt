@@ -6,7 +6,7 @@
 use crate::cell::{Cell, CellContent, CellWidth};
 use crate::grid::anchor::Anchors;
 use crate::grid::row::blank_of;
-use crate::grid::screen::Screen;
+use crate::grid::screen::{Screen, ScrollReport};
 use crate::grid::{Pos, RowId};
 use crate::intern::Interner;
 
@@ -17,6 +17,9 @@ pub struct PrintMode {
     pub insert: bool,
     /// Auto-wrap mode (DECAWM): printing past the last column wraps to the next row.
     pub autowrap: bool,
+    /// Reverse-wrap mode (`?45`): backspace at column 0 moves to the last column of a row
+    /// that wrapped into this one.
+    pub reverse_wrap: bool,
 }
 
 impl Default for PrintMode {
@@ -24,15 +27,22 @@ impl Default for PrintMode {
         PrintMode {
             insert: false,
             autowrap: true,
+            reverse_wrap: false,
         }
     }
+}
+
+/// Whether `cell` is half of a wide glyph.
+fn is_wide_half(cell: Cell) -> bool {
+    matches!(cell.width(), CellWidth::Wide | CellWidth::WideSpacer)
 }
 
 impl Screen {
     /// Prints `c`, `width` columns wide (0 attaches it to the previous glyph).
     ///
     /// Control characters are ignored. A wide glyph that cannot be placed is dropped and
-    /// counted by [`dropped_wide`](Self::dropped_wide).
+    /// counted by [`dropped_wide`](Self::dropped_wide). Returns the report of the scroll a
+    /// wrap ran, `Some` exactly when one did.
     pub(crate) fn print(
         &mut self,
         c: char,
@@ -40,9 +50,67 @@ impl Screen {
         mode: PrintMode,
         interner: &mut Interner,
         anchors: &mut Anchors,
-    ) {
-        self.print_glyph(c, width, mode, interner, anchors);
+    ) -> Option<ScrollReport> {
+        let report = self.print_glyph(c, width, mode, interner, anchors);
         self.debug_check();
+        report
+    }
+
+    /// Prints the leading run of `text` whose scalars `narrow` maps to a single-column glyph,
+    /// under one row borrow. Returns the bytes consumed.
+    ///
+    /// It stops before anything the general path must decide: insert mode, a pending wrap that
+    /// autowrap performs, a scalar `narrow` rejects, a wide-pair half at column 0 or 1 (the
+    /// filler above may need releasing), and after filling the last column.
+    pub(crate) fn print_narrow_run(
+        &mut self,
+        text: &str,
+        mode: PrintMode,
+        narrow: impl Fn(char) -> Option<char>,
+    ) -> usize {
+        if mode.insert || (self.cursor.pending_wrap && mode.autowrap) {
+            return 0;
+        }
+        if text.chars().next().is_none_or(|c| narrow(c).is_none()) {
+            return 0;
+        }
+        let Pos { row, mut col } = self.cursor.pos;
+        if col <= 1 && is_wide_half(self.row(row).cell(col)) {
+            return 0;
+        }
+        let (pen, cols) = (self.cursor.template, self.cols);
+        let mut consumed = 0;
+        let mut pending_wrap = self.cursor.pending_wrap;
+        let Some(mut target) = self.row_mut(row) else {
+            return 0;
+        };
+        for c in text.chars() {
+            let Some(mapped) = narrow(c) else { break };
+            if col <= 1
+                && target
+                    .cells()
+                    .get(usize::from(col))
+                    .is_some_and(|&cell| is_wide_half(cell))
+            {
+                break;
+            }
+            target.set(
+                col,
+                pen.with_content(CellContent::Scalar(mapped))
+                    .with_width(CellWidth::Narrow),
+            );
+            consumed += c.len_utf8();
+            if col + 1 < cols {
+                col += 1;
+            } else {
+                pending_wrap = true;
+                break;
+            }
+        }
+        self.cursor.pos.col = col;
+        self.cursor.pending_wrap = pending_wrap;
+        self.debug_check();
+        consumed
     }
 
     fn print_glyph(
@@ -52,16 +120,17 @@ impl Screen {
         mode: PrintMode,
         interner: &mut Interner,
         anchors: &mut Anchors,
-    ) {
+    ) -> Option<ScrollReport> {
         if c.is_control() {
-            return;
+            return None;
         }
         if width == 0 {
             self.attach(c, interner);
-            return;
+            return None;
         }
+        let mut report = None;
         if self.cursor.pending_wrap && mode.autowrap {
-            self.wrapline(anchors);
+            report = self.wrapline(anchors);
         }
         let span: u16 = if width >= 2 { 2 } else { 1 };
         if mode.insert && self.cursor.pos.col.saturating_add(span) < self.cols {
@@ -80,23 +149,23 @@ impl Screen {
                     .with_width(CellWidth::Narrow),
             );
             self.advance();
-            return;
+            return report;
         }
         if self.cols < 2 {
             self.drop_wide();
-            return;
+            return report;
         }
         if self.cursor.pos.col + 1 >= self.cols {
             if !mode.autowrap {
                 self.cursor.pending_wrap = true;
                 self.drop_wide();
-                return;
+                return report;
             }
             let filler = pen
                 .with_content(CellContent::Scalar(' '))
                 .with_width(CellWidth::LeadingWideSpacer);
             self.write_cell(filler);
-            self.wrapline(anchors);
+            report = self.wrapline(anchors);
         }
         self.write_cell(
             pen.with_content(CellContent::Scalar(c))
@@ -104,6 +173,7 @@ impl Screen {
         );
         self.advance();
         self.advance();
+        report
     }
 
     fn drop_wide(&mut self) {
@@ -138,11 +208,7 @@ impl Screen {
     /// Releases the filler on the row above when the cell at `(row, col)` is a wide half that
     /// is about to be destroyed or moved.
     fn release_filler_if_wide_half(&mut self, row: RowId, col: u16) {
-        let is_wide_half = matches!(
-            self.row(row).cell(col).width(),
-            CellWidth::Wide | CellWidth::WideSpacer
-        );
-        if is_wide_half && col <= 1 && row > self.oldest {
+        if col <= 1 && row > self.oldest && is_wide_half(self.row(row).cell(col)) {
             self.release_leading_filler(row - 1);
         }
     }
@@ -185,33 +251,42 @@ impl Screen {
     }
 
     /// Wraps to the start of the next row, marking the current row as continued. Callers gate
-    /// it on DECAWM.
-    pub fn wrapline(&mut self, anchors: &mut Anchors) {
+    /// it on DECAWM. Returns the report of the scroll it ran, `Some` exactly when one did.
+    pub fn wrapline(&mut self, anchors: &mut Anchors) -> Option<ScrollReport> {
         let id = self.cursor.pos.row;
         if let Some(mut row) = self.row_mut(id) {
             row.set_wrapped(true);
         }
-        if self.cursor_row_index() + 1 >= self.region.bottom {
-            self.linefeed(anchors);
+        let report = if self.cursor_row_index() + 1 >= self.region.bottom {
+            self.linefeed(anchors)
         } else {
             self.cursor.pos.row = self.cursor.pos.row + 1;
-        }
+            None
+        };
         self.cursor.pos.col = 0;
         self.cursor.pending_wrap = false;
         self.sync_anchors(anchors);
         self.debug_check();
+        report
     }
 
-    /// `HT` `count` times. Consumed by a pending wrap, which it performs when autowrap is on.
+    /// `HT` `count` times. Consumed by a pending wrap, which it performs when autowrap is on;
+    /// the result is the report of the scroll that wrap ran, `Some` exactly when one did.
     ///
     /// A blank cell the cursor leaves is marked with a tab so text extraction can tell a tab
     /// from spaces.
-    pub(crate) fn put_tab(&mut self, count: u16, mode: PrintMode, anchors: &mut Anchors) {
+    pub(crate) fn put_tab(
+        &mut self,
+        count: u16,
+        mode: PrintMode,
+        anchors: &mut Anchors,
+    ) -> Option<ScrollReport> {
         if self.cursor.pending_wrap {
-            if mode.autowrap {
-                self.wrapline(anchors);
-            }
-            return;
+            return if mode.autowrap {
+                self.wrapline(anchors)
+            } else {
+                None
+            };
         }
         for _ in 0..count {
             let Pos { row, col } = self.cursor.pos;
@@ -226,6 +301,33 @@ impl Screen {
                 break;
             }
             self.cursor.pos.col = next;
+        }
+        self.debug_check();
+        None
+    }
+
+    /// `CHT`: moves to the `n`th next tab stop, or the last column. Pending wrap is kept.
+    pub(crate) fn tab_forward(&mut self, n: u16) {
+        for _ in 0..n {
+            let col = self.cursor.pos.col;
+            let next = self.tabs.next_after(col);
+            if next == col {
+                break;
+            }
+            self.cursor.pos.col = next;
+        }
+        self.debug_check();
+    }
+
+    /// `CBT`: moves to the `n`th previous tab stop, or column 0. Pending wrap is kept.
+    pub(crate) fn tab_backward(&mut self, n: u16) {
+        for _ in 0..n {
+            let col = self.cursor.pos.col;
+            let prev = self.tabs.prev_before(col);
+            if prev == col {
+                break;
+            }
+            self.cursor.pos.col = prev;
         }
         self.debug_check();
     }

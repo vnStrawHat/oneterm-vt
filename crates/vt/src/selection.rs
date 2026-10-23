@@ -22,10 +22,6 @@ mod selection_tests;
 
 /// The default word delimiters for [`SelectionKind::Semantic`]: space, tab, quotes, brackets,
 /// and a few separators.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "Config::default reads it from phase 6")
-)]
 pub(crate) const DEFAULT_SEMANTIC_ESCAPE_CHARS: &str = ",│`|:\"' ()[]{}<>\t";
 
 /// How a selection turns its two ends into cells.
@@ -271,6 +267,13 @@ impl Selection {
         let range = self.to_range(grid, escape_chars)?;
         let screen = grid.screen_of(range.start.row);
         Some(text::selection_text(screen, graphemes, self.kind, range))
+    }
+
+    /// Whether either end's content is gone. A fresh empty selection is not dead, so callers
+    /// prune on this and never on `to_range() == None`.
+    pub(crate) fn is_dead(&self, grid: &TerminalGrid) -> bool {
+        let anchors = grid.anchors();
+        anchors.get(self.start).is_none() || anchors.get(self.end).is_none()
     }
 
     /// Whether erasing in place would leave this selection over blanked cells, so the embedder

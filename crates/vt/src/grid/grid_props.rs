@@ -80,7 +80,11 @@ impl Op {
 }
 
 fn arb_mode() -> impl Strategy<Value = PrintMode> {
-    (any::<bool>(), any::<bool>()).prop_map(|(insert, autowrap)| PrintMode { insert, autowrap })
+    (any::<bool>(), any::<bool>()).prop_map(|(insert, autowrap)| PrintMode {
+        insert,
+        autowrap,
+        reverse_wrap: false,
+    })
 }
 
 fn arb_op() -> impl Strategy<Value = Op> {
@@ -151,9 +155,15 @@ fn apply(f: &mut Fixture, op: &Op, marks: &mut Vec<AnchorId>) {
             let c = GLYPHS[glyph];
             grid.print(c, crate::scalar_width(c), mode, interner);
         }
-        Op::Linefeed => grid.linefeed(),
-        Op::ReverseIndex => grid.reverse_index(),
-        Op::Wrapline => grid.wrapline(),
+        Op::Linefeed => {
+            grid.linefeed();
+        }
+        Op::ReverseIndex => {
+            grid.reverse_index();
+        }
+        Op::Wrapline => {
+            grid.wrapline();
+        }
         Op::ScrollUp { top, bottom, n } => {
             grid.scroll_up(ScrollRegion { top, bottom }, n);
         }
@@ -187,7 +197,9 @@ fn apply(f: &mut Fixture, op: &Op, marks: &mut Vec<AnchorId>) {
             grid.screen_mut()
                 .set_region(top, bottom, CursorOrigin::Screen);
         }
-        Op::Tab(count) => grid.put_tab(count, PrintMode::default()),
+        Op::Tab(count) => {
+            grid.put_tab(count, PrintMode::default());
+        }
         Op::ScrollViewport(delta) => grid.screen_mut().scroll_viewport(delta),
         Op::SetPen(pen) => {
             let style = match pen {

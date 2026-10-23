@@ -11,7 +11,7 @@ use crate::grid::integrity::IntegrityViolation;
 use crate::grid::row::{Row, SeqNo};
 use crate::grid::screen::{DisplayClear, PrintMode, Screen, ScreenKind, ScrollReport};
 use crate::grid::{RowId, ScrollRegion, Size};
-use crate::intern::Interner;
+use crate::intern::{GraphemeArena, Interner};
 
 /// Where the content lands when the window changes size.
 ///
@@ -145,10 +145,11 @@ impl TerminalGrid {
         self.alt.sync_anchors(&mut self.anchors);
     }
 
-    /// Wraps the active screen's cursor to the next row; see [`Screen::wrapline`].
-    pub fn wrapline(&mut self) {
+    /// Wraps the active screen's cursor to the next row; see [`Screen::wrapline`]. Returns
+    /// the report of the scroll it ran, `Some` exactly when one did.
+    pub fn wrapline(&mut self) -> Option<ScrollReport> {
         let (screen, anchors) = self.active();
-        screen.wrapline(anchors);
+        screen.wrapline(anchors)
     }
 
     /// `RIS`: resets both screens and shows the primary.
@@ -219,14 +220,14 @@ impl TerminalGrid {
             + self.reflow_rows.capacity() * size_of::<Option<Row>>()
     }
 
-    pub(crate) fn linefeed(&mut self) {
+    pub(crate) fn linefeed(&mut self) -> Option<ScrollReport> {
         let (screen, anchors) = self.active();
-        screen.linefeed(anchors);
+        screen.linefeed(anchors)
     }
 
-    pub(crate) fn reverse_index(&mut self) {
+    pub(crate) fn reverse_index(&mut self) -> Option<ScrollReport> {
         let (screen, anchors) = self.active();
-        screen.reverse_index(anchors);
+        screen.reverse_index(anchors)
     }
 
     pub(crate) fn scroll_up(&mut self, region: ScrollRegion, n: u16) -> ScrollReport {
@@ -249,14 +250,29 @@ impl TerminalGrid {
         screen.delete_lines(n, anchors)
     }
 
-    pub(crate) fn print(&mut self, c: char, width: u8, mode: PrintMode, interner: &mut Interner) {
+    pub(crate) fn print(
+        &mut self,
+        c: char,
+        width: u8,
+        mode: PrintMode,
+        interner: &mut Interner,
+    ) -> Option<ScrollReport> {
         let (screen, anchors) = self.active();
-        screen.print(c, width, mode, interner, anchors);
+        screen.print(c, width, mode, interner, anchors)
     }
 
-    pub(crate) fn put_tab(&mut self, count: u16, mode: PrintMode) {
+    pub(crate) fn print_narrow_run(
+        &mut self,
+        text: &str,
+        mode: PrintMode,
+        narrow: impl Fn(char) -> Option<char>,
+    ) -> usize {
+        self.active().0.print_narrow_run(text, mode, narrow)
+    }
+
+    pub(crate) fn put_tab(&mut self, count: u16, mode: PrintMode) -> Option<ScrollReport> {
         let (screen, anchors) = self.active();
-        screen.put_tab(count, mode, anchors);
+        screen.put_tab(count, mode, anchors)
     }
 
     pub(crate) fn erase_display(
@@ -299,6 +315,36 @@ impl TerminalGrid {
         let (screen, anchors) = self.active();
         screen.wipe(anchors);
         self.debug_check();
+    }
+
+    /// Changes the primary screen's scrollback limit; see [`Screen::set_scrollback_limit`]. The
+    /// alternate screen has no history and is untouched.
+    pub(crate) fn set_scrollback_limit(&mut self, limit: u32) {
+        self.primary.set_scrollback_limit(limit, &mut self.anchors);
+        self.debug_check();
+    }
+
+    /// Rebuilds the grapheme arena from the clusters the live rows of both screens still hold
+    /// and rewrites those rows' ids. Call it between sequences, when
+    /// [`Interner::needs_grapheme_sweep`] says so. Rewritten rows carry the current batch stamp.
+    pub(crate) fn sweep_graphemes(&mut self, arena: &mut GraphemeArena) {
+        let remap = arena.sweep(
+            [&self.primary, &self.alt]
+                .into_iter()
+                .flat_map(Screen::grapheme_ids),
+        );
+        self.primary.remap_graphemes(&remap);
+        self.alt.remap_graphemes(&remap);
+        self.debug_check();
+    }
+
+    /// Tier 3 in a debug build, against the interner the cells point into; a no-op in release.
+    /// Assumes the anchors are synced.
+    pub(crate) fn debug_check_with(&self, interner: &Interner) {
+        debug_assert_eq!(
+            self.check_integrity(Some(interner)),
+            Ok::<(), IntegrityViolation>(())
+        );
     }
 
     /// Tier 3: both screens' bounds and rows, then the anchors. Assumes the anchors are synced.

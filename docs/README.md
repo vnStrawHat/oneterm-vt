@@ -21,3 +21,7 @@
 | [0006-selection](specs/0006-selection/README.md) | 5 | ready |
 | [0007-terminal](specs/0007-terminal/README.md) | 6 | ready |
 | [0008-snapshot](specs/0008-snapshot/README.md) | 7 | ready |
+| [0009-search](specs/0009-search/README.md) | 8 | ready |
+| [0010-input](specs/0010-input/README.md) | 9 | ready |
+| [0011-graphics](specs/0011-graphics/README.md) | 10 | ready |
+| [0012-pty](specs/0012-pty/README.md) | 11 | ready |

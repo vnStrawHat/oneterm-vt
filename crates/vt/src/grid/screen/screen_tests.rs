@@ -310,7 +310,7 @@ fn backspace_clears_pending_wrap() {
     let mut f = fixture(2, 3);
     f.print("abc");
     assert!(screen(&f).cursor().pending_wrap);
-    f.grid.screen_mut().backspace();
+    f.grid.screen_mut().backspace(PrintMode::default());
     assert!(!screen(&f).cursor().pending_wrap);
     assert_eq!(screen(&f).cursor().pos.col, 1);
 }
@@ -320,7 +320,7 @@ fn backspace_at_col_zero_keeps_pending_wrap() {
     let mut f = fixture(2, 1);
     f.print("a");
     assert!(screen(&f).cursor().pending_wrap);
-    f.grid.screen_mut().backspace();
+    f.grid.screen_mut().backspace(PrintMode::default());
     assert!(screen(&f).cursor().pending_wrap);
     assert_eq!(screen(&f).cursor().pos.col, 0);
 }
@@ -505,6 +505,7 @@ fn pending_wrap_then_el0_erases_nothing() {
             PrintMode {
                 insert: false,
                 autowrap,
+                reverse_wrap: false,
             },
             "abcde",
         );
@@ -522,6 +523,7 @@ fn autowrap_reenabled_over_pending_wrap_breaks_line() {
         PrintMode {
             insert: false,
             autowrap: false,
+            reverse_wrap: false,
         },
         "abcde",
     );
@@ -558,6 +560,7 @@ fn tab_with_autowrap_off_is_consumed_in_place() {
     let mode = PrintMode {
         insert: false,
         autowrap: false,
+        reverse_wrap: false,
     };
     f.print_with(mode, "abcd");
     f.grid.put_tab(1, mode);
@@ -616,6 +619,7 @@ fn wide_at_last_column() {
         PrintMode {
             insert: false,
             autowrap: false,
+            reverse_wrap: false,
         },
         WIDE_A,
     );
@@ -662,6 +666,7 @@ fn insert_mode_moving_a_wrapped_wide_releases_its_filler() {
         PrintMode {
             insert: true,
             autowrap: true,
+            reverse_wrap: false,
         },
         "n",
     );
@@ -694,6 +699,7 @@ fn insert_mode_over_wide_repairs() {
         PrintMode {
             insert: true,
             autowrap: true,
+            reverse_wrap: false,
         },
         "n",
     );
@@ -703,6 +709,7 @@ fn insert_mode_over_wide_repairs() {
         PrintMode {
             insert: true,
             autowrap: true,
+            reverse_wrap: false,
         },
         "mm",
     );
@@ -718,6 +725,7 @@ fn insert_mode_wide_shifts_two_columns() {
         PrintMode {
             insert: true,
             autowrap: true,
+            reverse_wrap: false,
         },
         WIDE_A,
     );
@@ -1341,4 +1349,81 @@ fn check_reports_newest_past_newest_issued() {
         screen.check_bounds(),
         Err(IntegrityViolation::IdsOutOfOrder)
     );
+}
+
+// ---- narrow runs ----
+
+fn narrow(c: char) -> Option<char> {
+    (crate::width::scalar_width(c) == 1).then_some(c)
+}
+
+fn print_run(f: &mut Fixture, mode: PrintMode, text: &str) -> usize {
+    let consumed = f.grid.print_narrow_run(text, mode, narrow);
+    f.check();
+    consumed
+}
+
+#[test]
+fn a_narrow_run_stops_after_filling_the_last_column() {
+    let mut f = fixture(2, 4);
+    assert_eq!(print_run(&mut f, PrintMode::default(), "abcdef"), 4);
+    assert_eq!(f.index_text(0), "abcd");
+    assert!(screen(&f).cursor().pending_wrap);
+    assert_eq!(screen(&f).cursor().pos.col, 3);
+    // The wrap belongs to the general path.
+    assert_eq!(print_run(&mut f, PrintMode::default(), "ef"), 0);
+}
+
+#[test]
+fn a_narrow_run_stops_before_a_wide_scalar() {
+    let mut f = fixture(2, 8);
+    let text = format!("ab{WIDE_A}c");
+    assert_eq!(print_run(&mut f, PrintMode::default(), &text), 2);
+    assert_eq!(screen(&f).cursor().pos.col, 2);
+    assert_eq!(print_run(&mut f, PrintMode::default(), &text[2..]), 0);
+    assert_eq!(f.index_text(0).trim_end(), "ab");
+}
+
+#[test]
+fn a_narrow_run_leaves_insert_mode_to_the_general_path() {
+    let mut f = fixture(2, 4);
+    let insert = PrintMode {
+        insert: true,
+        ..PrintMode::default()
+    };
+    assert_eq!(print_run(&mut f, insert, "ab"), 0);
+    assert_eq!(f.index_text(0).trim_end(), "");
+}
+
+#[test]
+fn a_narrow_run_leaves_a_pending_wrap_to_the_general_path_only_under_autowrap() {
+    let mut f = fixture(2, 2);
+    f.print("ab");
+    assert_eq!(print_run(&mut f, PrintMode::default(), "c"), 0);
+    let no_wrap = PrintMode {
+        autowrap: false,
+        ..PrintMode::default()
+    };
+    assert_eq!(print_run(&mut f, no_wrap, "cd"), 1);
+    assert_eq!(f.index_text(0), "ac");
+    assert!(screen(&f).cursor().pending_wrap);
+}
+
+#[test]
+fn a_narrow_run_overwriting_half_a_wide_pair_blanks_the_other_half() {
+    let mut f = fixture(2, 6);
+    f.goto(0, 2);
+    f.print(WIDE_A);
+    f.goto(0, 3);
+    assert_eq!(print_run(&mut f, PrintMode::default(), "xy"), 2);
+    assert_eq!(f.index_text(0).trim_end(), "   xy");
+}
+
+#[test]
+fn a_narrow_run_at_a_wide_half_in_column_zero_is_left_to_the_general_path() {
+    let mut f = fixture(2, 4);
+    f.print("abc");
+    f.print(WIDE_A);
+    f.goto(1, 0);
+    assert_eq!(print_run(&mut f, PrintMode::default(), "x"), 0);
 }

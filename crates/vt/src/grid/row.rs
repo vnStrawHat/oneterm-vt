@@ -17,7 +17,7 @@ use bitflags::bitflags;
 use crate::cell::{Cell, CellContent, CellWidth};
 use crate::grid::integrity::IntegrityViolation;
 use crate::grid::{MAX_COLS, RowId};
-use crate::intern::{ExtrasId, Interner, StyleId};
+use crate::intern::{ExtrasId, GraphemeRemap, Interner, StyleId};
 
 /// Shared storage for reading a row that was never written.
 static BLANK_CELLS: [Cell; MAX_COLS as usize] = [Cell::EMPTY; MAX_COLS as usize];
@@ -389,6 +389,10 @@ impl<'a> RowRef<'a> {
     }
 
     /// The stamp of the last batch that changed the row; `SeqNo(0)` for a row never written.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "the snapshot reads row stamps from phase 7")
+    )]
     pub(crate) fn seq(&self) -> SeqNo {
         self.header.map_or(SeqNo(0), |header| header.seq)
     }
@@ -594,7 +598,27 @@ impl<'a> RowMut<'a> {
         self.store(usize::from(col), cell);
     }
 
+    /// Rewrites the cluster ids of this row through `remap`, keeping widths and every other
+    /// field. Returns whether any cell changed.
+    pub(crate) fn remap_graphemes(&mut self, remap: &GraphemeRemap) -> bool {
+        let mut changed = false;
+        for cell in &mut self.row.cells {
+            if let CellContent::Grapheme(old) = cell.content() {
+                let new = remap.get(old);
+                if new != old {
+                    *cell = cell.with_content(CellContent::Grapheme(new));
+                    changed = true;
+                }
+            }
+        }
+        changed
+    }
+
     /// Marks that an image covers some cell of the row.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "Sixel placement marks rows from phase 10")
+    )]
     pub(crate) fn mark_graphic(&mut self) {
         self.row.header.flags |= RowFlags::HAS_GRAPHIC;
     }

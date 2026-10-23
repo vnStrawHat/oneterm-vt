@@ -36,6 +36,27 @@ pub(crate) struct Tiers {
     // Still required on read: the chart needs it.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) tier2_grid: Vec<Throughput>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) tier4_resize: Vec<ResizeCost>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) tier5_memory: Vec<MemoryCost>,
+}
+
+/// Tier 4: the cost of resizing a terminal holding `scrollback_rows` rows of history, in
+/// microseconds, growing from 80x24 to 100x40 and shrinking back.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct ResizeCost {
+    pub(crate) scrollback_rows: u32,
+    pub(crate) grow_us: f64,
+    pub(crate) shrink_us: f64,
+}
+
+/// Tier 5: live heap after filling the scrollback with one kind of row.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct MemoryCost {
+    pub(crate) content: String,
+    pub(crate) heap_bytes: u64,
+    pub(crate) heap_bytes_per_row: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -194,6 +215,8 @@ mod tests {
                     spread_percent: 3.0,
                 }],
                 tier2_grid: Vec::new(),
+                tier4_resize: Vec::new(),
+                tier5_memory: Vec::new(),
             },
         };
         let json = serde_json::to_string(&record).unwrap();
@@ -221,6 +244,69 @@ mod tests {
         assert!(positions.windows(2).all(|pair| pair[0] < pair[1]), "{json}");
     }
 
+    #[test]
+    fn record_has_tiers_2_4_5() {
+        let throughput = || Throughput {
+            fixture: "f".into(),
+            mib_per_second: 1.0,
+            ns_per_byte: 2.0,
+            spread_percent: 3.0,
+        };
+        let record = |tiers: Tiers| PerfRecord {
+            engine: "oneterm-vt".into(),
+            version: "0.1.0".into(),
+            date: "2026-10-23".into(),
+            machine: "m".into(),
+            columns: 160,
+            lines: 45,
+            mib_per_fixture: 1,
+            runs: 5,
+            tiers,
+        };
+        let full = record(Tiers {
+            tier1_parser: vec![throughput()],
+            tier2_grid: vec![throughput()],
+            tier4_resize: vec![ResizeCost {
+                scrollback_rows: 10_000,
+                grow_us: 1.5,
+                shrink_us: 2.5,
+            }],
+            tier5_memory: vec![MemoryCost {
+                content: "plain".into(),
+                heap_bytes: 1000,
+                heap_bytes_per_row: 0.1,
+            }],
+        });
+        let json = serde_json::to_string(&full).unwrap();
+        let keys = [
+            "\"tier1_parser\"",
+            "\"tier2_grid\"",
+            "\"tier4_resize\"",
+            "\"scrollback_rows\"",
+            "\"grow_us\"",
+            "\"shrink_us\"",
+            "\"tier5_memory\"",
+            "\"content\"",
+            "\"heap_bytes\"",
+            "\"heap_bytes_per_row\"",
+        ];
+        let positions: Vec<usize> = keys.iter().map(|key| json.find(key).unwrap()).collect();
+        assert!(positions.windows(2).all(|pair| pair[0] < pair[1]), "{json}");
+        let again: PerfRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(again.tiers.tier4_resize.len(), 1);
+        assert_eq!(again.tiers.tier5_memory[0].content, "plain");
+
+        let only_first = record(Tiers {
+            tier1_parser: vec![throughput()],
+            tier2_grid: Vec::new(),
+            tier4_resize: Vec::new(),
+            tier5_memory: Vec::new(),
+        });
+        let json = serde_json::to_string(&only_first).unwrap();
+        for key in ["tier2_grid", "tier4_resize", "tier5_memory"] {
+            assert!(!json.contains(key), "{key}");
+        }
+    }
     #[test]
     fn version_parses_three_numbers() {
         let version: ReleaseVersion = "0.1.0".parse().unwrap();

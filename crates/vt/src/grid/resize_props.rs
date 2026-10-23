@@ -42,7 +42,9 @@ fn apply(f: &mut Fixture, op: &Op, marks: &mut Vec<AnchorId>) {
             f.grid.linefeed();
         }
         Op::Goto { index, col } => f.grid.screen_mut().goto(index, col),
-        Op::Wrapline => f.grid.wrapline(),
+        Op::Wrapline => {
+            f.grid.wrapline();
+        }
         Op::Mark { index, col } => {
             let col = col.min(f.grid.screen().cols() - 1);
             marks.push(f.mark(index, col));

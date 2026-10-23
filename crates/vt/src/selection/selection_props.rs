@@ -213,7 +213,9 @@ fn apply(f: &mut Fixture, op: Op) {
             f.grid.screen_mut().goto(index, 0);
             f.grid.delete_lines(n);
         }
-        Op::Linefeed => f.grid.linefeed(),
+        Op::Linefeed => {
+            f.grid.linefeed();
+        }
         Op::Resize { rows, cols } => {
             f.grid
                 .resize(crate::Size { rows, cols }, ResizePolicy::BottomAnchor);

@@ -20,14 +20,14 @@ appears when its phase lands; until then it is listed as *planned*.
 |---|---|---|---|---|
 | 01 | `quickstart.md` | create a `Terminal`, feed bytes, drain events, print one snapshot as text | 7 | planned |
 | 02 | `threading.md` | who owns the lock, the two-phase hand-off, when to draw, `?2026` and its timeout | 7 | planned |
-| 03 | `events.md` | `EventBatch` and every `VtEvent`; answering `Reply`, `ColorQuery` (`ColorKey::color_reply`), `ClipboardLoad`; `OscRoutes` | 6 | planned |
-| 04 | `input.md` | keys and mouse to bytes; kitty flags, `modifyOtherKeys` | 9 | planned |
-| 05 | `search.md` | literal and `regex` scrollback search | 8 | planned |
-| 06 | `graphics.md` | Sixel lifecycle, placements, what you draw | 10 | planned |
+| 03 | [`events.md`](events.md) | `EventBatch` and every `VtEvent`; answering `Reply`, `ColorQuery` (`ColorKey::color_reply`), `ClipboardLoad`; `OscRoutes` | 6 | ready |
+| 04 | `input.md` | `input::encode_key_event` / `Terminal::encode_key`: the four-rung ladder (legacy, `modifyOtherKeys`, kitty flags), `KeyEvent` fields; `encode_mouse_*` per reporting mode and encoding; what the embedder still owes (paste, focus, alternate scroll) | 9 | planned |
+| 05 | `search.md` | `search::GridText` and `search_grid_text`: copy under the lock, search without it; matches across wrapped rows, `SearchMatch` to viewport rows, `MAX_MATCHES`; `regex` feature | 8 | planned |
+| 06 | `graphics.md` | Sixel lifecycle: `Terminal::take_graphics` (`GraphicData`), `Placement` / `SnapshotPlacement`, drawing by cells with `graphic_offset`, `VtEvent::GraphicReleased`, `set_cell_pixels` and `VIRTUAL_CELL`, ceilings | 10 | planned |
 | 07 | [`resize.md`](resize.md) | `grid::TerminalGrid::resize`, `ResizePolicy` (PTY vs ConPTY), `ResizeOutcome`; what reflow keeps, what dies | 4, 6 | ready |
-| 08 | `limits.md` | every ceiling on hostile input and what happens past it; each `FeedStats` counter | 6 | planned |
-| 09 | `conformance.md` | supported sequences and modes, inert modes and their DECRQM answers, the DECRQCRA gate, known gaps | 6+ | planned |
-| 10 | `pty.md` | the `pty` transport with `polling`; platform differences | 11 | planned |
+| 08 | [`limits.md`](limits.md) | every ceiling on hostile input and what happens past it; each `FeedStats` counter | 6 | ready |
+| 09 | [`conformance.md`](conformance.md) | supported sequences and modes, inert modes and their DECRQM answers, the DECRQCRA gate, known gaps | 6+ | ready |
+| 10 | `pty.md` | `pty::PseudoConsole` polled with your own `polling::Poller`: the two tokens, the read/write return values, `OnResize`, what you owe (deregister, drain, `TERM` in `Options::env`); platform differences, drop behaviour, `conpty.dll` beside your executable; turning `pty` off | 11 | planned |
 | 11 | [`versioning.md`](versioning.md) | what to pin, the semver promise, MSRV, features | 0 | written |
 | 12 | `performance.md` | what is measured, history and chart | 12 | see [perf/](../perf/README.md) |
 | 13 | `api-map.md` | every public type in one table: what it is for | 13 | planned |

@@ -2,7 +2,9 @@
 
 mod chart;
 mod fixtures;
+mod memory;
 mod perf_history;
+mod resize;
 mod throughput;
 
 use std::fs;
@@ -13,8 +15,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result, bail};
 
 use crate::fixtures::{COLUMNS, LINES};
-use crate::perf_history::{PerfRecord, Throughput, Tiers};
+use crate::perf_history::{MemoryCost, PerfRecord, ResizeCost, Throughput, Tiers};
 use crate::throughput::{CHUNK, RUNS};
+
+// Tier 5 reads the live heap, so every allocation in this binary is counted.
+#[global_allocator]
+static ALLOCATOR: memory::CountingAllocator = memory::CountingAllocator;
 
 const USAGE: &str = "\
 vt-bench <command> [flags]
@@ -53,7 +59,9 @@ fn run(args: &[String]) -> ExitCode {
             return ExitCode::SUCCESS;
         }
         "chart" => chart_command(&args[1..]).map(|out| println!("wrote {}", out.display())),
-        "parser" | "all" => parser_command(&args[1..]).map(|text| print!("{text}")),
+        "parser" | "grid" | "resize" | "rss" | "all" => {
+            measure_command(command, &args[1..]).map(|text| print!("{text}"))
+        }
         "fixtures" => fixtures_command(&args[1..]).map(|text| print!("{text}")),
         _ if MEASURE_COMMANDS.contains(&command) => {
             Err(anyhow::anyhow!("'{command}' is not implemented yet"))
@@ -149,14 +157,61 @@ fn parse_measure_options(command: &str, args: &[String]) -> Result<MeasureOption
     Ok(options)
 }
 
-/// Tier 1 (`parser`, and `all` while it is the only tier). Returns the text for stdout.
-fn parser_command(args: &[String]) -> Result<String> {
-    let options = parse_measure_options("parser", args)?;
-    let rows = throughput::measure_tier(options.mib, throughput::parser_pass);
+/// What a measure command ran: `None` for a tier it skipped.
+#[derive(Default)]
+struct Measured {
+    tier1_parser: Option<Vec<Throughput>>,
+    tier2_grid: Option<Vec<Throughput>>,
+    tier4_resize: Option<Vec<ResizeCost>>,
+    tier5_memory: Option<Vec<MemoryCost>>,
+}
+
+/// Runs the tiers `command` names: one tier, or tiers 1, 2, 4 and 5 for `all`.
+fn measure(command: &str, mib: usize) -> Measured {
+    let all = command == "all";
+    let mut measured = Measured::default();
+    if all || command == "parser" {
+        progress("tier 1 parser");
+        measured.tier1_parser = Some(throughput::measure_tier(
+            mib,
+            |_| true,
+            throughput::parser_pass,
+        ));
+    }
+    if all || command == "grid" {
+        progress("tier 2 grid");
+        measured.tier2_grid = Some(throughput::measure_tier(
+            mib,
+            throughput::tier2_includes,
+            throughput::grid_pass,
+        ));
+    }
+    if all || command == "resize" {
+        progress("tier 4 resize");
+        measured.tier4_resize = Some(resize::measure_resize());
+    }
+    if all || command == "rss" {
+        progress("tier 5 rss");
+        measured.tier5_memory = Some(memory::measure_memory());
+    }
+    measured
+}
+
+fn progress(tier: &str) {
+    eprintln!("vt-bench: measuring {tier}");
+}
+
+/// The measure commands (`parser`, `grid`, `resize`, `rss`, `all`). Returns the text for stdout.
+fn measure_command(command: &str, args: &[String]) -> Result<String> {
+    if command == "grid" && args.iter().any(|arg| arg == "--check") {
+        bail!("'grid' is not implemented yet");
+    }
+    let options = parse_measure_options(command, args)?;
+    let measured = measure(command, options.mib);
     let report = if options.json {
-        render_json(&options, rows)?
+        render_json(&options, measured)?
     } else {
-        render_report(&options, &rows)
+        render_report(&options, &measured)
     };
     match options.out {
         Some(path) => {
@@ -167,7 +222,7 @@ fn parser_command(args: &[String]) -> Result<String> {
     }
 }
 
-fn render_report(options: &MeasureOptions, rows: &[Throughput]) -> String {
+fn render_report(options: &MeasureOptions, measured: &Measured) -> String {
     let mut report = format!(
         "# vt-bench: oneterm-vt {}\n\nGeometry {COLUMNS}x{LINES}, {} MiB per fixture, median of {RUNS} cycles after 1 warm-up, {} KiB chunks.\n",
         env!("CARGO_PKG_VERSION"),
@@ -177,12 +232,29 @@ fn render_report(options: &MeasureOptions, rows: &[Throughput]) -> String {
     if let Some(machine) = &options.machine {
         report.push_str(&format!("Machine: {machine}\n"));
     }
-    report.push_str("\n## Tier 1: parser alone (null Dispatch)\n\n");
-    report.push_str(&throughput::render_table(rows));
+    if let Some(rows) = &measured.tier1_parser {
+        report.push_str("\n## Tier 1: parser alone (null Dispatch)\n\n");
+        report.push_str(&throughput::render_table(rows));
+    }
+    if let Some(rows) = &measured.tier2_grid {
+        report.push_str("\n## Tier 2: parse + grid (Terminal::feed)\n\n");
+        report.push_str(&throughput::render_table(rows));
+    }
+    if let Some(rows) = &measured.tier4_resize {
+        report.push_str("\n## Tier 4: resize 80x24 <-> 100x40\n\n");
+        report.push_str(&resize::render_table(rows));
+    }
+    if let Some(rows) = &measured.tier5_memory {
+        report.push_str(&format!(
+            "\n## Tier 5: live heap after {} scrollback rows\n\n",
+            memory::MEMORY_ROWS
+        ));
+        report.push_str(&memory::render_table(rows));
+    }
     report
 }
 
-fn render_json(options: &MeasureOptions, tier1_parser: Vec<Throughput>) -> Result<String> {
+fn render_json(options: &MeasureOptions, measured: Measured) -> Result<String> {
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |elapsed| elapsed.as_secs());
@@ -196,8 +268,10 @@ fn render_json(options: &MeasureOptions, tier1_parser: Vec<Throughput>) -> Resul
         mib_per_fixture: options.mib as u32,
         runs: RUNS as u32,
         tiers: Tiers {
-            tier1_parser,
-            tier2_grid: Vec::new(),
+            tier1_parser: measured.tier1_parser.unwrap_or_default(),
+            tier2_grid: measured.tier2_grid.unwrap_or_default(),
+            tier4_resize: measured.tier4_resize.unwrap_or_default(),
+            tier5_memory: measured.tier5_memory.unwrap_or_default(),
         },
     };
     Ok(serde_json::to_string_pretty(&record)? + "\n")
@@ -277,11 +351,45 @@ mod tests {
     #[test]
     fn report_names_geometry_and_machine() {
         let options = parse_measure_options("parser", &strings(&["--machine", "box"])).unwrap();
-        let report = render_report(&options, &[]);
+        let measured = Measured {
+            tier1_parser: Some(Vec::new()),
+            ..Measured::default()
+        };
+        let report = render_report(&options, &measured);
         assert!(report.starts_with("# vt-bench: oneterm-vt "));
         assert!(report.contains("Geometry 160x45, 32 MiB per fixture, median of 5 cycles after 1 warm-up, 64 KiB chunks."));
         assert!(report.contains("Machine: box\n"));
         assert!(report.contains("## Tier 1: parser alone (null Dispatch)"));
+        assert!(!report.contains("## Tier 2"));
+    }
+
+    #[test]
+    fn report_has_a_section_per_measured_tier_in_order() {
+        let options = parse_measure_options("all", &[]).unwrap();
+        let measured = Measured {
+            tier1_parser: Some(Vec::new()),
+            tier2_grid: Some(Vec::new()),
+            tier4_resize: Some(Vec::new()),
+            tier5_memory: Some(Vec::new()),
+        };
+        let report = render_report(&options, &measured);
+        let headers = [
+            "## Tier 1: parser alone (null Dispatch)",
+            "## Tier 2: parse + grid (Terminal::feed)",
+            "## Tier 4: resize 80x24 <-> 100x40",
+            "## Tier 5: live heap after 10000 scrollback rows",
+        ];
+        let positions: Vec<usize> = headers
+            .iter()
+            .map(|header| report.find(header).expect(header))
+            .collect();
+        assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
+    }
+
+    #[test]
+    fn grid_check_and_render_stay_unimplemented() {
+        let error = measure_command("grid", &strings(&["--check"])).unwrap_err();
+        assert_eq!(format!("{error:#}"), "'grid' is not implemented yet");
     }
 
     #[test]

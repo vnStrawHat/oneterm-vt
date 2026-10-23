@@ -12,7 +12,7 @@ unless listed `pub`.
 | intermediates | 2 (`parser::MAX_INTERMEDIATES`) | same | `unhandled_sequences` |
 | param value | 65,535 (saturates) | clamped by every consumer (`CSI 99999 A` = to the margin) | - |
 | OSC payload | 2 KiB (`OSC_INLINE`); 8 MiB (`OSC_LARGE`) for numbers routed non-`Drop` with `large` | tail dropped, `truncated = true`; OSC 7 and OSC 9;4 then reject | `truncated_osc` (+ `unhandled_sequences` for a reject) |
-| OSC params | parser: 16 (`MAX_OSC_PARAMS`), the 16th holds the rest | the 16th is re-split on `;` (builtins that iterate, and every forwarded `Osc`): one span per parameter, so spans <= payload bytes + 1 (<= 2,049 inline; <= 8 Mi + 1 only for a `large(n)` number); `params` list shrinks to 4096 on the next `feed` | - |
+| OSC params | parser: 16 (`MAX_OSC_PARAMS`), the 16th holds the rest | the 16th is re-split on `;` (builtins that iterate, and every forwarded `Osc`): one span per parameter, so spans <= payload bytes + 1, plus up to 15 for the separators the parser already split (<= 2,064 inline; <= 8 Mi + 16 only for a `large(n)` number); `params` list shrinks to 4096 on the next `feed` | - |
 | DCS / APC payload | 16 MiB (`DCS_MAX_BYTES`) | aborted, no answer | `aborted_dcs` (DCS) |
 | DECRQSS / XTGETTCAP payload | 8 KiB (`QUERY_MAX_BYTES`) | answers nothing; buffer keeps <= 8 KiB capacity | `unhandled_sequences` (once) |
 | XTGETTCAP names / name length | 16 (`XTGETTCAP_MAX_NAMES`) / 128 bytes (`XTGETTCAP_MAX_NAME_BYTES`) | name dropped, never truncated | `unhandled_sequences` (once per request) |

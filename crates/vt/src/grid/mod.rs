@@ -22,14 +22,6 @@
 //!   independently, so one counter could not keep both contiguous.
 //! - [`RowId::distance`] saturates, so an out-of-order pair gives 0, never a wrap.
 
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "crate-private grid operations are dispatched by Terminal from phase 6"
-    )
-)]
-
 use std::ops::{Add, Sub};
 
 mod anchor;

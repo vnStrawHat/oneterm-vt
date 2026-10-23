@@ -1,10 +1,10 @@
 # Resize
 
-`oneterm_vt::grid::TerminalGrid::resize(size, policy)` changes the window size. A column change
-re-lays the primary screen out over its **logical lines** (rows joined by the wrap flag); a row
-change pulls history in or pushes rows out. Cursors, the viewport and anchors follow their content.
-Nothing here returns an error: sizes clamp to 1..=1024 rows and 1..=2048 columns, and a resize to
-the current size does nothing.
+`oneterm_vt::Terminal::resize(size, policy)` (over `grid::TerminalGrid::resize`) changes the window
+size. A column change re-lays the primary screen out over its **logical lines** (rows joined by the
+wrap flag); a row change pulls history in or pushes rows out. Cursors, the viewport and anchors
+follow their content. Nothing returns an error: sizes clamp to 1..=1024 rows and 1..=2048 columns,
+and a resize to the current size does nothing.
 
 ## Example: a wrapped line at a new width
 
@@ -44,6 +44,21 @@ assert!(screen.row(screen.oldest()).wrapped());
 assert!(screen.oldest() > before); // a column change gives every row a fresh id
 ```
 
+## Through `Terminal`
+
+`Terminal::resize` adds what a terminal owns: it drops a `?2027` cluster waiting for its next
+chunk and releases a selection whose content was lost.
+
+```rust
+use oneterm_vt::{Config, EventBatch, ResizePolicy, Size, Terminal};
+
+let mut term = Terminal::new(Size { rows: 3, cols: 10 }, Config::default());
+term.feed(b"hello world", &mut EventBatch::new(), std::time::Instant::now());
+let outcome = term.resize(Size { rows: 3, cols: 5 }, ResizePolicy::BottomAnchor);
+assert!(outcome.reflowed);
+assert_eq!(term.size(), Size { rows: 3, cols: 5 });
+```
+
 ## Choosing a policy
 
 | `ResizePolicy` | Behaviour | Use for |
@@ -74,45 +89,32 @@ top.resize(bigger, ResizePolicy::KeepViewportTop);
 assert_eq!(top.primary().screen_top(), screen_top); // the same row is still on top
 ```
 
-A viewport that follows output (`scroll_offset() == 0`) stays at the bottom under both policies.
-A scrolled-back viewport keeps showing the content at its top row.
+A viewport that follows output (`scroll_offset() == 0`) stays at the bottom under both policies; a scrolled-back one keeps its top row.
 
 ## What reflow keeps
 
-- **Logical lines**: rows joined by the wrap flag are re-cut at the new width; a line end never
-  joins its neighbour. Trailing plain blanks are trimmed; styled blanks and tabs are content.
-- **Cells**: styles, hyperlinks, grapheme clusters and semantic marks are copied as they are. A
-  double-width glyph never splits: the last column becomes a filler and the glyph moves down.
-  At one column a wide glyph degrades to blanks and counts in `Screen::dropped_wide`.
-- **The cursor** keeps its place in the text, including the blanks between the text and itself and
-  a pending wrap on an exact fit. A cursor whose text scrolled out of the scrollback goes to the
-  bottom row, column 0.
+- **Logical lines** are re-cut at the new width; a line end never joins its neighbour. Trailing
+  plain blanks are trimmed; styled blanks and tabs are content.
+- **Cells** keep styles, hyperlinks, clusters and semantic marks. A double-width glyph never
+  splits: the last column becomes a filler and the glyph moves down; at one column it degrades to
+  blanks and counts in `Screen::dropped_wide`.
+- **The cursor** keeps its place in the text, including a pending wrap on an exact fit.
 - **The alternate screen** is clipped or padded, never reflowed: its program redraws itself.
 - **History** is limited by the scrollback limit; a narrower width makes more rows, so the oldest
   fall off.
 
 ## Ids and anchors
 
-- A column change gives every primary row a **new id** above all old ones. A row-only change keeps
-  ids. Never keep a `RowId` across a resize; follow content with anchors.
-- Content anchors are mapped to the cell they were on. They die when their row falls off the oldest
-  end, or is released below the cursor on a shrink. Cursor, saved cursor and viewport anchors
-  never die.
-- Ids never rewind, except that a shrink may release blank rows below the cursor; a released id
-  comes back only as a freshly stamped row.
+- A column change gives every primary row a **new id**; a row-only change keeps ids. Never keep a
+  `RowId` across a resize; follow content with anchors.
+- Content anchors map to the cell they were on and die when their row falls off the oldest end or
+  is released below the cursor. Cursor, saved cursor and viewport anchors never die.
 
-## `ResizeOutcome`
-
-| Field | Meaning |
-|---|---|
-| `reflowed` | the column count changed, so the primary screen was re-laid out (true even if every line kept its row) |
-| `rows_trimmed` | primary rows that fell off the oldest end during the call; rows released at the bottom do not count |
-
-The struct is `#[non_exhaustive]`: read the fields, do not build it.
+`ResizeOutcome` is `#[non_exhaustive]`: `reflowed` says the primary screen was re-laid out,
+`rows_trimmed` counts primary rows that fell off the oldest end (not rows released at the bottom).
 
 ## Embedder checklist
 
 - Resize the PTY (`TIOCSWINSZ` or `ResizePseudoConsole`) as well: the program redraws on the signal.
-- Repaint what changed: every row a resize writes carries the new batch stamp, so a stamp-based
-  refresh picks them up; after a column change that is every primary row.
+- Repaint what changed: every row a resize writes carries the new batch stamp.
 - Drop selections and marks whose `Anchors::get` is `None` after `rows_trimmed > 0`.

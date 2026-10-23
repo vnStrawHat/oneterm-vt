@@ -156,6 +156,14 @@ impl<T: Copy + Eq + Hash + Default> InternTable<T> {
     pub fn exhausted(&self) -> u32 {
         self.exhausted
     }
+
+    /// Back to only id 0. Ids issued before are unknown afterwards, so the caller must hold
+    /// none; [`exhausted`](Self::exhausted) is kept.
+    pub(crate) fn clear(&mut self) {
+        self.entries.truncate(1);
+        self.index.clear();
+        self.index.insert(T::default(), 0);
+    }
 }
 
 /// Location of one cluster's bytes in the arena text.

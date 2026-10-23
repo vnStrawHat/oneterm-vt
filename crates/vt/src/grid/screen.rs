@@ -14,9 +14,9 @@ use std::ops::Range;
 use crate::cell::{Cell, CellContent, Style};
 use crate::grid::anchor::{AnchorId, AnchorKind, Anchors};
 use crate::grid::integrity::IntegrityViolation;
-use crate::grid::row::{Row, RowMut, RowRef, SeqNo};
+use crate::grid::row::{Row, RowFlags, RowMut, RowRef, SeqNo};
 use crate::grid::{MAX_ROWS, Pos, RowId, SCROLLBACK_MAX, ScrollRegion, Size, Viewport};
-use crate::intern::{GraphemeArena, Interner};
+use crate::intern::{GraphemeArena, GraphemeId, GraphemeRemap, Interner, StyleId};
 
 mod erase;
 mod integrity;
@@ -95,6 +95,11 @@ impl Cursor {
     /// The cell erases and blank rows are filled with.
     pub fn erase(&self) -> Cell {
         self.erase
+    }
+
+    /// The cell a printed glyph inherits: the pen's style, extras and semantic zone.
+    pub fn template(&self) -> Cell {
+        self.template
     }
 }
 
@@ -183,6 +188,18 @@ impl TabStops {
             .map_or(last, |offset| start + offset);
         // `next < cols <= MAX_COLS`.
         next.min(last) as u16
+    }
+
+    /// The last stop left of `col`, or column 0.
+    pub(crate) fn prev_before(&self, col: u16) -> u16 {
+        let end = usize::from(col).min(self.stops.len());
+        let prev = self
+            .stops
+            .get(..end)
+            .and_then(|head| head.iter().rposition(|&stop| stop))
+            .unwrap_or(0);
+        // `prev < cols <= MAX_COLS`.
+        prev as u16
     }
 }
 
@@ -461,12 +478,20 @@ impl Screen {
 
     /// The cell and erase cell for glyphs and erases from now on: the pen.
     pub(crate) fn set_template(&mut self, template: Cell, interner: &mut Interner) {
-        let bg = interner.resolve_style(template.style_id()).bg;
-        let erase_style = interner.style(Style {
-            bg,
-            ..Style::DEFAULT
-        });
         self.cursor.template = template;
+        let bg = interner.resolve_style(template.style_id()).bg;
+        // The erase cell carries only the pen's background, which rarely changes.
+        if interner.resolve_style(self.cursor.erase.style_id()).bg == bg {
+            return;
+        }
+        let erase_style = if bg == Style::DEFAULT.bg {
+            StyleId::DEFAULT
+        } else {
+            interner.style(Style {
+                bg,
+                ..Style::DEFAULT
+            })
+        };
         self.cursor.erase = Cell::EMPTY.with_style(erase_style);
     }
 
@@ -509,11 +534,30 @@ impl Screen {
         self.cursor.pending_wrap = false;
     }
 
-    /// Moves one column left; at column 0 it does nothing, pending wrap included.
-    pub(crate) fn backspace(&mut self) {
+    /// `BS`: one column left, pending wrap cleared. At column 0 it does nothing (pending wrap
+    /// included), except under reverse wrap: below the region top, when the row above wrapped
+    /// into this one, it moves to that row's last column.
+    pub(crate) fn backspace(&mut self, mode: PrintMode) {
         if self.cursor.pos.col > 0 {
             self.cursor.pos.col -= 1;
             self.cursor.pending_wrap = false;
+            return;
+        }
+        if !mode.reverse_wrap || self.cursor_row_index() <= self.region.top {
+            return;
+        }
+        let above = self.cursor.pos.row - 1;
+        if self.row(above).wrapped() {
+            self.cursor.pos.row = above;
+            self.cursor.pos.col = self.cols - 1;
+            self.cursor.pending_wrap = false;
+        }
+    }
+
+    /// `ESC (`, `)`, `*`, `+`: designates `charset` into `slot`; a slot above 3 is ignored.
+    pub(crate) fn designate_charset(&mut self, slot: u8, charset: Charset) {
+        if let Some(entry) = self.cursor.charsets.get_mut(usize::from(slot)) {
+            *entry = charset;
         }
     }
 
@@ -601,7 +645,7 @@ impl Screen {
     }
 
     /// Resets screen rows `first..end` by index.
-    fn reset_screen_rows(&mut self, first: u16, end: u16) {
+    pub(crate) fn reset_screen_rows(&mut self, first: u16, end: u16) {
         let top = self.screen_top();
         self.reset_rows(top + u64::from(first)..top + u64::from(end.min(self.rows)));
     }
@@ -803,32 +847,34 @@ impl Screen {
         }
     }
 
-    /// `IND`/`LF`: down one row, scrolling the region up at its bottom.
-    pub(crate) fn linefeed(&mut self, anchors: &mut Anchors) {
+    /// `IND`/`LF`: down one row, scrolling the region up at its bottom. Returns the report of
+    /// that scroll, `Some` exactly when one ran.
+    pub(crate) fn linefeed(&mut self, anchors: &mut Anchors) -> Option<ScrollReport> {
         let index = self.cursor_row_index();
         if index + 1 == self.region.bottom {
-            self.scroll_up(self.region, 1, anchors);
-            return;
+            return Some(self.scroll_up(self.region, 1, anchors));
         }
         if index + 1 < self.rows {
             self.cursor.pos.row = self.cursor.pos.row + 1;
         }
         self.sync_anchors(anchors);
         self.debug_check();
+        None
     }
 
-    /// `RI`: up one row, scrolling the region down at its top.
-    pub(crate) fn reverse_index(&mut self, anchors: &mut Anchors) {
+    /// `RI`: up one row, scrolling the region down at its top. Returns the report of that
+    /// scroll, `Some` exactly when one ran.
+    pub(crate) fn reverse_index(&mut self, anchors: &mut Anchors) -> Option<ScrollReport> {
         let index = self.cursor_row_index();
         if index == self.region.top {
-            self.scroll_down(self.region, 1, anchors);
-            return;
+            return Some(self.scroll_down(self.region, 1, anchors));
         }
         if index > 0 {
             self.cursor.pos.row = self.cursor.pos.row - 1;
         }
         self.sync_anchors(anchors);
         self.debug_check();
+        None
     }
 
     /// `IL`: opens `n` blank rows at the cursor row. `None` when the cursor is outside the region.
@@ -904,6 +950,68 @@ impl Screen {
         self.tabs = TabStops::new(self.cols);
         self.reset_screen_rows(0, self.rows);
         self.sync_anchors(anchors);
+        self.debug_check();
+    }
+
+    /// Changes the scrollback limit (clamped to [`SCROLLBACK_MAX`]); the same value does nothing.
+    ///
+    /// The oldest rows over a lower limit are trimmed at once (their anchors die). When the
+    /// ring size that fits the limit differs, the rows are moved to a ring of that size, once;
+    /// ids never change.
+    pub(crate) fn set_scrollback_limit(&mut self, limit: u32, anchors: &mut Anchors) {
+        let limit = limit.min(SCROLLBACK_MAX);
+        if limit == self.scrollback_limit {
+            return;
+        }
+        self.scrollback_limit = limit;
+        if self.trim_history() > 0 {
+            anchors.trim(self.kind.origin(), self.oldest);
+        }
+        self.offset = self.offset.min(self.history_len());
+        // At most `1_000_000 + 1024` slots.
+        let ring = (limit as usize + usize::from(MAX_ROWS)).next_power_of_two();
+        if ring != self.slots.len() {
+            let mask = (ring - 1) as u64;
+            let mut slots: Box<[Option<Row>]> =
+                std::iter::repeat_with(|| None).take(ring).collect();
+            for row in self.slots.iter_mut().filter_map(Option::take) {
+                // The mask is below `2^21`, so it fits `usize`.
+                if let Some(slot) = slots.get_mut((row.id().0 & mask) as usize) {
+                    *slot = Some(row);
+                }
+            }
+            self.slots = slots;
+            self.mask = mask;
+        }
+        self.sync_anchors(anchors);
+        self.debug_check();
+    }
+
+    /// The cluster ids held by the live rows flagged `HAS_GRAPHEME`, with repeats.
+    pub(crate) fn grapheme_ids(&self) -> impl Iterator<Item = GraphemeId> + '_ {
+        self.slots
+            .iter()
+            .flatten()
+            .filter(|row| row.header().flags.contains(RowFlags::HAS_GRAPHEME))
+            .flat_map(|row| {
+                row.cells().iter().filter_map(|cell| match cell.content() {
+                    CellContent::Grapheme(id) => Some(id),
+                    CellContent::Scalar(_) => None,
+                })
+            })
+    }
+
+    /// Rewrites the cluster ids of every live row flagged `HAS_GRAPHEME` through `remap`.
+    pub(crate) fn remap_graphemes(&mut self, remap: &GraphemeRemap) {
+        let mut id = self.oldest;
+        while id <= self.newest {
+            if self.row(id).flags().contains(RowFlags::HAS_GRAPHEME)
+                && let Some(mut row) = self.row_mut(id)
+            {
+                row.remap_graphemes(remap);
+            }
+            id = id + 1;
+        }
         self.debug_check();
     }
 
