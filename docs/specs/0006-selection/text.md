@@ -9,7 +9,7 @@ For row `r` and an inclusive column span `c0..=c1` (clamped to `cols - 1`), via 
 
 1. **Content end** `e`: a `WRAPPED` row -> `cols` (every cell belongs to the logical line).
    Otherwise `1 +` the last column whose cell is not **blank**, else 0. Blank = content
-   `Scalar(' ')` (spacers included, any style: a styled background is not text). Scan back from
+   `Scalar(' ')` or `Grapheme(GraphemeId(0))`, as `Cell::is_erasable` (spacers included, any style: a styled background is not text). Scan back from
    `occ` when the last cell is blank (cells at `col >= occ` equal the last cell); an unwritten
    row has `e = 0`.
 2. Emit columns `c0..min(c1 + 1, e)`:

@@ -18,8 +18,8 @@ appears when its phase lands; until then it is listed as *planned*.
 
 | # | Chapter | Covers | Phase | Status |
 |---|---|---|---|---|
-| 01 | `quickstart.md` | create a `Terminal`, feed bytes, read a snapshot | 7 | planned |
-| 02 | `threading.md` | who owns the lock, when to draw, synchronized output | 7 | planned |
+| 01 | `quickstart.md` | create a `Terminal`, feed bytes, drain events, print one snapshot as text | 7 | planned |
+| 02 | `threading.md` | who owns the lock, the two-phase hand-off, when to draw, `?2026` and its timeout | 7 | planned |
 | 03 | `events.md` | `EventBatch` and every `VtEvent`; answering `Reply`, `ColorQuery` (`ColorKey::color_reply`), `ClipboardLoad`; `OscRoutes` | 6 | planned |
 | 04 | `input.md` | keys and mouse to bytes; kitty flags, `modifyOtherKeys` | 9 | planned |
 | 05 | `search.md` | literal and `regex` scrollback search | 8 | planned |
@@ -34,7 +34,8 @@ appears when its phase lands; until then it is listed as *planned*.
 | 14 | `parser.md` | `parser::Parser` and `Dispatch` without a grid: strip, record, sniff sequences | 1 | ready |
 | 15 | [`cells-and-styles.md`](cells-and-styles.md) | `Cell`, `Style`, resolving ids through `intern::Interner`, `scalar_width` / `cluster_width` | 2 | ready |
 | 16 | [`grid.md`](grid.md) | `grid::TerminalGrid` and `Screen`: rows and `RowId`s, scrollback, viewport, reading rows | 3 | ready |
-| 17 | `selection.md` | `Selection`, `SelectionKind`, `Side`: ranges, word/line/block expansion, copied text, `Invalidation` before erases | 5 | planned |
+| 17 | [`selection.md`](selection.md) | `Selection`, `SelectionKind`, `Side`: ranges, word/line/block expansion, copied text, `Invalidation` before erases | 5 | ready |
+| 18 | `snapshot.md` | `SnapshotState` and `SnapshotUpdate` (`Full` / `Partial { scrolled }` / `Unchanged`), rows and style runs, `Palette` and theme vs OSC overrides, `ModeSnapshot`, `MouseProtocol` | 7 | planned |
 
 ## Features
 

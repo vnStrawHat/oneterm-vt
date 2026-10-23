@@ -39,7 +39,7 @@ mod screen;
 pub(crate) mod terminal_grid;
 
 #[cfg(test)]
-mod grid_fixture;
+pub(crate) mod grid_fixture;
 
 pub use anchor::{Anchor, AnchorId, AnchorKind, Anchors};
 pub use row::{Row, RowFlags, RowHeader, RowMut, RowRef, SeqNo};

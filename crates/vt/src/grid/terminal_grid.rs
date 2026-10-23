@@ -110,6 +110,16 @@ impl TerminalGrid {
         }
     }
 
+    /// The anchors of both screens, for readers.
+    pub(crate) fn anchors(&self) -> &Anchors {
+        &self.anchors
+    }
+
+    /// The anchors of both screens, for owners of content anchors such as selections.
+    pub(crate) fn anchors_mut(&mut self) -> &mut Anchors {
+        &mut self.anchors
+    }
+
     /// The active screen, borrowed apart from the anchors.
     fn active(&mut self) -> (&mut Screen, &mut Anchors) {
         let screen = if self.alt_active {

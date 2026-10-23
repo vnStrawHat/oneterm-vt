@@ -446,6 +446,10 @@ impl Screen {
         self.region
     }
 
+    pub(crate) fn tabs(&self) -> &TabStops {
+        &self.tabs
+    }
+
     pub(crate) fn tabs_mut(&mut self) -> &mut TabStops {
         &mut self.tabs
     }

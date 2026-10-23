@@ -79,3 +79,5 @@ selection is on); `cursor = screen.cursor().pos.row`.
 **`Terminal::hit_test(viewport_row: f32, col: f32) -> (Pos, Side)`** (phase 6): negative and NaN
 -> 0; row clamps to the viewport, col to `cols - 1`; `Pos.row = viewport.top + row`;
 `Side::Left` iff `col.fract() < 0.5`, and a col past the last column is `Right`.
+
+With ends in two lanes, `invalidated_by` answers from the primary screen; phase 6 prunes on dead ends, not lanes.
