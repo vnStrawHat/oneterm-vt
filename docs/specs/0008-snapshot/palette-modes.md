@@ -50,7 +50,7 @@ colors.get(ColorKey::Palette(i))`, `foreground`/`background`/`cursor` = the `For
 `Background`/`Cursor` overrides, each only where set; `bright_`/`dim_foreground` from the theme.
 Copying ~800 bytes is cheap under the lock; the embedder then calls `state.map_colors(&palette)`
 outside it. If D4 is ruled B, the embedder applies `colors().iter()` itself (same precedence,
-documented in `docs/user/snapshot.md`) and `State.theme` keeps the study's write-only role.
+documented in `docs/user/snapshot.md`) and `State.theme` stays write-only.
 
 `set_theme_colors`: `State.theme = *theme`; bumps `palette_epoch` only when it differs (**D2**),
 so the next update of every state is `Full` and remaps every row. `Terminal::new` starts with

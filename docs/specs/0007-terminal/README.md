@@ -39,7 +39,7 @@ chapters; **6e** bench tiers.
 - [ ] `vt-bench grid|resize|rss|all` work; numbers in bench.md "Acceptance notes"
 - [ ] Commit: `feat(terminal): Terminal, VT dispatch, events, OSC routes and replies` (minor)
 
-## Decisions (deviations from the study material marked *; advisor-reviewed)
+## Decisions (* = chosen over a simpler alternative; advisor-reviewed)
 
 1. One `StringTerm`: the root re-exports `parser::StringTerm`.
 2. * Wraps, HT and every scroll path return their `ScrollReport`; no `RowsTrimmed` or `rows_scrolled` is lost to an implicit wrap.
@@ -48,19 +48,19 @@ chapters; **6e** bench tiers.
 5. * DECSTBM clamped to an empty region is ignored (grid invariant `top < bottom`).
 6. * `?47`/`?1047`/`?1049` per spec 0004 (xterm); only 1049 saves/restores the cursor, so DECSC survives 47/1047.
 7. * SGR `21` = double underline (ECMA-48, xterm, our `Attrs` doc), not cancel-bold.
-8. DECSCA/DECSED/DECSEL stay out (counted); specs 0003/0004 had pencilled them in; roadmap and study do not have them.
-9. * End-of-feed grapheme sweep (spec 0003 promise; the study never sweeps).
+8. DECSCA/DECSED/DECSEL stay out (counted); specs 0003/0004 had pencilled them in; the roadmap does not have them.
+9. * End-of-feed grapheme sweep (spec 0003 promise).
 10. CAN/SUB count as unhandled (spec 0002 D3).
 11. * Behaviour extensions: empty OSC 0/2 -> `TitleReset`; `CursorStyleChanged` on every `cursor_style()` change (DECSCUSR, `?12`, `?25`, DECSTR, RIS), not only OSC 50.
-12. Forwarded OSCs keep the study's contract: the 16th param is re-split, one span per `;`-separated parameter (linear in the payload; large only with `large(n)`). * OSC 7 rejoins `;` and decodes only `file://`; * OSC 52 base64 canonical only.
+12. Forwarded OSCs: the 16th param is re-split, one span per `;`-separated parameter (linear in the payload; large only with `large(n)`). * OSC 7 rejoins `;` and decodes only `file://`; * OSC 52 base64 canonical only.
 13. OSC colour queries stay events; `ColorKey::color_reply` (wrapping `query_prefix`) pins the reply bytes.
 14. DA1 claims Sixel from phase 6 (lands in 10, before v0.1.0); `CSI 14 t` answers `4;0;0` until phase 10.
-15. Public surface = the study's, except: no `grid_mut`/`interner_mut` (`scroll_viewport` covers scrolling back and, with a large positive delta, scroll-to-bottom), no OSC 133 anchors, no `log`.
-16. * Deliberate contract changes: `ColorKey` drops the never-written `BrightForeground`/`DimForeground`/`Dim(u8)` (selection keys keep indices 269/270; 259..=268 is a gap) and is `#[non_exhaustive]`; `FeedStats` and `ClipboardKind` are `#[non_exhaustive]` (minor-version notes, events.md).
+15. Public surface (terminal.md) deliberately has no `grid_mut`/`interner_mut` (`scroll_viewport` covers scrolling back and, with a large positive delta, scroll-to-bottom), no OSC 133 anchors, no `log`.
+16. * Deliberate contract choices: `ColorKey` drops the never-written `BrightForeground`/`DimForeground`/`Dim(u8)` (selection keys keep indices 269/270; 259..=268 is a gap) and is `#[non_exhaustive]`; `FeedStats` and `ClipboardKind` are `#[non_exhaustive]` (minor-version notes, events.md).
 17. `set_theme_colors(&mut self, &Palette)` moves to phase 7 with `Palette` (nothing reads it before).
 18. `Config` stays exhaustive; `product_name: Option<Cow<'static, str>>`; a new field is a minor bump, stated in its rustdoc.
 
 ## Open items
 
-None. Every candidate question was settled by the study material, the standard or an earlier
-spec of ours; the advisor's verdicts are folded in (study public contract restored where asked).
+None. Every candidate question was settled by the standards or an earlier spec of
+ours; the advisor's verdicts are folded in.

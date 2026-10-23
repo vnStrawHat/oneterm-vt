@@ -25,9 +25,9 @@ impl ColorKey {
 | `SelectionBackground` | 269 | `17` | RIS only | `17` |
 | `SelectionForeground` | 270 | `19` | RIS only | `19` |
 
-`COLOR_COUNT = 271` (crate const). **Deliberate contract change vs the study material:** its
-`BrightForeground`, `DimForeground` and `Dim(u8)` keys (no sequence writes them) are removed; the
-indices are the study's (259..=268 is now a gap: `from_index` gives `None` there, its slots stay
+`COLOR_COUNT = 271` (crate const). **Deliberate contract choice:** no
+`BrightForeground`, `DimForeground` or `Dim(u8)` keys (no sequence writes them); indices
+259..=268 are a reserved gap ( `from_index` gives `None` there, its slots stay
 `None`), so `index`/`from_index` values are a stable contract; `ColorKey` is `#[non_exhaustive]` so a
 future key is a minor bump.
 

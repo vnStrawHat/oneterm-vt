@@ -42,17 +42,17 @@ mouse_reporting, set_theme_colors}` (+ `palette`, `SyncState::deadline` if D4/D5
 6. Internal only: hyperlink cache is an `FxHashMap` (no O(cells x links) scan); a colour change bumps `palette_epoch` only; no integrity walk inside `snapshot_update` (`feed` already ran it); sync deadlines use `checked_add` (no overflow panic).
 7. A resize inside an open `?2026` block is still suppressed (self-heals within 150 ms).
 
-## Deviations (reviewer rules A = as proposed, B = keep the study behaviour)
+## Design choices with alternatives (reviewer rules A = as proposed, B = the simpler alternative)
 
-| # | Proposed (A) | Study (B) | Evidence |
+| # | Proposed (A) | Simpler alternative (B) | Evidence |
 |---|---|---|---|
-| D1 | grid `seq < watermark` -> `Full` | `debug_assert!` (panics in debug, copies nothing in release) | `snapshot/state.rs:213`; a state kept across a recreated `Terminal` shows stale rows |
-| D2 | `set_theme_colors` bumps `palette_epoch` only when the theme differs | bumps on every call | `terminal/mod.rs:737-740`; calling it per frame makes every frame `Full` |
-| D3 | tier 3: `cells` = cells **copied** per frame, counted outside the timer; median of `RUNS` cycles | `cells` = viewport area (constant), timed; one sample | `tools/src/bench.rs:415-470`; the study's own "two known flaws" note at `:433-439` |
-| D4 | add `Terminal::palette() -> Palette` (theme with overrides applied) | stored theme has no reader | `terminal/mod.rs:58-60` says the theme answers colour queries, but queries are events (0007 D13); `:738` is its only use, a write |
-| D5 | add `SyncState::deadline() -> Option<Instant>` | no way to learn when to ask again | `snapshot/sync.rs:28-33` private deadlines; guide `03-threading.md` promises the timeout cannot freeze a renderer, but an event-driven renderer gets no further `Repaint` |
+| D1 | grid `seq < watermark` -> `Full` | `debug_assert!` (panics in debug, copies nothing in release) | a state kept across a recreated `Terminal` would show stale rows |
+| D2 | `set_theme_colors` bumps `palette_epoch` only when the theme differs | bump on every call | calling it per frame would make every frame `Full` |
+| D3 | tier 3: `cells` = cells **copied** per frame, counted outside the timer; median of `RUNS` cycles | `cells` = viewport area (constant), timed; one sample | a constant area says nothing about damage savings, counting inside the timer skews it, one sample is noise (bench.md) |
+| D4 | add `Terminal::palette() -> Palette` (theme with overrides applied) | stored theme has no reader | colour queries are events (0007 D13), so nothing else reads the theme; the embedder needs the effective palette |
+| D5 | add `SyncState::deadline() -> Option<Instant>` | no way to learn when to ask again | deadlines stay private; an event-driven renderer gets no further `Repaint`, so a `?2026` timeout could freeze it (sync.md) |
 
 ## Open items
 
-None. Every candidate question was answered from the study material, 0007's hooks or the grid
-contract (0004); the deviations above are the only points needing a ruling.
+None. Every candidate question was answered from the `?2026` convention (sync.md), 0007's hooks
+or the grid contract (0004); the design choices above are the only points needing a ruling.

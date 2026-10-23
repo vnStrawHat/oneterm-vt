@@ -76,7 +76,7 @@ same methods.
 
 Phase 10 adds `GraphicReleased(GraphicId)` (non-exhaustive: minor).
 
-**Minor-version notes** (contract changes vs the study material, recorded deliberately):
+**Minor-version notes** (contract choices, recorded deliberately):
 `ClipboardKind` and `FeedStats` are `#[non_exhaustive]` (new selections, new counters are minor
 bumps; `FeedStats` is read-only for embedders, built only via `Default`).
 

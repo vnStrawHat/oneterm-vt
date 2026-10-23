@@ -75,4 +75,4 @@ itself, so an absurd clock value suppresses nothing instead of panicking.
 
 Synchronized output (`CSI ? 2026 h/l`, DECRQM `CSI ? 2026 $ p`), as adopted by contemporary
 terminals: the terminal must not render partial updates while set and should time out. The
-150 ms / 1 s pair is the study's; DECRQM answers `1`/`2` (never `0`/`3`/`4`) since the mode is real.
+150 ms / 1 s pair (refresh, watchdog) is fixed by this spec; DECRQM answers `1`/`2` (never `0`/`3`/`4`) since the mode is real.

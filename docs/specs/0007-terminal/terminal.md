@@ -62,7 +62,7 @@ their `history_rows`. Wraps, ED 2 and screen switches add nothing. Never reset.
 | `feed(&mut self, bytes: &[u8], batch: &mut EventBatch, now: Instant) -> FeedStats` | below; `now` is unread until phase 7 (bind `_now`) |
 | `resize(&mut self, size, policy: ResizePolicy) -> ResizeOutcome` | `grid.resize`; drop the `?2027` carry; prune the selection |
 | `set_scrollback_limit(&mut self, limit: u32)` | store in `config`; `grid.set_scrollback_limit` (trims at once, re-rings if the ring size changes); prune the selection |
-| `scroll_viewport(&mut self, delta: i32)` | active screen's `scroll_viewport` + `sync_anchors`; negative = towards history, positive = towards output, clamped, so `scroll_viewport(i32::MAX)` is scroll-to-bottom (offset 0). Replaces the study's `grid_mut` for viewport scrolling; there is no `grid_mut` |
+| `scroll_viewport(&mut self, delta: i32)` | active screen's `scroll_viewport` + `sync_anchors`; negative = towards history, positive = towards output, clamped, so `scroll_viewport(i32::MAX)` is scroll-to-bottom (offset 0). Covers viewport scrolling; there is no `grid_mut` |
 | `grid() -> &TerminalGrid`, `screen() -> &Screen`, `interner() -> &Interner`, `config() -> &Config` | readers |
 | `stats() -> FeedStats` | the last feed's counters |
 | `size() -> Size`, `viewport() -> Viewport` | active screen |

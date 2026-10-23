@@ -60,8 +60,8 @@ impl SnapshotRow {
 
 `SnapshotState.hyperlinks`: cleared on every rebuild (`Full`), extended by every copy. Bounded by
 the interner's hyperlink table caps (spec 0003: 65,536 links, 4 MiB of text), because ids are
-reused only after `HyperlinkTable::clear` on RIS, and RIS bumps `generation`. A map instead of the
-study's `Vec` scan keeps a viewport of distinct links O(cells), not O(cells x links).
+reused only after `HyperlinkTable::clear` on RIS, and RIS bumps `generation`. A map instead of a
+`Vec` scan keeps a viewport of distinct links O(cells), not O(cells x links).
 
 ## `map_colors(&mut self, palette)`
 
