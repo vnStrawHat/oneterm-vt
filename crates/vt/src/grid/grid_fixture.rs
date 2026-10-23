@@ -1,9 +1,10 @@
 //! A grid plus the interner it needs, with helpers that check every invariant after each step.
 
-use crate::cell::{Cell, Style};
-use crate::grid::{PrintMode, RowId, Size, TerminalGrid};
+use crate::cell::{Cell, CellWidth, Style};
+use crate::grid::{Pos, PrintMode, RowId, Size, TerminalGrid};
 use crate::intern::Interner;
 use crate::width::scalar_width;
+use crate::{ResizeOutcome, ResizePolicy};
 
 pub(crate) struct Fixture {
     pub grid: TerminalGrid,
@@ -88,5 +89,70 @@ impl Fixture {
             .map(|index| self.index_text(index).trim_end().to_string())
             .collect::<Vec<_>>()
             .join("|")
+    }
+
+    /// Every live id of the active screen, oldest first.
+    pub fn live_ids(&self) -> Vec<RowId> {
+        let screen = self.grid.screen();
+        let mut ids = Vec::new();
+        let mut id = screen.oldest();
+        while id <= screen.newest() {
+            ids.push(id);
+            id = id + 1;
+        }
+        ids
+    }
+
+    /// Resizes the grid and checks every invariant.
+    pub fn resize(&mut self, rows: u16, cols: u16, policy: ResizePolicy) -> ResizeOutcome {
+        let outcome = self.grid.resize(Size { rows, cols }, policy);
+        self.check();
+        outcome
+    }
+
+    /// The active screen's logical lines, oldest first: rows joined on `WRAPPED`, spacers
+    /// skipped, trailing spaces trimmed.
+    pub fn lines(&self) -> Vec<String> {
+        let screen = self.grid.screen();
+        let mut lines = Vec::new();
+        let mut line = String::new();
+        for id in self.live_ids() {
+            line.push_str(&self.row_text(id));
+            if !screen.row(id).wrapped() {
+                lines.push(line.trim_end().to_string());
+                line.clear();
+            }
+        }
+        if !line.is_empty() {
+            lines.push(line.trim_end().to_string());
+        }
+        lines
+    }
+
+    /// A position as (logical line, offset in the line) on the active screen.
+    pub fn line_offset(&self, pos: Pos) -> (usize, usize) {
+        let screen = self.grid.screen();
+        let (mut line, mut offset) = (0, 0);
+        for id in self.live_ids().into_iter().take_while(|&id| id < pos.row) {
+            let row = screen.row(id);
+            if row.wrapped() {
+                let filler = row
+                    .cells()
+                    .last()
+                    .is_some_and(|cell| cell.width() == CellWidth::LeadingWideSpacer);
+                offset += row.cells().len() - usize::from(filler);
+            } else {
+                line += 1;
+                offset = 0;
+            }
+        }
+        (line, offset + usize::from(pos.col))
+    }
+
+    /// The cursor as (logical line, offset in the line, pending wrap).
+    pub fn cursor_at(&self) -> (usize, usize, bool) {
+        let cursor = self.grid.screen().cursor();
+        let (line, offset) = self.line_offset(cursor.pos);
+        (line, offset, cursor.pending_wrap)
     }
 }

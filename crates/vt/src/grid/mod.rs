@@ -14,7 +14,9 @@
 //! Content moves between ids in region scrolls, while a whole-screen scroll moves none.
 //! Consumers follow content with anchors ([`Anchors`]), never by storing a `RowId`.
 //!
-//! - Ids only grow per lane; RIS, ED 2 and ED 3 never reset them, and a live id is never reused.
+//! - Ids never rewind, except that a resize may release rows below the cursor; a released id
+//!   comes back only as a freshly stamped row. RIS, ED 2 and ED 3 never reset them, and a live id
+//!   is never reused. A column change gives every primary row a new id above all old ones.
 //! - Two lanes share one `u64` space: the primary screen counts from
 //!   [`RowId::PRIMARY_ORIGIN`], the alternate from [`RowId::ALT_ORIGIN`]. The screens grow
 //!   independently, so one counter could not keep both contiguous.
@@ -34,7 +36,7 @@ mod anchor;
 mod integrity;
 mod row;
 mod screen;
-mod terminal_grid;
+pub(crate) mod terminal_grid;
 
 #[cfg(test)]
 mod grid_fixture;

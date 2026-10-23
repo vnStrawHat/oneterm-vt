@@ -1248,12 +1248,14 @@ fn check_reports_bad_ids_history_ring_lane_and_region() {
 
     let (mut screen, _) = plain_screen();
     screen.newest = RowId(screen.slots.len() as u64 + 3);
+    screen.newest_issued = screen.newest;
     assert_eq!(screen.check_bounds(), Err(IntegrityViolation::RingOverflow));
 
     let (mut screen, _) = plain_screen();
     screen.scrollback_limit = 0;
     screen.oldest = RowId(0);
     screen.newest = RowId(10);
+    screen.newest_issued = screen.newest;
     assert_eq!(
         screen.check_bounds(),
         Err(IntegrityViolation::HistoryOverLimit)
@@ -1261,6 +1263,7 @@ fn check_reports_bad_ids_history_ring_lane_and_region() {
 
     let (mut screen, _) = plain_screen();
     screen.newest = RowId::ALT_ORIGIN + 5;
+    screen.newest_issued = screen.newest;
     screen.oldest = RowId::ALT_ORIGIN + 2;
     assert_eq!(screen.check_bounds(), Err(IntegrityViolation::LaneOverlap));
 
@@ -1327,4 +1330,15 @@ fn bounded_walk_starts_near_the_batch() {
     f.grid.screen_mut().scroll_viewport(-5);
     let screen = f.grid.screen();
     assert_eq!(screen.walk_start(), screen.visible_top() - 1);
+}
+
+#[test]
+fn check_reports_newest_past_newest_issued() {
+    let (mut screen, _) = plain_screen();
+    assert_eq!(screen.check_bounds(), Ok(()));
+    screen.newest_issued = screen.newest - 1;
+    assert_eq!(
+        screen.check_bounds(),
+        Err(IntegrityViolation::IdsOutOfOrder)
+    );
 }

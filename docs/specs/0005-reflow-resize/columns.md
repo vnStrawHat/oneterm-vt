@@ -58,13 +58,15 @@ content. Ids stay contiguous; consumers follow content with anchors (cursor-anch
 
 ## Scrollback cap during reflow
 
-`cap = scrollback_limit + rows` (current rows; the row resize runs after). When output exceeds
-`cap`, the oldest output row is dropped as the new one is stored (its buffer is recycled,
-algorithm.md); each drop adds 1 to `rows_trimmed`; points that landed on it die.
+`cap = scrollback_limit + rows` (current rows; the row resize runs after). The cap is applied
+**after** the cursor rule and padding below, so padding never evicts content: then the oldest
+output rows over `cap` are dropped (buffers recycled, algorithm.md); each drop adds 1 to
+`rows_trimmed`; points that landed on it die. Storing drops early only if the ring is full.
 
 **Cursor row stays on screen** (as in the row shrink, Decision 6): while the cursor's output row
-is above the last `rows` output rows and the newest output row is `None` and below the cursor,
-discard it (points on it die; its id never became live). If none is left, the cursor clamps.
+is above the last `rows` output rows (or the output is over `cap`) and the newest output row is
+`None` and below the cursor, discard it (points on it die; its id never became live). If none is
+left, the cursor clamps.
 Without this, padding rows added by a grow would push the cursor off screen on the way back.
 Then `None` rows are appended until the screen has `rows` rows (content stays at the top when
 there is no history to pull). `cap <= ring_len` always holds (ring sized `>= scrollback + MAX_ROWS`).

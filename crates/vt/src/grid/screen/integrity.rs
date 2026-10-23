@@ -13,7 +13,7 @@ use crate::intern::Interner;
 impl Screen {
     /// Checks the O(1) invariants.
     pub(crate) fn check_bounds(&self) -> Result<(), Violation> {
-        if self.oldest > self.newest {
+        if self.oldest > self.newest || self.newest > self.newest_issued {
             return Err(Violation::IdsOutOfOrder);
         }
         let span = self.newest.distance(self.oldest);

@@ -20,13 +20,13 @@ appears when its phase lands; until then it is listed as *planned*.
 |---|---|---|---|---|
 | 01 | `quickstart.md` | create a `Terminal`, feed bytes, read a snapshot | 7 | planned |
 | 02 | `threading.md` | who owns the lock, when to draw, synchronized output | 7 | planned |
-| 03 | `events.md` | every `VtEvent`, answering queries, OSC routes | 6 | planned |
+| 03 | `events.md` | `EventBatch` and every `VtEvent`; answering `Reply`, `ColorQuery` (`ColorKey::color_reply`), `ClipboardLoad`; `OscRoutes` | 6 | planned |
 | 04 | `input.md` | keys and mouse to bytes; kitty flags, `modifyOtherKeys` | 9 | planned |
 | 05 | `search.md` | literal and `regex` scrollback search | 8 | planned |
 | 06 | `graphics.md` | Sixel lifecycle, placements, what you draw | 10 | planned |
-| 07 | `resize.md` | `grid::TerminalGrid::resize`, `ResizePolicy` (PTY vs ConPTY), `ResizeOutcome`; what reflow keeps, what dies | 4, 6 | planned |
-| 08 | `limits.md` | ceilings on hostile input, `FeedStats` counters | 6 | planned |
-| 09 | `conformance.md` | supported, recognised-but-inert, known gaps | 6+ | planned |
+| 07 | [`resize.md`](resize.md) | `grid::TerminalGrid::resize`, `ResizePolicy` (PTY vs ConPTY), `ResizeOutcome`; what reflow keeps, what dies | 4, 6 | ready |
+| 08 | `limits.md` | every ceiling on hostile input and what happens past it; each `FeedStats` counter | 6 | planned |
+| 09 | `conformance.md` | supported sequences and modes, inert modes and their DECRQM answers, the DECRQCRA gate, known gaps | 6+ | planned |
 | 10 | `pty.md` | the `pty` transport with `polling`; platform differences | 11 | planned |
 | 11 | [`versioning.md`](versioning.md) | what to pin, the semver promise, MSRV, features | 0 | written |
 | 12 | `performance.md` | what is measured, history and chart | 12 | see [perf/](../perf/README.md) |

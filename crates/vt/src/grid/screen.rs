@@ -21,6 +21,8 @@ use crate::intern::{GraphemeArena, Interner};
 mod erase;
 mod integrity;
 mod print;
+mod reflow;
+mod resize;
 
 pub use erase::{DisplayClear, LineClear};
 pub use print::PrintMode;
@@ -161,6 +163,15 @@ impl TabStops {
         self.stops.fill(false);
     }
 
+    /// Resizes to `cols` columns: the kept prefix is untouched, new columns get the default
+    /// stop at every 8th absolute column.
+    pub(crate) fn resize(&mut self, cols: u16) {
+        let old = self.stops.len();
+        let new = usize::from(cols);
+        self.stops.truncate(new);
+        self.stops.extend((old..new).map(|col| col % 8 == 0));
+    }
+
     /// The first stop right of `col`, or the last column.
     pub(crate) fn next_after(&self, col: u16) -> u16 {
         let last = self.stops.len().saturating_sub(1);
@@ -191,6 +202,8 @@ pub struct Screen {
     mask: u64,
     oldest: RowId,
     newest: RowId,
+    /// The highest id this screen has ever had live; a resize may lower `newest` below it.
+    newest_issued: RowId,
     rows: u16,
     cols: u16,
     scrollback_limit: u32,
@@ -249,6 +262,7 @@ impl Screen {
             mask: (ring - 1) as u64,
             oldest,
             newest,
+            newest_issued: newest,
             rows: size.rows,
             cols: size.cols,
             scrollback_limit,
@@ -588,24 +602,36 @@ impl Screen {
         self.reset_rows(top + u64::from(first)..top + u64::from(end.min(self.rows)));
     }
 
-    /// Adds one id below the screen, trimming the oldest ids over the scrollback limit.
-    fn push_row(&mut self) {
-        self.newest = self.newest + 1;
+    /// Drops the oldest ids over the scrollback limit; returns how many.
+    fn trim_history(&mut self) -> u32 {
+        let mut trimmed = 0u32;
         while self.history_len() > self.scrollback_limit {
             let index = self.slot_index(self.oldest);
             if let Some(row) = self.slots.get_mut(index).and_then(Option::take) {
                 self.spare = Some(row);
             }
             self.oldest = self.oldest + 1;
+            trimmed = trimmed.saturating_add(1);
         }
-        let erase = self.cursor.erase;
-        // A plain blank row needs no stamp: nobody has seen the new id.
-        let row = (erase != Cell::EMPTY)
+        trimmed
+    }
+
+    /// Adds one id below the screen filled with `erase`, trimming the oldest ids over the
+    /// scrollback limit; returns how many it trimmed.
+    fn push_row(&mut self, erase: Cell) -> u32 {
+        self.newest = self.newest + 1;
+        let reissued = self.newest <= self.newest_issued;
+        self.newest_issued = self.newest_issued.max(self.newest);
+        let trimmed = self.trim_history();
+        // A plain blank row needs no stamp: nobody has seen the new id. A released id was seen,
+        // so it comes back stamped.
+        let row = (erase != Cell::EMPTY || reissued)
             .then(|| Row::recycle(self.spare.take(), self.newest, self.cols, self.seq, erase));
         let index = self.slot_index(self.newest);
         if let Some(slot) = self.slots.get_mut(index) {
             *slot = row;
         }
+        trimmed
     }
 
     fn swap_slots(&mut self, a: RowId, b: RowId) {
@@ -707,7 +733,7 @@ impl Screen {
         let old_newest = self.newest;
         let oldest_before = self.oldest;
         for _ in 0..n {
-            self.push_row();
+            self.push_row(self.cursor.erase);
         }
         // The cursors keep their screen index; the content below the region keeps it too.
         self.cursor.pos.row = self.cursor.pos.row + step;

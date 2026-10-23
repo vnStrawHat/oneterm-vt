@@ -19,3 +19,4 @@
 | [0004-grid](specs/0004-grid/README.md) | 3 | ready |
 | [0005-reflow-resize](specs/0005-reflow-resize/README.md) | 4 | ready |
 | [0006-selection](specs/0006-selection/README.md) | 5 | ready |
+| [0007-terminal](specs/0007-terminal/README.md) | 6 | ready |

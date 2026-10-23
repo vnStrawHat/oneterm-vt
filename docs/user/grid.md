@@ -61,9 +61,11 @@ assert!(!grid.alt_active() && grid.alt().history_len() == 0);
 
 ## Rows and ids
 
-- A `RowId` names a position in the stream, not a piece of content. Ids only grow and are never
-  reset by a clear or a reset. The primary screen counts from `RowId::PRIMARY_ORIGIN`, the
-  alternate from `RowId::ALT_ORIGIN`, so the two lanes never meet.
+- A `RowId` names a position in the stream, not a piece of content. Ids never rewind and are
+  never reset by a clear or a reset, except that a resize may release rows below the cursor; a
+  released id comes back only as a freshly stamped row (see [resize.md](resize.md)). The primary
+  screen counts from `RowId::PRIMARY_ORIGIN`, the alternate from `RowId::ALT_ORIGIN`, so the two
+  lanes never meet.
 - A scroll of the whole screen moves no content; a scroll of a region does, and content then
   changes id. Follow content with `Anchors`, never by keeping a `RowId` across edits.
 - Read a row with `Screen::row(id)`, a `RowRef`: `cells()`, `cell(col)` (blank past the end),

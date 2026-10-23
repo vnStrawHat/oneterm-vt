@@ -439,3 +439,91 @@ fn check_reports_ids_missing_from_the_interner() {
         Err(Violation::UnknownGrapheme { id: ID, col: 0 })
     );
 }
+
+// fit
+
+fn leading_spacer() -> Cell {
+    Cell::EMPTY.with_width(CellWidth::LeadingWideSpacer)
+}
+
+#[test]
+fn fit_truncates_and_pads() {
+    let mut row = row_with(6, "abc");
+    row.fit(3, SeqNo(9));
+    assert_eq!(text(&row), "abc");
+    assert_eq!(row.header().occ, 3);
+    assert_eq!(row.header().seq, SeqNo(9));
+    assert!(row.header().flags.contains(RowFlags::DIRTY));
+    row.fit(8, SeqNo(10));
+    assert_eq!(text(&row), "abc     ");
+    assert_eq!(row.cells().len(), 8);
+    row.check(8, None).expect("fit keeps the row valid");
+
+    // Truncation keeps the buffer.
+    let mut row = row_with(40, "abc");
+    let (capacity, address) = (row.bytes(), row.cells().as_ptr());
+    row.fit(5, SEQ);
+    assert_eq!((row.bytes(), row.cells().as_ptr()), (capacity, address));
+    row.check(5, None).expect("valid");
+}
+
+#[test]
+fn fit_repairs_edge_pairs() {
+    // A wide glyph cut in half becomes a blank.
+    let mut row = row_with(6, "ab");
+    let mut view = RowMut::new(&mut row, SEQ);
+    view.set(2, wide('W'));
+    row.fit(3, SEQ);
+    assert_eq!(widths(&row), [CellWidth::Narrow; 3]);
+    assert_eq!(text(&row), "ab ");
+    row.check(3, None).expect("valid");
+
+    // A leading spacer that is no longer in the last column becomes a blank.
+    let mut row = row_with(4, "ab");
+    RowMut::new(&mut row, SEQ).set(3, leading_spacer());
+    row.fit(8, SEQ);
+    assert!(
+        row.cells()
+            .iter()
+            .all(|cell| cell.width() == CellWidth::Narrow)
+    );
+    row.check(8, None).expect("valid");
+
+    // One that stays in the last column stays.
+    let mut row = row_with(4, "ab");
+    RowMut::new(&mut row, SEQ).set(3, leading_spacer());
+    row.fit(4, SEQ);
+    assert_eq!(row.cells()[3].width(), CellWidth::LeadingWideSpacer);
+    row.fit(2, SEQ);
+    row.check(2, None).expect("valid");
+}
+
+#[test]
+fn fit_occ_rule() {
+    // A blank last cell: the tail stays blank and occ only shrinks.
+    let mut row = row_with(8, "abc");
+    row.fit(10, SEQ);
+    assert_eq!(row.header().occ, 3);
+    row.fit(2, SEQ);
+    assert_eq!(row.header().occ, 2);
+
+    // A non-blank last cell: the old width is covered, so a pad stays valid.
+    let mut row = Row::new(ID, 4, SEQ, narrow('x'));
+    assert_eq!(row.header().occ, 0);
+    row.fit(9, SEQ);
+    assert_eq!(row.header().occ, 4);
+    row.check(9, None)
+        .expect("tail after the old width is blank");
+    row.fit(3, SEQ);
+    assert_eq!(row.header().occ, 3);
+    row.check(3, None).expect("valid");
+}
+
+#[test]
+fn from_cells_and_into_cells_round_trip() {
+    let cells = vec![narrow('a'), narrow('b'), Cell::EMPTY];
+    let row = Row::from_cells(ID, SEQ, cells.clone(), RowFlags::DIRTY, 2);
+    assert_eq!((row.id(), row.header().seq, row.header().occ), (ID, SEQ, 2));
+    row.check(3, None).expect("valid");
+    assert_eq!(row.into_cells(), cells);
+}

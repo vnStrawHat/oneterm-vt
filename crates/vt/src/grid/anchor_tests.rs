@@ -149,3 +149,34 @@ fn graphic_kind_carries_its_id() {
     assert!(!AnchorKind::Graphic(GraphicId(77)).is_screen_owned());
     assert!(AnchorKind::ViewportTop.is_screen_owned());
 }
+
+#[test]
+fn kill_keeps_slot_not_freed() {
+    let mut anchors = Anchors::new();
+    let a = mark(&mut anchors, 4);
+    anchors.kill(a);
+    assert_eq!(anchors.get(a), None);
+    assert_eq!(anchors.kind(a), Some(AnchorKind::Mark(1)));
+    assert_eq!(anchors.live(), 0);
+    // The slot was not freed: a new anchor does not take it.
+    let b = mark(&mut anchors, 5);
+    assert_ne!(a, b);
+    // The owner can still revive it, and killing an unknown id does nothing.
+    anchors.set(a, pos(6, 0));
+    assert_eq!(anchors.get(a), Some(pos(6, 0)));
+    anchors.kill(AnchorId(999));
+}
+
+#[test]
+fn clamp_columns_touches_only_content_anchors_of_the_lane() {
+    let mut anchors = Anchors::new();
+    let wide = anchors.register(AnchorKind::Mark(1), pos(RowId::ALT_ORIGIN.0, 9));
+    let narrow = anchors.register(AnchorKind::Mark(1), pos(RowId::ALT_ORIGIN.0 + 1, 2));
+    let primary = anchors.register(AnchorKind::Mark(1), pos(3, 9));
+    let cursor = anchors.register(AnchorKind::Cursor, pos(RowId::ALT_ORIGIN.0, 9));
+    anchors.clamp_columns(RowId::ALT_ORIGIN..RowId(u64::MAX), 4);
+    assert_eq!(anchors.get(wide), Some(pos(RowId::ALT_ORIGIN.0, 3)));
+    assert_eq!(anchors.get(narrow), Some(pos(RowId::ALT_ORIGIN.0 + 1, 2)));
+    assert_eq!(anchors.get(primary), Some(pos(3, 9)));
+    assert_eq!(anchors.get(cursor), Some(pos(RowId::ALT_ORIGIN.0, 9)));
+}

@@ -31,6 +31,10 @@ point each). Anchors in the alt lane are not collected.
    the last column. Otherwise `offset == length` is the cell after the text on the last row.
 4. A point whose output row was trimmed by the cap: `dest = None`.
 
+An armed cursor at `(r, cols - 1)` on a row that is already `WRAPPED` has `offset` = the start of
+the next row, so rule 2 maps it to `(next row, 0, unarmed)`: it is the same place in the text, so
+compare cursors as `(line, offset + pending)`.
+
 ## Applying the results (after the walk, before anything syncs)
 
 | Owner | `Some(pos)` | `None` |

@@ -152,6 +152,24 @@ impl Anchors {
         }
     }
 
+    /// Kills an anchor but keeps its slot, so the owner can still observe the death.
+    pub(crate) fn kill(&mut self, id: AnchorId) {
+        if let Some(entry) = self.entries.get_mut(id.0 as usize) {
+            entry.anchor.alive = false;
+        }
+    }
+
+    /// Clamps the column of every live content anchor with a row in `lane` to `cols - 1`.
+    pub(crate) fn clamp_columns(&mut self, lane: Range<RowId>, cols: u16) {
+        let last = cols.saturating_sub(1);
+        for entry in &mut self.entries {
+            let anchor = &mut entry.anchor;
+            if anchor.alive && !anchor.kind.is_screen_owned() && lane.contains(&anchor.pos.row) {
+                anchor.pos.col = anchor.pos.col.min(last);
+            }
+        }
+    }
+
     /// Frees an anchor's slot. The owner must not use the id afterwards.
     pub(crate) fn release(&mut self, id: AnchorId) {
         if let Some(entry) = self.entries.get_mut(id.0 as usize)

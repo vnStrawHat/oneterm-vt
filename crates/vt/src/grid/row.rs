@@ -141,6 +141,32 @@ impl Row {
         }
     }
 
+    /// Builds a row around a ready cell buffer. The caller promises that `occ` follows the
+    /// row invariant; the integrity walk checks the pairs, `occ` and the hints afterwards.
+    pub(crate) fn from_cells(
+        id: RowId,
+        seq: SeqNo,
+        cells: Vec<Cell>,
+        flags: RowFlags,
+        occ: u16,
+    ) -> Row {
+        debug_assert!(usize::from(occ) <= cells.len());
+        Row {
+            header: RowHeader {
+                id,
+                seq,
+                flags,
+                occ,
+            },
+            cells,
+        }
+    }
+
+    /// Gives up the row, keeping only its cell buffer for reuse.
+    pub(crate) fn into_cells(self) -> Vec<Cell> {
+        self.cells
+    }
+
     /// The row's id.
     pub fn id(&self) -> RowId {
         self.header.id
@@ -158,6 +184,41 @@ impl Row {
     /// Gives the row a new position; its content is considered changed.
     pub(crate) fn rehome(&mut self, id: RowId, seq: SeqNo) {
         self.header.id = id;
+        self.header.seq = seq;
+        self.header.flags |= RowFlags::DIRTY;
+    }
+
+    /// Truncates or pads the row with `Cell::EMPTY` to `cols` cells and repairs the new edge:
+    /// a `Wide` left in the last column, or a `LeadingWideSpacer` that is no longer there,
+    /// becomes a blank. `WRAPPED` is kept; the row is stamped and `DIRTY`. A truncation keeps
+    /// the buffer's capacity.
+    pub(crate) fn fit(&mut self, cols: u16, seq: SeqNo) {
+        let old_cols = self.cells.len();
+        let new_cols = usize::from(cols);
+        let old_last_blank = self.cells.last().is_none_or(|&cell| cell == Cell::EMPTY);
+        self.cells.resize(new_cols, Cell::EMPTY);
+        // A blank last cell means everything from `occ` on was blank, so the tail stays uniform.
+        let mut occ = if old_last_blank {
+            usize::from(self.header.occ).min(new_cols)
+        } else {
+            old_cols.min(new_cols)
+        };
+        // The old last column is inland only after a grow.
+        let old_edge = old_cols.checked_sub(1).filter(|&edge| edge + 1 < new_cols);
+        let new_edge = new_cols.checked_sub(1);
+        for (index, broken) in [
+            (old_edge, CellWidth::LeadingWideSpacer),
+            (new_edge, CellWidth::Wide),
+        ] {
+            let Some(index) = index else { continue };
+            if let Some(cell) = self.cells.get_mut(index)
+                && cell.width() == broken
+            {
+                *cell = blank_of(*cell);
+                occ = occ.max(index + 1);
+            }
+        }
+        self.header.occ = u16::try_from(occ).unwrap_or(u16::MAX);
         self.header.seq = seq;
         self.header.flags |= RowFlags::DIRTY;
     }

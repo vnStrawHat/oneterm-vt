@@ -8,10 +8,40 @@
 
 use crate::grid::anchor::Anchors;
 use crate::grid::integrity::IntegrityViolation;
-use crate::grid::row::SeqNo;
+use crate::grid::row::{Row, SeqNo};
 use crate::grid::screen::{DisplayClear, PrintMode, Screen, ScreenKind, ScrollReport};
 use crate::grid::{RowId, ScrollRegion, Size};
 use crate::intern::Interner;
+
+/// Where the content lands when the window changes size.
+///
+/// The two policies differ in how a resize treats the rows above and below the cursor; a viewport
+/// that follows output stays at the bottom under both, and a scrolled-back viewport keeps its
+/// top row.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
+pub enum ResizePolicy {
+    /// The bottom of the content stays at the bottom of the window: growing pulls history in at
+    /// the top and the cursor moves down with its row. For programs that redraw after the
+    /// resize signal (Unix PTYs, SSH).
+    #[default]
+    BottomAnchor,
+    /// The top row of the screen stays put, as the Windows console host does behind ConPTY:
+    /// the cursor lands on the row the host re-wraps it to, and new rows appear blank at the
+    /// bottom. For local Windows shells.
+    KeepViewportTop,
+}
+
+/// What a resize did.
+#[non_exhaustive]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
+pub struct ResizeOutcome {
+    /// The column count changed, so the primary screen was re-laid out. True even when every
+    /// line kept its row.
+    pub reflowed: bool,
+    /// Primary rows that left the oldest end of the history during the call; anchors on them
+    /// died. Rows released at the bottom are not counted.
+    pub rows_trimmed: u32,
+}
 
 /// A primary and an alternate screen, their anchors and the batch stamp.
 #[derive(Debug)]
@@ -21,6 +51,8 @@ pub struct TerminalGrid {
     alt_active: bool,
     anchors: Anchors,
     seq: SeqNo,
+    /// Detached rows during a column reflow; empty between calls, capacity kept.
+    reflow_rows: Vec<Option<Row>>,
 }
 
 impl TerminalGrid {
@@ -36,6 +68,7 @@ impl TerminalGrid {
             alt_active: false,
             anchors,
             seq: SeqNo(1),
+            reflow_rows: Vec::new(),
         }
     }
 
@@ -117,9 +150,63 @@ impl TerminalGrid {
         self.debug_check();
     }
 
-    /// Heap bytes held by both screens and the anchors.
+    /// Resizes both screens to `size` (clamped to 1..=1024 rows and 1..=2048 columns) and
+    /// moves the cursors, the viewport and the anchors with their content.
+    ///
+    /// A column change re-lays the primary screen out over its logical lines (rows joined by
+    /// `WRAPPED`, wide glyphs never split, trailing blanks trimmed) and clips or pads the
+    /// alternate screen. Every primary row then has a new id above all old ones, so follow
+    /// content with anchors, not row ids. A row-only change keeps ids. Anchors die when their
+    /// row falls off the oldest end of the history or is released below the cursor. The scroll
+    /// region is reset to the whole screen. A resize to the current size does nothing.
+    ///
+    /// `policy` picks where the content lands; see [`ResizePolicy`].
+    pub fn resize(&mut self, size: Size, policy: ResizePolicy) -> ResizeOutcome {
+        let size = size.clamped();
+        if size == self.primary.size() && size == self.alt.size() {
+            return ResizeOutcome::default();
+        }
+        self.begin_batch();
+        // The host measures where the cursor goes before anything moves.
+        let host_row =
+            (policy == ResizePolicy::KeepViewportTop).then(|| self.primary.host_cursor_row(size));
+        let follows_output = self.primary.scroll_offset() == 0;
+        let mut view_top = self.primary.visible_top();
+        let mut outcome = ResizeOutcome::default();
+        if size.cols != self.primary.cols() {
+            let reflow =
+                self.primary
+                    .reflow_columns(size.cols, &mut self.anchors, &mut self.reflow_rows);
+            outcome.reflowed = true;
+            outcome.rows_trimmed = reflow.trimmed;
+            view_top = reflow.view_top;
+        }
+        if size.cols != self.alt.cols() {
+            self.alt.clip_columns(size.cols, &mut self.anchors);
+        }
+        let primary_trimmed = self.primary.resize_rows(size.rows, &mut self.anchors);
+        // Whatever the alternate screen pushes is trimmed at once and not reported.
+        self.alt.resize_rows(size.rows, &mut self.anchors);
+        let mut shifted = 0;
+        if let Some(host_row) = host_row {
+            shifted = self.primary.shift_cursor_to(host_row, &mut self.anchors);
+        }
+        outcome.rows_trimmed = outcome
+            .rows_trimmed
+            .saturating_add(primary_trimmed)
+            .saturating_add(shifted);
+        self.primary.restate_viewport(follows_output, view_top);
+        self.sync_anchors();
+        self.debug_check();
+        outcome
+    }
+
+    /// Heap bytes held by both screens, the anchors and the reflow scratch list.
     pub fn heap_bytes(&self) -> usize {
-        self.primary.heap_bytes() + self.alt.heap_bytes() + self.anchors.heap_bytes()
+        self.primary.heap_bytes()
+            + self.alt.heap_bytes()
+            + self.anchors.heap_bytes()
+            + self.reflow_rows.capacity() * size_of::<Option<Row>>()
     }
 
     pub(crate) fn linefeed(&mut self) {
@@ -264,6 +351,12 @@ impl TerminalGrid {
 #[cfg(test)]
 #[path = "grid_props.rs"]
 mod grid_props;
+#[cfg(test)]
+#[path = "resize_props.rs"]
+mod resize_props;
+#[cfg(test)]
+#[path = "resize_tests.rs"]
+mod resize_tests;
 #[cfg(test)]
 #[path = "terminal_grid_tests.rs"]
 mod terminal_grid_tests;
