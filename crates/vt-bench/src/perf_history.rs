@@ -6,25 +6,64 @@ use std::path::Path;
 use std::str::FromStr;
 
 use anyhow::{Context, Result, anyhow, bail};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize)]
+/// One benchmark run. Field order is the JSON key order, which is the schema order.
+/// `#[serde(default)]` keeps older records readable.
+#[derive(Serialize, Deserialize)]
 pub(crate) struct PerfRecord {
-    version: String,
+    #[serde(default)]
+    pub(crate) engine: String,
+    pub(crate) version: String,
+    #[serde(default)]
+    pub(crate) date: String,
     pub(crate) machine: String,
+    #[serde(default)]
+    pub(crate) columns: u16,
+    #[serde(default)]
+    pub(crate) lines: u16,
+    #[serde(default)]
+    pub(crate) mib_per_fixture: u32,
+    #[serde(default)]
+    pub(crate) runs: u32,
     pub(crate) tiers: Tiers,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub(crate) struct Tiers {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) tier1_parser: Vec<Throughput>,
+    // Still required on read: the chart needs it.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) tier2_grid: Vec<Throughput>,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) struct Throughput {
     pub(crate) fixture: String,
     pub(crate) mib_per_second: f64,
+    #[serde(default)]
+    pub(crate) ns_per_byte: f64,
     pub(crate) spread_percent: f64,
+}
+
+/// The UTC calendar date `YYYY-MM-DD` of a Unix timestamp (days-to-civil algorithm).
+pub(crate) fn utc_date(unix_seconds: u64) -> String {
+    let days = i64::try_from(unix_seconds / 86_400).unwrap_or(0) + 719_468;
+    let era = days.div_euclid(146_097);
+    let day_of_era = days.rem_euclid(146_097);
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let shifted_month = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * shifted_month + 2) / 5 + 1;
+    let month = if shifted_month < 10 {
+        shifted_month + 3
+    } else {
+        shifted_month - 9
+    };
+    let year = year_of_era + era * 400 + i64::from(month <= 2);
+    format!("{year:04}-{month:02}-{day:02}")
 }
 
 /// A release version, `N.N.N`. Field order is semver order, so the derived `Ord` sorts releases.
@@ -122,6 +161,64 @@ mod tests {
         format!(
             r#"{{"version":"{version}","machine":"m","tiers":{{"tier2_grid":[{{"fixture":"f","mib_per_second":1.0,"ns_per_byte":1.0,"spread_percent":2.0}}]}}}}"#
         )
+    }
+
+    #[test]
+    fn utc_date_converts_known_timestamps() {
+        for (seconds, date) in [
+            (0, "1970-01-01"),
+            (951_782_400, "2000-02-29"),
+            (1_792_713_600, "2026-10-23"),
+            (4_107_542_400, "2100-03-01"),
+        ] {
+            assert_eq!(utc_date(seconds), date);
+        }
+    }
+
+    #[test]
+    fn tier1_only_record_serializes_in_schema_order() {
+        let record = PerfRecord {
+            engine: "oneterm-vt".into(),
+            version: "0.1.0".into(),
+            date: "2026-10-23".into(),
+            machine: "m".into(),
+            columns: 160,
+            lines: 45,
+            mib_per_fixture: 1,
+            runs: 5,
+            tiers: Tiers {
+                tier1_parser: vec![Throughput {
+                    fixture: "f".into(),
+                    mib_per_second: 1.0,
+                    ns_per_byte: 2.0,
+                    spread_percent: 3.0,
+                }],
+                tier2_grid: Vec::new(),
+            },
+        };
+        let json = serde_json::to_string(&record).unwrap();
+        assert!(!json.contains("tier2_grid"));
+        let keys = [
+            "engine",
+            "version",
+            "date",
+            "machine",
+            "columns",
+            "lines",
+            "mib_per_fixture",
+            "runs",
+            "tiers",
+            "tier1_parser",
+            "fixture",
+            "mib_per_second",
+            "ns_per_byte",
+            "spread_percent",
+        ];
+        let positions: Vec<usize> = keys
+            .iter()
+            .map(|key| json.find(&format!("\"{key}\"")).unwrap())
+            .collect();
+        assert!(positions.windows(2).all(|pair| pair[0] < pair[1]), "{json}");
     }
 
     #[test]

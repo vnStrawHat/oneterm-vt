@@ -34,7 +34,7 @@ pub trait Dispatch {
 | `osc_allows_large` | once per OSC, when its first param closes | must depend on `code` only (a pure answer keeps chunking invariant); a memory ceiling, not policy |
 | `dcs_hook` | final byte of a DCS header | same params guarantees as `csi`; payload follows |
 | `dcs_put` | one payload byte | at most `DCS_MAX_BYTES` per hook; bytes `0x00..=0x17, 0x19, 0x1C..=0x7E` only |
-| `dcs_unhook` | ESC, CAN/SUB, or the cap | exactly once per `dcs_hook`; `aborted` = CAN/SUB or cap |
+| `dcs_unhook` | ESC, CAN/SUB, or the cap | exactly once per `dcs_hook`, except after `reset`; `aborted` = CAN/SUB or cap |
 | `apc_start` | `ESC _`, `ESC X`, `ESC ^` | `introducer` is `b'_'` (APC), `b'X'` (SOS), `b'^'` (PM) |
 | `apc_put` | one payload byte | at most `DCS_MAX_BYTES` per start; any byte but CAN/SUB/ESC |
 | `apc_end` | ESC, CAN/SUB, or the cap | exactly once per `apc_start`, except after `reset` |

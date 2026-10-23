@@ -13,7 +13,7 @@
 - Unit of commit = one roadmap phase (spec + implementation + tests + user chapter) as one commit, or two at most when the spec was finished in an earlier session (`docs(spec): ...` first, `feat(<scope>): ...` second).
 - Review fixes (advisor findings, fmt/clippy fixups, typos) are folded into the phase commit before it is made; they never become their own commits.
 - Separate commits only for: a bug fix after the phase landed (`fix`), a measured perf change (`perf`), CI/build changes (`ci`/`build`), a release (`release`).
-- Commits are made by the orchestrator only when the owner asks; agents never commit.
+- The orchestrator commits on its own as soon as a phase (or a review-fix round) is green; it never asks first. Agents never commit.
 - The release kind (`patch|minor|major`) is the highest bump among commits since the last tag.
 - Rebase/squash locally before push is fine; never rewrite pushed history.
 

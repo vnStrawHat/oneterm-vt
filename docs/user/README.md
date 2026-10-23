@@ -31,7 +31,8 @@ appears when its phase lands; until then it is listed as *planned*.
 | 11 | [`versioning.md`](versioning.md) | what to pin, the semver promise, MSRV, features | 0 | written |
 | 12 | `performance.md` | what is measured, history and chart | 12 | see [perf/](../perf/README.md) |
 | 13 | `api-map.md` | every public type in one table: what it is for | 13 | planned |
-| 14 | `parser.md` | `parser::Parser` and `Dispatch` without a grid: strip, record, sniff sequences | 1 | planned |
+| 14 | `parser.md` | `parser::Parser` and `Dispatch` without a grid: strip, record, sniff sequences | 1 | ready |
+| 16 | `grid.md` | `grid::TerminalGrid` and `Screen`: rows and `RowId`s, scrollback, viewport, reading rows | 3 | planned |
 
 ## Features
 

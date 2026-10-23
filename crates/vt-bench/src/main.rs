@@ -1,20 +1,28 @@
 //! `vt-bench`: benchmark tiers and the perf-history chart for `oneterm-vt`.
 
 mod chart;
+mod fixtures;
 mod perf_history;
+mod throughput;
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
+
+use crate::fixtures::{COLUMNS, LINES};
+use crate::perf_history::{PerfRecord, Throughput, Tiers};
+use crate::throughput::{CHUNK, RUNS};
 
 const USAGE: &str = "\
 vt-bench <command> [flags]
 
 Measure (lands phase by phase; see the roadmap):
-  all | parser | grid | render | resize | rss | fixtures
+  all | parser | grid | render | resize | rss
       [--mib N] [--frames N] [--json] [--out FILE] [--machine TEXT]
+  fixtures --out DIR [--mib N]     write the ten benchmark streams as DIR/<name>.vt
   grid --check [--baseline FILE] [--tolerance R]
 
 Report:
@@ -45,6 +53,8 @@ fn run(args: &[String]) -> ExitCode {
             return ExitCode::SUCCESS;
         }
         "chart" => chart_command(&args[1..]).map(|out| println!("wrote {}", out.display())),
+        "parser" | "all" => parser_command(&args[1..]).map(|text| print!("{text}")),
+        "fixtures" => fixtures_command(&args[1..]).map(|text| print!("{text}")),
         _ if MEASURE_COMMANDS.contains(&command) => {
             Err(anyhow::anyhow!("'{command}' is not implemented yet"))
         }
@@ -86,6 +96,124 @@ fn chart_command(args: &[String]) -> Result<PathBuf> {
     Ok(out)
 }
 
+const DEFAULT_MIB: usize = 32;
+
+struct MeasureOptions {
+    mib: usize,
+    json: bool,
+    has_frames: bool,
+    machine: Option<String>,
+    out: Option<PathBuf>,
+}
+
+/// Reads the flags shared by the measure commands. `--frames` is accepted and unused until tier 3.
+fn parse_measure_options(command: &str, args: &[String]) -> Result<MeasureOptions> {
+    let mut options = MeasureOptions {
+        mib: DEFAULT_MIB,
+        json: false,
+        has_frames: false,
+        machine: None,
+        out: None,
+    };
+    let mut iter = args.iter();
+    while let Some(flag) = iter.next() {
+        if flag == "--json" {
+            options.json = true;
+            continue;
+        }
+        if !matches!(flag.as_str(), "--mib" | "--frames" | "--out" | "--machine") {
+            bail!("unknown flag '{flag}' for '{command}'");
+        }
+        let Some(value) = iter.next() else {
+            bail!("flag '{flag}' needs a value");
+        };
+        match flag.as_str() {
+            "--mib" => {
+                options.mib = value
+                    .parse()
+                    .ok()
+                    .filter(|mib| (1..=4096).contains(mib))
+                    .with_context(|| {
+                        format!("--mib needs a whole number 1..=4096, got '{value}'")
+                    })?;
+            }
+            "--out" => options.out = Some(PathBuf::from(value)),
+            "--machine" => options.machine = Some(value.clone()),
+            "--frames" => options.has_frames = true,
+            _ => {}
+        }
+    }
+    if options.json && options.machine.is_none() {
+        bail!("--json needs --machine");
+    }
+    Ok(options)
+}
+
+/// Tier 1 (`parser`, and `all` while it is the only tier). Returns the text for stdout.
+fn parser_command(args: &[String]) -> Result<String> {
+    let options = parse_measure_options("parser", args)?;
+    let rows = throughput::measure_tier(options.mib, throughput::parser_pass);
+    let report = if options.json {
+        render_json(&options, rows)?
+    } else {
+        render_report(&options, &rows)
+    };
+    match options.out {
+        Some(path) => {
+            write_file(&path, &report)?;
+            Ok(format!("wrote {}\n", path.display()))
+        }
+        None => Ok(report),
+    }
+}
+
+fn render_report(options: &MeasureOptions, rows: &[Throughput]) -> String {
+    let mut report = format!(
+        "# vt-bench: oneterm-vt {}\n\nGeometry {COLUMNS}x{LINES}, {} MiB per fixture, median of {RUNS} cycles after 1 warm-up, {} KiB chunks.\n",
+        env!("CARGO_PKG_VERSION"),
+        options.mib,
+        CHUNK / 1024,
+    );
+    if let Some(machine) = &options.machine {
+        report.push_str(&format!("Machine: {machine}\n"));
+    }
+    report.push_str("\n## Tier 1: parser alone (null Dispatch)\n\n");
+    report.push_str(&throughput::render_table(rows));
+    report
+}
+
+fn render_json(options: &MeasureOptions, tier1_parser: Vec<Throughput>) -> Result<String> {
+    let seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_secs());
+    let record = PerfRecord {
+        engine: "oneterm-vt".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        date: perf_history::utc_date(seconds),
+        machine: options.machine.clone().unwrap_or_default(),
+        columns: COLUMNS as u16,
+        lines: LINES as u16,
+        mib_per_fixture: options.mib as u32,
+        runs: RUNS as u32,
+        tiers: Tiers {
+            tier1_parser,
+            tier2_grid: Vec::new(),
+        },
+    };
+    Ok(serde_json::to_string_pretty(&record)? + "\n")
+}
+
+/// `fixtures --out DIR [--mib N]`. Returns one line per written file.
+fn fixtures_command(args: &[String]) -> Result<String> {
+    let options = parse_measure_options("fixtures", args)?;
+    if options.json || options.machine.is_some() || options.has_frames {
+        bail!("'fixtures' takes only --out and --mib");
+    }
+    let dir = options.out.context("'fixtures' needs --out DIR")?;
+    let lines = fixtures::write_fixtures(&dir, options.mib)?;
+    Ok(lines.iter().map(|line| format!("{line}\n")).collect())
+}
+
 fn write_file(path: &Path, contents: &str) -> Result<()> {
     if let Some(parent) = path
         .parent()
@@ -109,6 +237,51 @@ mod tests {
         ] {
             assert!(USAGE.contains(name), "{name}");
         }
+    }
+
+    fn strings(parts: &[&str]) -> Vec<String> {
+        parts.iter().map(ToString::to_string).collect()
+    }
+
+    #[test]
+    fn json_needs_a_machine() {
+        let error = parse_measure_options("parser", &strings(&["--json"]))
+            .err()
+            .unwrap();
+        assert!(format!("{error:#}").contains("--machine"));
+        let ok = parse_measure_options("parser", &strings(&["--json", "--machine", "m"])).unwrap();
+        assert!(ok.json);
+        assert_eq!(ok.machine.as_deref(), Some("m"));
+    }
+
+    #[test]
+    fn mib_is_ranged_and_defaults_to_32() {
+        assert_eq!(parse_measure_options("parser", &[]).unwrap().mib, 32);
+        for bad in ["0", "4097", "x"] {
+            assert!(parse_measure_options("parser", &strings(&["--mib", bad])).is_err());
+        }
+        assert_eq!(
+            parse_measure_options("parser", &strings(&["--mib", "4096"]))
+                .unwrap()
+                .mib,
+            4096
+        );
+    }
+
+    #[test]
+    fn fixtures_needs_out() {
+        let error = fixtures_command(&strings(&["--mib", "1"])).unwrap_err();
+        assert!(format!("{error:#}").contains("--out"));
+    }
+
+    #[test]
+    fn report_names_geometry_and_machine() {
+        let options = parse_measure_options("parser", &strings(&["--machine", "box"])).unwrap();
+        let report = render_report(&options, &[]);
+        assert!(report.starts_with("# vt-bench: oneterm-vt "));
+        assert!(report.contains("Geometry 160x45, 32 MiB per fixture, median of 5 cycles after 1 warm-up, 64 KiB chunks."));
+        assert!(report.contains("Machine: box\n"));
+        assert!(report.contains("## Tier 1: parser alone (null Dispatch)"));
     }
 
     #[test]

@@ -92,10 +92,45 @@ order: `engine` `"oneterm-vt"`, `version` from `CARGO_PKG_VERSION`, `date` UTC `
 run, `machine`, `columns` 160, `lines` 45, `mib_per_fixture`, `runs` 5, `tiers` with
 `tier1_parser` only (empty tiers are omitted). No `note` field.
 
-## Acceptance notes (coder fills in after the gate passes)
+## Acceptance notes
 
-Machine: ___ . Command: `cargo run -p oneterm-vt-bench --release -- parser --mib 32`.
+Machine: Intel Core i7-12700 (12C/20T), Windows 11 26300, rustc 1.96.0, release profile.
+Command: `cargo run -p oneterm-vt-bench --release -- parser --mib 32`. One run of the shipped
+build (`memchr(ESC)` ground scan):
 
 | Fixture | MiB/s | ns/B | spread |
 |---|---:|---:|---:|
-| (paste the 10 rows) | | | |
+| `plain_ascii` | 527.0 | 1.81 | 32% |
+| `long_lines` | 718.4 | 1.33 | 58% |
+| `heavy_sgr` | 157.9 | 6.04 | 38% |
+| `tui_redraw` | 189.1 | 5.04 | 62% |
+| `scroll_region` | 483.5 | 1.97 | 44% |
+| `cjk_wide` | 438.7 | 2.17 | 50% |
+| `dense_cells` | 150.4 | 6.34 | 18% |
+| `scrolling` | 565.6 | 1.69 | 31% |
+| `sixel` | 255.6 | 3.73 | 43% |
+| `osc_9_7` | 287.8 | 3.31 | 23% |
+
+Spreads of 20-60% mean the machine was noisy (desktop, other processes); only differences larger
+than that are real. Expect to re-record on a quiet machine.
+
+### Ground scan: `memchr(ESC)` vs `memchr3(ESC, LF, CR)` (D5)
+
+Both variants were built and run alternately, three `parser --mib 32` runs each; MiB/s, median of
+the three runs per fixture:
+
+| Fixture | `memchr(ESC)` | `memchr3(ESC, LF, CR)` |
+|---|---:|---:|
+| `plain_ascii` | 449.5 | 355.7 |
+| `long_lines` | 503.6 | 518.7 |
+| `heavy_sgr` | 142.0 | 126.9 |
+| `tui_redraw` | 179.7 | 165.4 |
+| `scroll_region` | 453.2 | 325.6 |
+| `cjk_wide` | 393.3 | 401.9 |
+| `dense_cells` | 125.2 | 120.4 |
+| `scrolling` | 488.0 | 439.7 |
+| `sixel` | 250.5 | 241.3 |
+| `osc_9_7` | 240.1 | 208.4 |
+
+Verdict: `memchr(ESC)` is faster on 8 of 10 fixtures (`plain_ascii` +26%, `scroll_region` +39%) and
+level within noise on the other two; D5 stands and `memchr3` was dropped.
