@@ -5,7 +5,7 @@
 - **Lints** are set once in the root `Cargo.toml` (`[workspace.lints]`); every crate opts in with `[lints] workspace = true`. `unwrap_used`, `todo`, `dbg_macro` are denied outside tests.
 - **Quality gate** before reporting work done:
   - `cargo fmt --all -- --check`
-  - `cargo clippy --workspace --all-targets -- -D warnings`
+  - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
   - `cargo test --workspace`
 - **Shell/tooling rules for agents:**
   - Use Git Bash + GNU coreutils (no PowerShell).

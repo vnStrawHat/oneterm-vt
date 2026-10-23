@@ -1,12 +1,14 @@
-# <Project name>
+# oneterm-vt
 
-<One line: what this Rust project is.>
+Embeddable terminal core in Rust (VT parser, grid, reflow, selection, snapshots, input encoders, Sixel, PTY), built phase by phase per `docs/roadmap.md`.
 
 ## Crate layout
 
-- `crates/app` — package/binary `app`: entry point. Add one crate per domain under `crates/`.
+- `crates/vt` — package `oneterm-vt`, lib: the terminal engine. Features: `pty` (default), `vt-paranoid`, `regex`, `hotpath-profiling`.
+- `crates/vt-bench` — package `oneterm-vt-bench`, bin `vt-bench`: benchmark tiers and `chart`. Developer tool, never a dependency of `oneterm-vt`.
 
 Cargo virtual workspace at the root; shared versions, lints, and profiles live in the root `Cargo.toml`.
+Docs: `docs/roadmap.md` (plan), `docs/specs/` (per phase), `docs/user/` (embedder guide), `docs/perf/` (perf history). Release: `scripts/release.sh <version>`.
 
 ## Environment rules
 
@@ -15,6 +17,7 @@ Cargo virtual workspace at the root; shared versions, lints, and profiles live i
 - Use Git Bash + GNU coreutils for shell work, never PowerShell (the PowerShell tool does not receive the hook's env on Windows).
 - Every find/grep/ls must target an explicit folder inside the project; never scan a drive.
 - Do not commit unless asked.
+- Commits follow `docs/agents/commits.md` (Conventional Commits, one commit per green phase).
 - Keep docs short: split by topic into files ≤ ~120 lines with a README.md index.
 
 ## Build and disk
@@ -30,7 +33,7 @@ Before reporting work done:
 
 ```bash
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
+cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
 ```
 

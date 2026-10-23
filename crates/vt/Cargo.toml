@@ -1,0 +1,22 @@
+[package]
+name = "oneterm-vt"
+description = "An embeddable terminal core: VT parser, grid with scrollback, reflow, selection, damage-tracked snapshots, Sixel and an optional pseudo-console transport."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = ["pty"]
+# Pseudo-console transport (ConPTY / openpty). Gains its dependencies in phase 11.
+pty = []
+# Whole-history integrity walk after every mutation; for tests, fuzzing and CI only.
+vt-paranoid = []
+# Regular-expression scrollback search. Gains `dep:regex` in phase 8.
+regex = []
+# `hotpath::measure` sites on hot paths. Gains `dep:hotpath` in phase 12.
+hotpath-profiling = []
+
+[lints]
+workspace = true

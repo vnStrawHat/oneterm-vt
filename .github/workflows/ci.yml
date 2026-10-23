@@ -1,0 +1,52 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  check:
+    name: check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned toolchain
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        if: runner.os == 'Linux'
+        run: cargo fmt --all -- --check
+      - name: Shell scripts
+        if: runner.os == 'Linux'
+        run: shellcheck scripts/*.sh
+      - name: Clippy (all features)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Test
+        run: cargo test --workspace
+      - name: Test with all features
+        if: runner.os == 'Linux'
+        run: cargo test --workspace --all-features
+      - name: Without default features
+        if: runner.os == 'Linux'
+        run: |
+          cargo clippy -p oneterm-vt --all-targets --no-default-features -- -D warnings
+          cargo test -p oneterm-vt --no-default-features
+      - name: Docs
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: |
+          cargo doc --workspace --no-deps
+          cargo doc --workspace --no-deps --all-features

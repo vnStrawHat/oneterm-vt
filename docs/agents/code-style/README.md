@@ -15,7 +15,7 @@ Rules are split by topic:
 Before considering work complete, ensure:
 
 - `cargo fmt` passes.
-- `cargo clippy` passes without introducing unnecessary `#[allow]` attributes.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` passes without introducing unnecessary `#[allow]` attributes.
 - `cargo test` passes.
 - New behavior is covered by tests.
 - New code follows existing crate conventions.

@@ -10,7 +10,7 @@ The main session is the orchestrator. It only orchestrates (assigns work, relays
 4. `coder` implements the spec, with unit tests and a passing quality gate.
 5. `coder-lite` re-runs the quality gate and reports evidence.
 6. `advisor` reviews the diff against the spec and `docs/agents/code-style/`.
-7. Orchestrator reports to the user.
+7. Orchestrator reports to the user and, when asked, commits per docs/agents/commits.md.
 
 Deviations from the spec go back to the architect (or the orchestrator), never silently into code.
 

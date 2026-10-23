@@ -3,7 +3,7 @@
 ## Style & format
 
 - Run `cargo fmt` before committing. Config lives in `.rustfmt.toml`.
-- `cargo clippy --workspace --all-targets -- -D warnings` **must pass** before merging.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` **must pass** before merging.
 - Naming: `snake_case` (function, variable, module), `PascalCase` (type, trait, enum variant), `SCREAMING_SNAKE_CASE` (const).
 - **English-only** — all code comments, doc comments (`///`), and any written content in the codebase **must be in English**. This is a hard rule with zero exceptions.
 - Group imports, separated by a blank line: std, external crates, this crate.
