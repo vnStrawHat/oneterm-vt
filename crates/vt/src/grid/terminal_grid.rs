@@ -138,6 +138,12 @@ impl TerminalGrid {
         self.seq
     }
 
+    /// The stamp of the current batch: every row changed since the last [`begin_batch`](Self::begin_batch)
+    /// carries it, and a consumer that has read up to it needs only rows stamped higher.
+    pub(crate) fn seq(&self) -> SeqNo {
+        self.seq
+    }
+
     /// Writes both screens' cursor and viewport anchors back from their fields. Operations
     /// that take no anchors leave them stale until this runs.
     pub fn sync_anchors(&mut self) {

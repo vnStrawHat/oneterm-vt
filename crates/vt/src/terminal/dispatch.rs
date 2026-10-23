@@ -1,6 +1,8 @@
 //! The parser's sink: routes every call to the module that does the work, and handles C0
 //! controls, ESC, DCS and APC itself.
 
+use std::time::Instant;
+
 use crate::cell::{Cell, CellContent};
 use crate::events::{EventBatch, VtEvent};
 use crate::grid::{Charset, ScrollReport};
@@ -15,6 +17,8 @@ use super::query::{DcsQuery, QUERY_MAX_BYTES};
 pub(super) struct Handler<'a> {
     pub(super) state: &'a mut State,
     pub(super) out: &'a mut EventBatch,
+    /// The time of the feed, for synchronized output deadlines.
+    pub(super) now: Instant,
 }
 
 impl Handler<'_> {
@@ -132,6 +136,7 @@ impl Handler<'_> {
     /// DECALN: fills the screen with `E`, default style; cursor and region stay.
     fn align_test(&mut self) {
         self.state.invalidate(Invalidation::EraseScreen);
+        self.state.bump_generation();
         let screen = self.state.grid.screen_mut();
         let cell = Cell::EMPTY.with_content(CellContent::Scalar('E'));
         let cols = screen.cols();

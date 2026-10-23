@@ -73,5 +73,27 @@ is deterministic, so every cycle agrees). `--frames N` sets `frames`.
 
 ## Acceptance notes
 
-Machine, command (`cargo run -p oneterm-vt-bench --release -- all --mib 32`) and the tier-3 table
-are pasted here by the coder after the phase lands (informational; phase 12 sets targets).
+Informational (phase 12 sets targets). Machine: Intel Core, family 6 model 151 (Alder Lake), 20 logical
+CPUs, Windows 11 10.0.26300, rustc 1.96.0, release profile, nothing else building. Command:
+`cargo build -p oneterm-vt-bench --release` then `target/release/vt-bench.exe all --mib 32` (the same
+run `cargo run -p oneterm-vt-bench --release -- all --mib 32` makes), 160x45, 600 frames of 512 bytes,
+median of 5 cycles after 1 warm-up. Tier 3:
+
+| Fixture | us/frame | cells/frame |
+|---|---:|---:|
+| `plain_ascii` | 4.2 | 1364 |
+| `long_lines` | 2.2 | 670 |
+| `heavy_sgr` | 1.1 | 186 |
+| `tui_redraw` | 16.5 | 5160 |
+| `scroll_region` | 20.5 | 6846 |
+| `cjk_wide` | 1.6 | 497 |
+| `dense_cells` | 1.5 | 204 |
+| `scrolling` | 2.2 | 664 |
+| `osc_9_7` | 4.9 | 1622 |
+
+Reading it: `cells` is cells copied per frame (a row is 160 cells; 1364 is about 8.5 rows), so cost
+follows damage, not the 7,200-cell viewport. A scrolling frame copies the rows that moved in plus the
+rows written since the last frame, and a rotated row written this frame is copied again, so a few
+lines of output copy more rows than lines. `tui_redraw` and `scroll_region` re-stamp most rows each
+frame and pay for it; `dense_cells` is cheap per frame because 512 bytes of 256-colour SGR touch about
+one row.

@@ -8,6 +8,8 @@ use crate::events::VtEvent;
 use crate::grid::CursorOrigin;
 use crate::selection::Invalidation;
 
+use crate::snapshot::{ModeSnapshot, MouseEncoding, MouseProtocol, MouseReporting};
+
 use super::csi::Args;
 use super::dispatch::Handler;
 use super::{Shifts, State};
@@ -71,7 +73,8 @@ pub enum Mode {
     SaveCursor1048,
     /// `?2004`: bracketed paste.
     BracketedPaste,
-    /// `?2026`: synchronized output; stored only.
+    /// `?2026`: synchronized output; the renderer holds frames while it is set (see
+    /// [`SyncState`](crate::SyncState)).
     SyncUpdate,
     /// `?2027`: grapheme clustering; a cluster takes one cell.
     GraphemeClusters,
@@ -145,6 +148,20 @@ const MOUSE_PROTOCOLS: [Mode; 4] = [
 /// The mouse encoding modes; at most one is on.
 const MOUSE_ENCODINGS: [Mode; 3] = [Mode::Utf8Mouse, Mode::SgrMouse, Mode::UrxvtMouse];
 
+/// The reporting mode that wins when more than one bit is set, strongest first.
+const MOUSE_REPORTING_PRIORITY: [(Mode, MouseReporting); 4] = [
+    (Mode::MouseMotion, MouseReporting::AnyEvent),
+    (Mode::MouseDrag, MouseReporting::ButtonEvent),
+    (Mode::MouseClick, MouseReporting::Normal),
+    (Mode::MouseX10, MouseReporting::X10),
+];
+/// The encoding that wins when more than one bit is set, strongest first.
+const MOUSE_ENCODING_PRIORITY: [(Mode, MouseEncoding); 3] = [
+    (Mode::SgrMouse, MouseEncoding::Sgr),
+    (Mode::UrxvtMouse, MouseEncoding::Urxvt),
+    (Mode::Utf8Mouse, MouseEncoding::Utf8),
+];
+
 impl Mode {
     /// The mode behind a private mode number.
     pub(super) fn from_private(number: u16) -> Option<Mode> {
@@ -176,13 +193,13 @@ impl Mode {
             Mode::AlternateScroll => 1 << 14,
             Mode::UrgencyHints => 1 << 15,
             Mode::BracketedPaste => 1 << 16,
-            Mode::SyncUpdate => 1 << 17,
             Mode::GraphemeClusters => 1 << 18,
             Mode::Win32Input => 1 << 19,
             Mode::Insert => 1 << 20,
             Mode::LineFeedNewLine => 1 << 21,
             Mode::AppKeypad => 1 << 22,
             Mode::DecCoLm
+            | Mode::SyncUpdate
             | Mode::CursorBlink
             | Mode::AltScreen47
             | Mode::AltScreen1047
@@ -242,6 +259,23 @@ impl Modes {
         } else {
             self.bits &= !mode.bit();
         }
+    }
+
+    /// The mouse protocol the bits describe, or `None` while no reporting bit is set. The
+    /// setters keep each group to one bit, so the priority only guards hand-built bit sets.
+    pub(super) fn mouse_protocol(self) -> Option<MouseProtocol> {
+        let reporting = MOUSE_REPORTING_PRIORITY
+            .iter()
+            .find(|(mode, _)| self.get(*mode))
+            .map(|(_, reporting)| *reporting)?;
+        let encoding = MOUSE_ENCODING_PRIORITY
+            .iter()
+            .find(|(mode, _)| self.get(*mode))
+            .map_or(MouseEncoding::Default, |(_, encoding)| *encoding);
+        Some(MouseProtocol {
+            reporting,
+            encoding,
+        })
     }
 
     /// Turns `on` for `mode` after clearing the rest of its exclusive group.
@@ -418,7 +452,26 @@ impl State {
             Mode::AltScreen47 | Mode::AltScreen1047 | Mode::AltScreen => self.grid.alt_active(),
             Mode::CursorBlink => self.stored_cursor_style().blinking,
             Mode::DecCoLm | Mode::SaveCursor1048 => false,
+            Mode::SyncUpdate => self.sync.is_set(),
             _ => self.modes.get(mode),
+        }
+    }
+
+    /// [`Terminal::mode_snapshot`](super::Terminal::mode_snapshot).
+    pub(super) fn mode_snapshot(&self) -> ModeSnapshot {
+        let modes = self.modes;
+        ModeSnapshot {
+            alt_screen: self.grid.alt_active(),
+            app_cursor: modes.get(Mode::AppCursor),
+            app_keypad: modes.get(Mode::AppKeypad),
+            bracketed_paste: modes.get(Mode::BracketedPaste),
+            insert: modes.get(Mode::Insert),
+            show_cursor: modes.get(Mode::ShowCursor),
+            alternate_scroll: modes.get(Mode::AlternateScroll),
+            reverse_video: modes.get(Mode::ReverseVideo),
+            mouse: modes.mouse_protocol(),
+            keyboard_flags: self.keyboard.active.live(),
+            modify_other_keys: self.modify_other_keys,
         }
     }
 
@@ -467,6 +520,19 @@ impl Handler<'_> {
     fn apply_mode(&mut self, mode: Mode, on: bool) {
         match mode {
             Mode::DecCoLm => self.column_mode(),
+            Mode::SyncUpdate => {
+                if on {
+                    self.state.sync.begin(self.now);
+                } else {
+                    self.state.sync.end();
+                }
+            }
+            Mode::ReverseVideo => {
+                if self.state.modes.get(mode) != on {
+                    self.state.bump_generation();
+                }
+                self.state.modes.set(mode, on);
+            }
             Mode::Origin => {
                 self.state.modes.set(mode, on);
                 let origin = self.origin();
@@ -539,6 +605,7 @@ impl Handler<'_> {
     /// cursor. The width never changes.
     fn column_mode(&mut self) {
         self.state.invalidate(Invalidation::EraseScreen);
+        self.state.bump_generation();
         let screen = self.state.grid.screen_mut();
         let rows = screen.rows();
         screen.set_region(0, rows, CursorOrigin::Screen);
@@ -551,6 +618,7 @@ impl Handler<'_> {
         if self.state.grid.alt_active() {
             return;
         }
+        self.state.bump_generation();
         self.state.invalidate(Invalidation::SwapAlt);
         if save {
             self.state.save_cursor();
@@ -564,6 +632,7 @@ impl Handler<'_> {
         if !self.state.grid.alt_active() {
             return;
         }
+        self.state.bump_generation();
         self.state.invalidate(Invalidation::SwapAlt);
         self.state.grid.leave_alt();
         self.state.keyboard.swap();
@@ -603,7 +672,10 @@ impl Handler<'_> {
         state.interner.extras.clear();
         state.modes = Modes::default();
         state.keyboard = KeyboardStacks::default();
-        state.colors.reset_all();
+        let colors_changed = state.colors.reset_all();
+        state.note_palette_change(colors_changed);
+        state.bump_generation();
+        state.sync.end();
         state.title = TitleStack::default();
         state.cursor_style = None;
         state.modify_other_keys = 0;

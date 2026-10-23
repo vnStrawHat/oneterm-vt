@@ -18,8 +18,9 @@ appears when its phase lands; until then it is listed as *planned*.
 
 | # | Chapter | Covers | Phase | Status |
 |---|---|---|---|---|
-| 01 | `quickstart.md` | create a `Terminal`, feed bytes, drain events, print one snapshot as text | 7 | planned |
-| 02 | `threading.md` | who owns the lock, the two-phase hand-off, when to draw, `?2026` and its timeout | 7 | planned |
+| 00 | `for-agents.md` | for AI agents: the feed / answer / snapshot / encode loop in one example, what you owe, the five most common mistakes | 13 | planned |
+| 01 | [`quickstart.md`](quickstart.md) | create a `Terminal`, feed bytes, drain events, print one snapshot as text | 7 | ready |
+| 02 | [`threading.md`](threading.md) | who owns the lock, the two-phase hand-off, when to draw, `?2026` and its timeout | 7 | ready |
 | 03 | [`events.md`](events.md) | `EventBatch` and every `VtEvent`; answering `Reply`, `ColorQuery` (`ColorKey::color_reply`), `ClipboardLoad`; `OscRoutes` | 6 | ready |
 | 04 | `input.md` | `input::encode_key_event` / `Terminal::encode_key`: the four-rung ladder (legacy, `modifyOtherKeys`, kitty flags), `KeyEvent` fields; `encode_mouse_*` per reporting mode and encoding; what the embedder still owes (paste, focus, alternate scroll) | 9 | planned |
 | 05 | `search.md` | `search::GridText` and `search_grid_text`: copy under the lock, search without it; matches across wrapped rows, `SearchMatch` to viewport rows, `MAX_MATCHES`; `regex` feature | 8 | planned |
@@ -29,13 +30,13 @@ appears when its phase lands; until then it is listed as *planned*.
 | 09 | [`conformance.md`](conformance.md) | supported sequences and modes, inert modes and their DECRQM answers, the DECRQCRA gate, known gaps | 6+ | ready |
 | 10 | `pty.md` | `pty::PseudoConsole` polled with your own `polling::Poller`: the two tokens, the read/write return values, `OnResize`, what you owe (deregister, drain, `TERM` in `Options::env`); platform differences, drop behaviour, `conpty.dll` beside your executable; turning `pty` off | 11 | planned |
 | 11 | [`versioning.md`](versioning.md) | what to pin, the semver promise, MSRV, features | 0 | written |
-| 12 | `performance.md` | what is measured, history and chart | 12 | see [perf/](../perf/README.md) |
-| 13 | `api-map.md` | every public type in one table: what it is for | 13 | planned |
+| 12 | `performance.md` | what is measured and what is not, reproducing a run, history and chart, the `vt-bench grid --check` trip-wire, profiling with `hotpath-profiling`, why the numbers are not a promise | 12 | planned |
+| 13 | `api-map.md` | every public type and trait, one line each, grouped by module, with the chapter that teaches it | 13 | planned |
 | 14 | `parser.md` | `parser::Parser` and `Dispatch` without a grid: strip, record, sniff sequences | 1 | ready |
 | 15 | [`cells-and-styles.md`](cells-and-styles.md) | `Cell`, `Style`, resolving ids through `intern::Interner`, `scalar_width` / `cluster_width` | 2 | ready |
 | 16 | [`grid.md`](grid.md) | `grid::TerminalGrid` and `Screen`: rows and `RowId`s, scrollback, viewport, reading rows | 3 | ready |
 | 17 | [`selection.md`](selection.md) | `Selection`, `SelectionKind`, `Side`: ranges, word/line/block expansion, copied text, `Invalidation` before erases | 5 | ready |
-| 18 | `snapshot.md` | `SnapshotState` and `SnapshotUpdate` (`Full` / `Partial { scrolled }` / `Unchanged`), rows and style runs, `Palette` and theme vs OSC overrides, `ModeSnapshot`, `MouseProtocol` | 7 | planned |
+| 18 | [`snapshot.md`](snapshot.md) | `SnapshotState` and `SnapshotUpdate` (`Full` / `Partial { scrolled }` / `Unchanged`), rows and style runs, `Palette` and theme vs OSC overrides, `ModeSnapshot`, `MouseProtocol` | 7 | ready |
 
 ## Features
 

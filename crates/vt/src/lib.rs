@@ -11,7 +11,8 @@
 //! [`grid`]: rows in a ring-buffer scrollback, primary and alternate screens, and the
 //! anchors that follow content, with column reflow and row resize, and the [`Selection`]s
 //! that follow that content. A [`Terminal`] ties them together: bytes in, grid changes, events
-//! and per-call counters out.
+//! and per-call counters out, and damage-tracked [`SnapshotState`]s that copy only the rows
+//! that changed, with synchronized output (`?2026`) holding frames while a program redraws.
 
 #![warn(missing_docs)]
 
@@ -21,6 +22,7 @@ pub mod grid;
 pub mod intern;
 pub mod parser;
 mod selection;
+mod snapshot;
 mod terminal;
 mod width;
 
@@ -33,6 +35,11 @@ pub use grid::terminal_grid::{ResizeOutcome, ResizePolicy};
 pub use grid::{Pos, RowId, RowRef, SeqNo, Size, Viewport};
 pub use parser::StringTerm;
 pub use selection::{Invalidation, Selection, SelectionKind, SelectionRange, Side};
+pub use snapshot::{
+    ModeSnapshot, MouseEncoding, MouseProtocol, MouseReporting, Palette, SnapshotCell,
+    SnapshotContent, SnapshotCursor, SnapshotPlacement, SnapshotRow, SnapshotState, SnapshotUpdate,
+    StyleRun, SyncState, Watermark,
+};
 pub use terminal::{
     ColorKey, ColorOverrides, Config, CursorShape, CursorStyle, KeyboardFlags, Mode, ModeState,
     OscRoute, OscRoutes, Terminal,
@@ -70,3 +77,15 @@ mod user_guide_limits {}
 #[cfg(doctest)]
 #[doc = include_str!("../../../docs/user/conformance.md")]
 mod user_guide_conformance {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/snapshot.md")]
+mod user_guide_snapshot {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/threading.md")]
+mod user_guide_threading {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/quickstart.md")]
+mod user_guide_quickstart {}

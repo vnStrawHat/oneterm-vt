@@ -25,3 +25,5 @@
 | [0010-input](specs/0010-input/README.md) | 9 | ready |
 | [0011-graphics](specs/0011-graphics/README.md) | 10 | ready |
 | [0012-pty](specs/0012-pty/README.md) | 11 | ready |
+| [0013-perf](specs/0013-perf/README.md) | 12 | ready |
+| [0014-release](specs/0014-release/README.md) | 13 | ready |

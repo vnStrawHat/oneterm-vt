@@ -389,10 +389,6 @@ impl<'a> RowRef<'a> {
     }
 
     /// The stamp of the last batch that changed the row; `SeqNo(0)` for a row never written.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the snapshot reads row stamps from phase 7")
-    )]
     pub(crate) fn seq(&self) -> SeqNo {
         self.header.map_or(SeqNo(0), |header| header.seq)
     }

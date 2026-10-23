@@ -37,9 +37,20 @@ pub(crate) struct Tiers {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) tier2_grid: Vec<Throughput>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(crate) tier3_render: Vec<FrameCost>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) tier4_resize: Vec<ResizeCost>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) tier5_memory: Vec<MemoryCost>,
+}
+
+/// Tier 3: the cost of one `snapshot_update` per simulated frame, with the cells it copied.
+/// `cells` counts cells copied per frame (rows copied x columns), not the viewport area.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub(crate) struct FrameCost {
+    pub(crate) fixture: String,
+    pub(crate) us_per_frame: f64,
+    pub(crate) cells: u64,
 }
 
 /// Tier 4: the cost of resizing a terminal holding `scrollback_rows` rows of history, in
@@ -215,6 +226,7 @@ mod tests {
                     spread_percent: 3.0,
                 }],
                 tier2_grid: Vec::new(),
+                tier3_render: Vec::new(),
                 tier4_resize: Vec::new(),
                 tier5_memory: Vec::new(),
             },
@@ -245,7 +257,7 @@ mod tests {
     }
 
     #[test]
-    fn record_has_tiers_2_4_5() {
+    fn record_has_tier3() {
         let throughput = || Throughput {
             fixture: "f".into(),
             mib_per_second: 1.0,
@@ -266,6 +278,11 @@ mod tests {
         let full = record(Tiers {
             tier1_parser: vec![throughput()],
             tier2_grid: vec![throughput()],
+            tier3_render: vec![FrameCost {
+                fixture: "f".into(),
+                us_per_frame: 2.5,
+                cells: 160,
+            }],
             tier4_resize: vec![ResizeCost {
                 scrollback_rows: 10_000,
                 grow_us: 1.5,
@@ -281,6 +298,9 @@ mod tests {
         let keys = [
             "\"tier1_parser\"",
             "\"tier2_grid\"",
+            "\"tier3_render\"",
+            "\"us_per_frame\"",
+            "\"cells\"",
             "\"tier4_resize\"",
             "\"scrollback_rows\"",
             "\"grow_us\"",
@@ -299,11 +319,12 @@ mod tests {
         let only_first = record(Tiers {
             tier1_parser: vec![throughput()],
             tier2_grid: Vec::new(),
+            tier3_render: Vec::new(),
             tier4_resize: Vec::new(),
             tier5_memory: Vec::new(),
         });
         let json = serde_json::to_string(&only_first).unwrap();
-        for key in ["tier2_grid", "tier4_resize", "tier5_memory"] {
+        for key in ["tier2_grid", "tier3_render", "tier4_resize", "tier5_memory"] {
             assert!(!json.contains(key), "{key}");
         }
     }

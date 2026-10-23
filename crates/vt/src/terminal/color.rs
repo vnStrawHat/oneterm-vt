@@ -229,7 +229,8 @@ impl Handler<'_> {
                 terminator: term,
             });
         } else if let Some(color) = parse_color(spec) {
-            self.state.colors.set(key, color);
+            let changed = self.state.colors.set(key, color);
+            self.state.note_palette_change(changed);
         } else {
             self.unhandled();
         }
@@ -295,13 +296,15 @@ impl Handler<'_> {
     pub(super) fn osc_reset_palette(&mut self, params: &OscParams<'_>) {
         let mut indexes = args(params).peekable();
         if indexes.peek().is_none_or(|first| first.is_empty()) {
-            self.state.colors.reset_palette();
+            let changed = self.state.colors.reset_palette();
+            self.state.note_palette_change(changed);
             return;
         }
         for index in indexes {
             match parse_index(index) {
                 Some(n) => {
-                    self.state.colors.reset(ColorKey::Palette(n));
+                    let changed = self.state.colors.reset(ColorKey::Palette(n));
+                    self.state.note_palette_change(changed);
                 }
                 None => self.unhandled(),
             }
@@ -310,6 +313,7 @@ impl Handler<'_> {
 
     /// OSC 110, 111 and 112.
     pub(super) fn osc_reset_color(&mut self, key: ColorKey) {
-        self.state.colors.reset(key);
+        let changed = self.state.colors.reset(key);
+        self.state.note_palette_change(changed);
     }
 }

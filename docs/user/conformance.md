@@ -49,9 +49,10 @@ assert_eq!(answer(&mut term, b"\x1b[?9999$p"), b"\x1b[?9999;0$y"); // unknown
 | OSC | `0 1 2 4 7 8 9 9;4 10 11 12 17 19 22 50 52 104 110 111 112 133`; others routable with `OscRoutes` |
 | DCS | `$ q` (DECRQSS), `+ q` (XTGETTCAP); APC, SOS and PM are consumed and counted |
 
-Modes with a live effect: `?1 ?5 ?6 ?7 ?12 ?25 ?45 ?47 ?1047 ?1048 ?1049 ?2027` and `4`. Modes the
-engine stores and you read (`Terminal::mode`): `?9 ?1000 ?1002 ?1003 ?1004 ?1005 ?1006 ?1007
-?1015 ?1042 ?2004 ?2026`. Mouse protocols are exclusive on `h`, as are the three encodings.
+Modes with a live effect: `?1 ?5 ?6 ?7 ?12 ?25 ?45 ?47 ?1047 ?1048 ?1049 ?2027` and `4`, and
+`?2026` (synchronized output, see [threading](threading.md)). Modes the engine stores and you read
+(`Terminal::mode`, `Terminal::mode_snapshot`): `?9 ?1000 ?1002 ?1003 ?1004 ?1005 ?1006 ?1007 ?1015
+?1042 ?2004`. Mouse protocols are exclusive on `h`, as are the three encodings.
 
 Alternate screens: `?47` and `?1047` do not save the cursor, `?1047` clears on leave,
 `?1049` saves the primary cursor and clears on entry. `SGR 21` is double underline, not "bold off".
@@ -79,6 +80,5 @@ read.
 - DA1 reports level 62 (VT220 with Sixel and ANSI colour); VT320+ features are not claimed.
 - Only 7-bit introducers are sequences. A raw C1 byte (`0x80..=0x9F`) is a control that is counted
   as unhandled, never a CSI or OSC introducer.
-- `?2026` is stored; the synchronized-output deadline arrives with the snapshot.
 - Sixel is answered in DA1 but not decoded yet: `DCS q` is counted as unhandled.
 - `CSI 14 t` answers `4;0;0` until the cell size is known.

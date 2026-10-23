@@ -4,6 +4,7 @@ mod chart;
 mod fixtures;
 mod memory;
 mod perf_history;
+mod render;
 mod resize;
 mod throughput;
 
@@ -15,7 +16,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result, bail};
 
 use crate::fixtures::{COLUMNS, LINES};
-use crate::perf_history::{MemoryCost, PerfRecord, ResizeCost, Throughput, Tiers};
+use crate::perf_history::{FrameCost, MemoryCost, PerfRecord, ResizeCost, Throughput, Tiers};
+use crate::render::DEFAULT_FRAMES;
 use crate::throughput::{CHUNK, RUNS};
 
 // Tier 5 reads the live heap, so every allocation in this binary is counted.
@@ -37,10 +39,6 @@ Report:
   help | --help | -h               print this text
 ";
 
-const MEASURE_COMMANDS: [&str; 7] = [
-    "all", "parser", "grid", "render", "resize", "rss", "fixtures",
-];
-
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     run(&args)
@@ -59,13 +57,10 @@ fn run(args: &[String]) -> ExitCode {
             return ExitCode::SUCCESS;
         }
         "chart" => chart_command(&args[1..]).map(|out| println!("wrote {}", out.display())),
-        "parser" | "grid" | "resize" | "rss" | "all" => {
+        "parser" | "grid" | "render" | "resize" | "rss" | "all" => {
             measure_command(command, &args[1..]).map(|text| print!("{text}"))
         }
         "fixtures" => fixtures_command(&args[1..]).map(|text| print!("{text}")),
-        _ if MEASURE_COMMANDS.contains(&command) => {
-            Err(anyhow::anyhow!("'{command}' is not implemented yet"))
-        }
         _ => {
             eprint!("{USAGE}");
             return ExitCode::from(2);
@@ -109,17 +104,18 @@ const DEFAULT_MIB: usize = 32;
 struct MeasureOptions {
     mib: usize,
     json: bool,
-    has_frames: bool,
+    /// `--frames` as given; `fixtures` rejects it.
+    frames: Option<usize>,
     machine: Option<String>,
     out: Option<PathBuf>,
 }
 
-/// Reads the flags shared by the measure commands. `--frames` is accepted and unused until tier 3.
+/// Reads the flags shared by the measure commands.
 fn parse_measure_options(command: &str, args: &[String]) -> Result<MeasureOptions> {
     let mut options = MeasureOptions {
         mib: DEFAULT_MIB,
         json: false,
-        has_frames: false,
+        frames: None,
         machine: None,
         out: None,
     };
@@ -147,7 +143,17 @@ fn parse_measure_options(command: &str, args: &[String]) -> Result<MeasureOption
             }
             "--out" => options.out = Some(PathBuf::from(value)),
             "--machine" => options.machine = Some(value.clone()),
-            "--frames" => options.has_frames = true,
+            "--frames" => {
+                options.frames = Some(
+                    value
+                        .parse()
+                        .ok()
+                        .filter(|frames| (1..=100_000).contains(frames))
+                        .with_context(|| {
+                            format!("--frames needs a whole number 1..=100000, got '{value}'")
+                        })?,
+                );
+            }
             _ => {}
         }
     }
@@ -162,12 +168,14 @@ fn parse_measure_options(command: &str, args: &[String]) -> Result<MeasureOption
 struct Measured {
     tier1_parser: Option<Vec<Throughput>>,
     tier2_grid: Option<Vec<Throughput>>,
+    tier3_render: Option<Vec<FrameCost>>,
     tier4_resize: Option<Vec<ResizeCost>>,
     tier5_memory: Option<Vec<MemoryCost>>,
 }
 
-/// Runs the tiers `command` names: one tier, or tiers 1, 2, 4 and 5 for `all`.
-fn measure(command: &str, mib: usize) -> Measured {
+/// Runs the tiers `command` names: one tier, or all five for `all`. `frames` is tier 3's
+/// frame count.
+fn measure(command: &str, mib: usize, frames: usize) -> Measured {
     let all = command == "all";
     let mut measured = Measured::default();
     if all || command == "parser" {
@@ -186,6 +194,10 @@ fn measure(command: &str, mib: usize) -> Measured {
             throughput::grid_pass,
         ));
     }
+    if all || command == "render" {
+        progress("tier 3 render");
+        measured.tier3_render = Some(render::measure_render(frames));
+    }
     if all || command == "resize" {
         progress("tier 4 resize");
         measured.tier4_resize = Some(resize::measure_resize());
@@ -201,13 +213,17 @@ fn progress(tier: &str) {
     eprintln!("vt-bench: measuring {tier}");
 }
 
-/// The measure commands (`parser`, `grid`, `resize`, `rss`, `all`). Returns the text for stdout.
+/// The measure commands (`parser`, `grid`, `render`, `resize`, `rss`, `all`). Returns the text for stdout.
 fn measure_command(command: &str, args: &[String]) -> Result<String> {
     if command == "grid" && args.iter().any(|arg| arg == "--check") {
         bail!("'grid' is not implemented yet");
     }
     let options = parse_measure_options(command, args)?;
-    let measured = measure(command, options.mib);
+    let measured = measure(
+        command,
+        options.mib,
+        options.frames.unwrap_or(DEFAULT_FRAMES),
+    );
     let report = if options.json {
         render_json(&options, measured)?
     } else {
@@ -240,6 +256,16 @@ fn render_report(options: &MeasureOptions, measured: &Measured) -> String {
         report.push_str("\n## Tier 2: parse + grid (Terminal::feed)\n\n");
         report.push_str(&throughput::render_table(rows));
     }
+    if let Some(rows) = &measured.tier3_render {
+        report.push_str(&format!(
+            "
+## Tier 3: parse + grid + snapshot_update per frame ({} frames)
+
+",
+            options.frames.unwrap_or(DEFAULT_FRAMES)
+        ));
+        report.push_str(&render::render_table(rows));
+    }
     if let Some(rows) = &measured.tier4_resize {
         report.push_str("\n## Tier 4: resize 80x24 <-> 100x40\n\n");
         report.push_str(&resize::render_table(rows));
@@ -270,6 +296,7 @@ fn render_json(options: &MeasureOptions, measured: Measured) -> Result<String> {
         tiers: Tiers {
             tier1_parser: measured.tier1_parser.unwrap_or_default(),
             tier2_grid: measured.tier2_grid.unwrap_or_default(),
+            tier3_render: measured.tier3_render.unwrap_or_default(),
             tier4_resize: measured.tier4_resize.unwrap_or_default(),
             tier5_memory: measured.tier5_memory.unwrap_or_default(),
         },
@@ -280,7 +307,7 @@ fn render_json(options: &MeasureOptions, measured: Measured) -> Result<String> {
 /// `fixtures --out DIR [--mib N]`. Returns one line per written file.
 fn fixtures_command(args: &[String]) -> Result<String> {
     let options = parse_measure_options("fixtures", args)?;
-    if options.json || options.machine.is_some() || options.has_frames {
+    if options.json || options.machine.is_some() || options.frames.is_some() {
         bail!("'fixtures' takes only --out and --mib");
     }
     let dir = options.out.context("'fixtures' needs --out DIR")?;
@@ -369,6 +396,7 @@ mod tests {
         let measured = Measured {
             tier1_parser: Some(Vec::new()),
             tier2_grid: Some(Vec::new()),
+            tier3_render: Some(Vec::new()),
             tier4_resize: Some(Vec::new()),
             tier5_memory: Some(Vec::new()),
         };
@@ -376,6 +404,7 @@ mod tests {
         let headers = [
             "## Tier 1: parser alone (null Dispatch)",
             "## Tier 2: parse + grid (Terminal::feed)",
+            "## Tier 3: parse + grid + snapshot_update per frame (600 frames)",
             "## Tier 4: resize 80x24 <-> 100x40",
             "## Tier 5: live heap after 10000 scrollback rows",
         ];
@@ -387,7 +416,28 @@ mod tests {
     }
 
     #[test]
-    fn grid_check_and_render_stay_unimplemented() {
+    fn frames_flag_parses() {
+        let frames = |value: &str| parse_measure_options("render", &strings(&["--frames", value]));
+        for bad in ["0", "x", "100001", "-1", ""] {
+            let error = frames(bad).err().expect("rejected");
+            assert_eq!(
+                format!("{error:#}"),
+                format!("--frames needs a whole number 1..=100000, got '{bad}'")
+            );
+        }
+        assert_eq!(frames("5").unwrap().frames, Some(5));
+        assert_eq!(frames("100000").unwrap().frames, Some(100_000));
+        assert_eq!(parse_measure_options("render", &[]).unwrap().frames, None);
+    }
+
+    #[test]
+    fn fixtures_rejects_frames() {
+        let error = fixtures_command(&strings(&["--out", "x", "--frames", "5"])).unwrap_err();
+        assert!(format!("{error:#}").contains("only --out and --mib"));
+    }
+
+    #[test]
+    fn grid_check_stays_unimplemented() {
         let error = measure_command("grid", &strings(&["--check"])).unwrap_err();
         assert_eq!(format!("{error:#}"), "'grid' is not implemented yet");
     }

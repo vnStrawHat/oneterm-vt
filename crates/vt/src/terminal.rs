@@ -21,6 +21,9 @@ use crate::parser::Parser;
 use crate::selection::{
     DEFAULT_SEMANTIC_ESCAPE_CHARS, Invalidation, Selection, SelectionKind, SelectionRange, Side,
 };
+use crate::snapshot::{
+    EngineView, ModeSnapshot, MouseProtocol, Palette, SnapshotState, SnapshotUpdate, SyncState,
+};
 
 mod color;
 mod csi;
@@ -107,6 +110,13 @@ struct State {
     modify_other_keys: u8,
     title: TitleStack,
     colors: ColorOverrides,
+    /// The embedder's colours underneath the program's overrides.
+    theme: Palette,
+    sync: SyncState,
+    /// Bumped whenever rows change outside the per-row change stamps: snapshots rebuild.
+    generation: u32,
+    /// Bumped whenever an effective colour changes: snapshots rebuild and remap.
+    palette_epoch: u32,
     shifts: Shifts,
     /// The last printed scalar before charset mapping, for REP.
     preceding_char: Option<char>,
@@ -227,6 +237,20 @@ impl State {
         }
     }
 
+    /// Marks a change to rows that the per-row stamps do not cover; every snapshot state
+    /// rebuilds on its next update.
+    fn bump_generation(&mut self) {
+        self.generation = self.generation.wrapping_add(1);
+    }
+
+    /// Marks a change to an effective colour when `changed`; every snapshot state rebuilds and
+    /// remaps on its next update.
+    fn note_palette_change(&mut self, changed: bool) {
+        if changed {
+            self.palette_epoch = self.palette_epoch.wrapping_add(1);
+        }
+    }
+
     /// Index into `shifts.saved` for the active screen.
     fn saved_slot(&self) -> usize {
         usize::from(self.grid.alt_active())
@@ -277,6 +301,10 @@ impl Terminal {
             modify_other_keys: 0,
             title: TitleStack::default(),
             colors: ColorOverrides::default(),
+            theme: Palette::new(),
+            sync: SyncState::new(),
+            generation: 0,
+            palette_epoch: 0,
             shifts: Shifts::default(),
             preceding_char: None,
             carry: None,
@@ -299,9 +327,10 @@ impl Terminal {
     /// Parses `bytes` and applies them: clears `batch`, fills it with the events in byte order
     /// and returns this call's counters (also kept for [`stats`](Self::stats)).
     ///
-    /// Any chunking of one stream gives the same screen and the same events. `now` is unused
-    /// until synchronized output lands.
-    pub fn feed(&mut self, bytes: &[u8], batch: &mut EventBatch, _now: Instant) -> FeedStats {
+    /// Any chunking of one stream gives the same screen and the same events. `now` times
+    /// synchronized output (`?2026`): a block opened here holds frames from `now` on (see
+    /// [`SyncState`]). The engine reads no clock itself.
+    pub fn feed(&mut self, bytes: &[u8], batch: &mut EventBatch, now: Instant) -> FeedStats {
         batch.clear();
         let state = &mut self.state;
         state.stats = FeedStats {
@@ -317,6 +346,7 @@ impl Terminal {
         let mut handler = Handler {
             state: &mut *state,
             out: &mut *batch,
+            now,
         };
         self.parser.advance(&mut handler, bytes);
         state.grid.sync_anchors();
@@ -341,6 +371,7 @@ impl Terminal {
     pub fn resize(&mut self, size: Size, policy: ResizePolicy) -> ResizeOutcome {
         let state = &mut self.state;
         let outcome = state.grid.resize(size, policy);
+        state.bump_generation();
         state.carry = None;
         state.prune_selection();
         outcome
@@ -352,6 +383,7 @@ impl Terminal {
         let state = &mut self.state;
         state.config.scrollback_limit = limit;
         state.grid.set_scrollback_limit(limit);
+        state.bump_generation();
         state.prune_selection();
     }
 
@@ -442,6 +474,85 @@ impl Terminal {
     /// Every colour override.
     pub fn colors(&self) -> &ColorOverrides {
         &self.state.colors
+    }
+
+    /// Sets the embedder's colours: what the default colours and the 256 indexed colours are
+    /// until a program overrides one with OSC 4, 10, 11 or 12 (a reset returns the slot here).
+    ///
+    /// A theme that differs from the current one makes the next update of every
+    /// [`SnapshotState`] a `Full` and remaps every row; the same theme again does nothing, so
+    /// calling this every frame is cheap. Apply the theme with
+    /// [`SnapshotState::map_colors`] and [`palette`](Self::palette).
+    pub fn set_theme_colors(&mut self, theme: &Palette) {
+        let state = &mut self.state;
+        let changed = state.theme != *theme;
+        state.theme = *theme;
+        state.note_palette_change(changed);
+    }
+
+    /// The effective palette: the theme with every program override applied. Pass it to
+    /// [`SnapshotState::map_colors`]. Selection colours have no slot here; read them with
+    /// [`color`](Self::color).
+    pub fn palette(&self) -> Palette {
+        let state = &self.state;
+        let mut palette = state.theme;
+        for (index, slot) in palette.indexed.iter_mut().enumerate() {
+            if let Some(color) = u8::try_from(index)
+                .ok()
+                .and_then(|index| state.colors.get(ColorKey::Palette(index)))
+            {
+                *slot = color;
+            }
+        }
+        let over = |key: ColorKey, slot: &mut Rgb| {
+            if let Some(color) = state.colors.get(key) {
+                *slot = color;
+            }
+        };
+        over(ColorKey::Foreground, &mut palette.foreground);
+        over(ColorKey::Background, &mut palette.background);
+        over(ColorKey::Cursor, &mut palette.cursor);
+        palette
+    }
+
+    /// The synchronized-output state (`?2026`). Read-only: the watchdog fires only inside
+    /// [`snapshot_update`](Self::snapshot_update).
+    pub fn sync(&self) -> &SyncState {
+        &self.state.sync
+    }
+
+    /// The modes a renderer or an input encoder reads, as of now.
+    pub fn mode_snapshot(&self) -> ModeSnapshot {
+        self.state.mode_snapshot()
+    }
+
+    /// The mouse protocol a program asked for, if any; the same as
+    /// [`mode_snapshot`](Self::mode_snapshot)`().mouse`.
+    pub fn mouse_reporting(&self) -> Option<MouseProtocol> {
+        self.state.modes.mouse_protocol()
+    }
+
+    /// Brings `state` up to date and says what changed (phase 1 of drawing; hold your lock).
+    ///
+    /// Only rows written since the state's watermark are copied. While synchronized output
+    /// holds frames, a state that was built before gets `Unchanged` with its cursor, selection
+    /// and modes still refreshed, and a change they went through is reported once by the next
+    /// real frame. `now` is the time deadlines are checked against; `&mut self` because the
+    /// watchdog may close the block here. Call [`SnapshotState::map_colors`] afterwards.
+    pub fn snapshot_update(&mut self, state: &mut SnapshotState, now: Instant) -> SnapshotUpdate {
+        let modes = self.mode_snapshot();
+        let selection = self.selection_range();
+        let engine = &mut self.state;
+        let view = EngineView {
+            grid: &engine.grid,
+            interner: &engine.interner,
+            sync: &mut engine.sync,
+            modes,
+            generation: engine.generation,
+            palette_epoch: engine.palette_epoch,
+            selection,
+        };
+        state.begin_update(view, now)
     }
 
     /// The pen: the cell a printed glyph inherits (style, hyperlink, semantic zone).

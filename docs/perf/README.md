@@ -55,6 +55,7 @@ cargo run -p oneterm-vt-bench --release -- chart --history perf/history --out pe
 | `mib_per_second` | median throughput; `ns_per_byte` is the same figure inverted |
 | `spread_percent` | (slowest - fastest) / median x 100; a difference smaller than this is noise |
 | `us_per_frame` | tier 3: one `snapshot_update` per simulated frame |
+| `cells` | tier 3: cells copied per frame (rows copied x columns, median cycle), not the viewport area |
 | `grow_us`, `shrink_us` | tier 4: resize 80x24 to 100x40 and back at a scrollback depth |
 | `heap_bytes*` | tier 5: live heap after filling 10 000 scrollback rows of one kind: `plain`, `unicode`, `styled`, `mixed` |
 
