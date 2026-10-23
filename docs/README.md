@@ -17,3 +17,5 @@
 | [0002-parser](specs/0002-parser/README.md) | 1 | ready |
 | [0003-cell-intern-width](specs/0003-cell-intern-width/README.md) | 2 | ready |
 | [0004-grid](specs/0004-grid/README.md) | 3 | ready |
+| [0005-reflow-resize](specs/0005-reflow-resize/README.md) | 4 | ready |
+| [0006-selection](specs/0006-selection/README.md) | 5 | ready |

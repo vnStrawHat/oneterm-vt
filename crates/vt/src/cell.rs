@@ -8,7 +8,7 @@ use std::fmt;
 
 use bitflags::bitflags;
 
-use crate::intern::{ExtrasId, GRAPHEME_ID_LIMIT, GraphemeArena, GraphemeId, StyleId};
+use crate::intern::{ExtrasId, GRAPHEME_ID_LIMIT, GraphemeArena, GraphemeId, Interner, StyleId};
 
 const CONTENT_MASK: u64 = (1 << 21) - 1;
 const GRAPHEME_BIT: u64 = 1 << 21;
@@ -189,6 +189,29 @@ impl Cell {
             CellContent::Scalar(c) => c,
             CellContent::Grapheme(id) => graphemes.resolve(id).chars().next().unwrap_or(' '),
         }
+    }
+
+    /// Whether erasing the cell loses nothing worth keeping: a blank (or a tab marker) with no
+    /// background, no visible attribute and no image.
+    ///
+    /// Spacer halves are never erasable, and neither is a cell inside a graphic.
+    pub(crate) fn is_erasable(self, interner: &Interner) -> bool {
+        let blank_content = matches!(
+            self.content(),
+            CellContent::Scalar(' ' | '\t') | CellContent::Grapheme(GraphemeId(0))
+        );
+        if !blank_content || self.width().is_spacer() {
+            return false;
+        }
+        if interner.resolve_extras(self.extras_id()).graphic.is_some() {
+            return false;
+        }
+        let style = interner.resolve_style(self.style_id());
+        style.fg == Style::DEFAULT.fg
+            && style.bg == Style::DEFAULT.bg
+            && !style
+                .attrs
+                .intersects(Attrs::INVERSE | Attrs::ALL_UNDERLINES | Attrs::STRIKEOUT)
     }
 
     /// Returns the raw 64-bit word, for tests and snapshots. The layout may change between

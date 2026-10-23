@@ -35,7 +35,8 @@ The caller measures (`scalar_width`, or `cluster_width` under `?2027` in phase 6
 **Write** = `set` at the cursor, plus the cross-row repair: when the overwritten cell is `Wide` or
 `WideSpacer`, `col <= 1` and `id > oldest`, and the previous row's last cell is a
 `LeadingWideSpacer`, that cell becomes a blank `Narrow` through `repair`, which
-keeps the previous row's `WRAPPED`.
+keeps the previous row's `WRAPPED`. Skipped when the written cell is `Wide` at `col == 0` (the
+filler above belongs to it). In insert mode the same check runs on the cell at `col` before `shift_right`.
 
 **Advance**: `col + 1 < cols` -> `col += 1`; else `pending_wrap = true`. Armed **regardless of
 `DECAWM`**: turning autowrap back on over an armed flag still breaks the line.
@@ -78,7 +79,7 @@ Saved }` (ED 0/1/2/3). Both derive `Clone, Copy, PartialEq, Eq, Hash, Debug`.
 | `Saved` | `clear_history`; `Some(report)` with `trimmed` when history was non-empty, else `None` |
 
 Erasable cell (new `pub(crate) fn Cell::is_erasable(self, &Interner) -> bool` in `cell.rs`): content
-`' '` or `'\t'`, not a spacer, no graphic in its extras, style fg/bg default and no `INVERSE`,
+`' '`, `'\t'` or `Grapheme(GraphemeId(0))`, not a spacer, no graphic in its extras, style fg/bg default and no `INVERSE`,
 underline family or `STRIKEOUT`.
 
 ## `row_text(id, &GraphemeArena, &mut String)` (`pub`, in `screen.rs`)

@@ -1,4 +1,5 @@
 use super::*;
+use crate::intern::{Extras, GraphicId, HyperlinkId};
 
 const _: () = assert!(size_of::<Style>() <= 16);
 
@@ -257,4 +258,70 @@ mod props {
             }
         }
     }
+}
+
+#[test]
+fn blank_and_tab_cells_are_erasable() {
+    let interner = Interner::default();
+    assert!(Cell::EMPTY.is_erasable(&interner));
+    let tab = Cell::EMPTY.with_content(CellContent::Scalar('\t'));
+    assert!(tab.is_erasable(&interner));
+    let blank_cluster = Cell::EMPTY.with_content(CellContent::Grapheme(GraphemeId(0)));
+    assert!(blank_cluster.is_erasable(&interner));
+    let bold = Style {
+        attrs: Attrs::BOLD,
+        ..Style::DEFAULT
+    };
+    let mut interner = Interner::default();
+    let id = interner.style(bold);
+    assert!(Cell::EMPTY.with_style(id).is_erasable(&interner));
+}
+
+#[test]
+fn visible_cells_are_not_erasable() {
+    let mut interner = Interner::default();
+    let letter = Cell::EMPTY.with_content(CellContent::Scalar('a'));
+    assert!(!letter.is_erasable(&interner));
+    for style in [
+        Style {
+            attrs: Attrs::INVERSE,
+            ..Style::DEFAULT
+        },
+        Style {
+            attrs: Attrs::UNDERCURL,
+            ..Style::DEFAULT
+        },
+        Style {
+            attrs: Attrs::STRIKEOUT,
+            ..Style::DEFAULT
+        },
+        Style {
+            bg: Color::Palette(1),
+            ..Style::DEFAULT
+        },
+        Style {
+            fg: Color::Palette(1),
+            ..Style::DEFAULT
+        },
+    ] {
+        let cell = Cell::EMPTY.with_style(interner.style(style));
+        assert!(!cell.is_erasable(&interner), "{style:?}");
+    }
+    let spacer = Cell::EMPTY.with_width(CellWidth::WideSpacer);
+    assert!(!spacer.is_erasable(&interner));
+}
+
+#[test]
+fn a_cell_inside_a_graphic_is_not_erasable() {
+    let mut interner = Interner::default();
+    let image = interner.extras(Extras {
+        hyperlink: None,
+        graphic: Some(GraphicId(3)),
+    });
+    let link = interner.extras(Extras {
+        hyperlink: Some(HyperlinkId(0)),
+        graphic: None,
+    });
+    assert!(!Cell::EMPTY.with_extras(image).is_erasable(&interner));
+    assert!(Cell::EMPTY.with_extras(link).is_erasable(&interner));
 }

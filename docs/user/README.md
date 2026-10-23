@@ -24,7 +24,7 @@ appears when its phase lands; until then it is listed as *planned*.
 | 04 | `input.md` | keys and mouse to bytes; kitty flags, `modifyOtherKeys` | 9 | planned |
 | 05 | `search.md` | literal and `regex` scrollback search | 8 | planned |
 | 06 | `graphics.md` | Sixel lifecycle, placements, what you draw | 10 | planned |
-| 07 | `resize.md` | resize policies, what reflow keeps | 4, 6 | planned |
+| 07 | `resize.md` | `grid::TerminalGrid::resize`, `ResizePolicy` (PTY vs ConPTY), `ResizeOutcome`; what reflow keeps, what dies | 4, 6 | planned |
 | 08 | `limits.md` | ceilings on hostile input, `FeedStats` counters | 6 | planned |
 | 09 | `conformance.md` | supported, recognised-but-inert, known gaps | 6+ | planned |
 | 10 | `pty.md` | the `pty` transport with `polling`; platform differences | 11 | planned |
@@ -33,7 +33,8 @@ appears when its phase lands; until then it is listed as *planned*.
 | 13 | `api-map.md` | every public type in one table: what it is for | 13 | planned |
 | 14 | `parser.md` | `parser::Parser` and `Dispatch` without a grid: strip, record, sniff sequences | 1 | ready |
 | 15 | [`cells-and-styles.md`](cells-and-styles.md) | `Cell`, `Style`, resolving ids through `intern::Interner`, `scalar_width` / `cluster_width` | 2 | ready |
-| 16 | `grid.md` | `grid::TerminalGrid` and `Screen`: rows and `RowId`s, scrollback, viewport, reading rows | 3 | planned |
+| 16 | [`grid.md`](grid.md) | `grid::TerminalGrid` and `Screen`: rows and `RowId`s, scrollback, viewport, reading rows | 3 | ready |
+| 17 | `selection.md` | `Selection`, `SelectionKind`, `Side`: ranges, word/line/block expansion, copied text, `Invalidation` before erases | 5 | planned |
 
 ## Features
 

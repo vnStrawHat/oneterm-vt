@@ -11,7 +11,7 @@ publish.workspace = true
 default = ["pty"]
 # Pseudo-console transport (ConPTY / openpty). Gains its dependencies in phase 11.
 pty = []
-# Whole-history integrity walk after every mutation; for tests, fuzzing and CI only.
+# Widens the integrity walk to the whole history wherever the walk runs; for tests, fuzzing and CI only.
 vt-paranoid = []
 # Regular-expression scrollback search. Gains `dep:regex` in phase 8.
 regex = []
