@@ -20,7 +20,7 @@ log = "0.4.34"
 memchr = "2.8"
 rustc-hash = "2.1"
 unicode-segmentation = "1.13.3"
-unicode-width = "0.2.2"            # width parity depends on this exact table version
+unicode-width = "=0.2.2"           # exact pin: the width table is a compatibility contract; bump deliberately
 regex = "1.12"                     # feature `regex`, phase 8
 hotpath = "0.26"                   # feature `hotpath-profiling`, phase 12
 polling = "3.11"                   # feature `pty`, phase 11 (public dependency)

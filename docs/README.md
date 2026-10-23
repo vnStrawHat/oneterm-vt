@@ -15,3 +15,5 @@
 |---|---|---|
 | [0001-scaffold](specs/0001-scaffold/README.md) | 0 | ready |
 | [0002-parser](specs/0002-parser/README.md) | 1 | ready |
+| [0003-cell-intern-width](specs/0003-cell-intern-width/README.md) | 2 | ready |
+| [0004-grid](specs/0004-grid/README.md) | 3 | ready |
