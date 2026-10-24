@@ -13,14 +13,17 @@ default = ["pty"]
 pty = []
 # Widens the integrity walk to the whole history wherever the walk runs; for tests, fuzzing and CI only.
 vt-paranoid = []
-# Regular-expression scrollback search. Gains `dep:regex` in phase 8.
-regex = []
+# Regular-expression scrollback search (`search::SearchPattern::Regex`). Off by default: the
+# literal matcher needs nothing, and the default dependency set is a promise.
+regex = ["dep:regex"]
 # `hotpath::measure` sites on hot paths. Gains `dep:hotpath` in phase 12.
 hotpath-profiling = []
 
 [dependencies]
 bitflags.workspace = true
 memchr.workspace = true
+# Optional: the `regex` feature's matcher; default features kept (Unicode classes, perf).
+regex = { workspace = true, optional = true }
 rustc-hash.workspace = true
 unicode-segmentation.workspace = true
 unicode-width.workspace = true

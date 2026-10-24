@@ -388,6 +388,23 @@ impl<'a> RowRef<'a> {
         self.header.is_some()
     }
 
+    /// One past the last column that is text: every column of a wrapped row, else the column
+    /// after the last non-blank cell (0 for a blank row).
+    pub(crate) fn text_end(&self) -> u16 {
+        if self.wrapped() {
+            return u16::try_from(self.cells.len()).unwrap_or(u16::MAX);
+        }
+        // Cells at or past `occ` equal the last cell, so a blank last cell lets the scan start there.
+        let mut end = match self.cells.last() {
+            Some(&last) if last.is_blank() => usize::from(self.occ()).min(self.cells.len()),
+            _ => self.cells.len(),
+        };
+        while end > 0 && self.cells.get(end - 1).is_none_or(|&cell| cell.is_blank()) {
+            end -= 1;
+        }
+        u16::try_from(end).unwrap_or(u16::MAX)
+    }
+
     /// The stamp of the last batch that changed the row; `SeqNo(0)` for a row never written.
     pub(crate) fn seq(&self) -> SeqNo {
         self.header.map_or(SeqNo(0), |header| header.seq)

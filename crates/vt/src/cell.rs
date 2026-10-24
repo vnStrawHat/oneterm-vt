@@ -191,6 +191,15 @@ impl Cell {
         }
     }
 
+    /// Whether the cell shows nothing: a blank of any style, or a spacer.
+    pub(crate) fn is_blank(self) -> bool {
+        self.width().is_spacer()
+            || matches!(
+                self.content(),
+                CellContent::Scalar(' ') | CellContent::Grapheme(GraphemeId(0))
+            )
+    }
+
     /// Whether erasing the cell loses nothing worth keeping: a blank (or a tab marker) with no
     /// background, no visible attribute and no image.
     ///

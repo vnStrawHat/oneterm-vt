@@ -527,3 +527,17 @@ fn from_cells_and_into_cells_round_trip() {
     row.check(3, None).expect("valid");
     assert_eq!(row.into_cells(), cells);
 }
+
+#[test]
+fn text_end_stops_after_the_last_non_blank_cell() {
+    let row = row_with(8, "ab c");
+    assert_eq!(RowRef::allocated(&row).text_end(), 4);
+    assert_eq!(RowRef::blank(ID, 8).text_end(), 0);
+}
+
+#[test]
+fn text_end_of_a_wrapped_row_is_every_column() {
+    let mut row = row_with(8, "ab");
+    RowMut::new(&mut row, SEQ).set_wrapped(true);
+    assert_eq!(RowRef::allocated(&row).text_end(), 8);
+}

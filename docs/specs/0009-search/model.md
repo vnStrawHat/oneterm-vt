@@ -88,11 +88,11 @@ wrapped row maps to `(row r, cols)`; a start there maps to `(row r + 1, 0)`.
 | rows copied | live rows: `scrollback_limit + rows` (<= `SCROLLBACK_MAX + MAX_ROWS`) | embedder-chosen; no cap (a cap would hide the oldest history) |
 | text bytes | `<= cells * 64 + rows` (16-scalar cluster cap x 4 bytes) | typical: 1 byte per ASCII cell up to the content end |
 | column table | 4 bytes per cell of non-identity rows + 1 per row | `u32`: a row's text is `<= 2048 * 64` bytes |
-| `rows` | 16 bytes per row | |
+| `rows` | 32 bytes per row | |
 | matches | `MAX_MATCHES` (D6); `len() == MAX_MATCHES` means "possibly more" | 100k x 32 B = 3.2 MB |
 
 - Rustdoc on `from_terminal` states the cost (one pass, memory as above, worked example:
-  100 000 rows x 200 columns of ASCII, half full: ~10 MB) and "call under your lock".
+  100 000 rows x 200 columns of ASCII, half full: ~13 MB) and "call under your lock".
 - `search_grid_text` allocates the result `Vec` and, for a literal, the folded needle; nothing
   per row. It never panics: every slice index comes from the tables above (use `get`).
 

@@ -27,7 +27,7 @@ fn fold(c: char) -> char   // 1:1, never changes the char count
 - So `fold` is 1:1 (columns stay exact, the property ASCII-only folding would also give), covers Latin-1,
   Latin Extended, Greek, Cyrillic, Armenian, and **no non-ASCII char folds to ASCII** (U+212A
   KELVIN SIGN stays itself): that is what makes the byte prefilter below exact.
-- Not Unicode full or simple case folding: `ß`/`ẞ`, `ς`/`σ`, `ſ`/`s`, `İ` are not unified.
+- Not Unicode full or simple case folding: `ß` vs `ss`, `ς`/`σ`, `ſ`/`s`, `İ`/`i`, Kelvin sign vs `k` are not unified (`ẞ` does fold to `ß`).
   Rustdoc on `SearchOptions::case_sensitive` says this and points to `(?i)` under `regex`.
 
 ## Word characters (`whole_word`) — D5

@@ -12,7 +12,9 @@
 //! anchors that follow content, with column reflow and row resize, and the [`Selection`]s
 //! that follow that content. A [`Terminal`] ties them together: bytes in, grid changes, events
 //! and per-call counters out, and damage-tracked [`SnapshotState`]s that copy only the rows
-//! that changed, with synchronized output (`?2026`) holding frames while a program redraws.
+//! that changed, with synchronized output (`?2026`) holding frames while a program redraws, and
+//! [`search`]: literal and regular-expression scrollback search over a copy of the grid,
+//! matches spanning wrapped rows.
 
 #![warn(missing_docs)]
 
@@ -21,6 +23,7 @@ mod events;
 pub mod grid;
 pub mod intern;
 pub mod parser;
+pub mod search;
 mod selection;
 mod snapshot;
 mod terminal;
@@ -81,6 +84,10 @@ mod user_guide_conformance {}
 #[cfg(doctest)]
 #[doc = include_str!("../../../docs/user/snapshot.md")]
 mod user_guide_snapshot {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/search.md")]
+mod user_guide_search {}
 
 #[cfg(doctest)]
 #[doc = include_str!("../../../docs/user/threading.md")]

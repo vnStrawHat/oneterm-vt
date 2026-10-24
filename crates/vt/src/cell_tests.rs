@@ -325,3 +325,29 @@ fn a_cell_inside_a_graphic_is_not_erasable() {
     assert!(!Cell::EMPTY.with_extras(image).is_erasable(&interner));
     assert!(Cell::EMPTY.with_extras(link).is_erasable(&interner));
 }
+
+#[test]
+fn blank_cells_are_blanks_clusters_of_nothing_and_spacers() {
+    assert!(Cell::EMPTY.is_blank());
+    assert!(
+        Cell::EMPTY
+            .with_content(CellContent::Grapheme(GraphemeId(0)))
+            .is_blank()
+    );
+    assert!(Cell::EMPTY.with_width(CellWidth::WideSpacer).is_blank());
+    assert!(
+        Cell::EMPTY
+            .with_width(CellWidth::LeadingWideSpacer)
+            .is_blank()
+    );
+    assert!(
+        !Cell::EMPTY
+            .with_content(CellContent::Scalar('a'))
+            .is_blank()
+    );
+    assert!(
+        !Cell::EMPTY
+            .with_content(CellContent::Grapheme(GraphemeId(1)))
+            .is_blank()
+    );
+}

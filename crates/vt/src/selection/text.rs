@@ -1,8 +1,8 @@
 //! The text a selection range copies.
 
-use crate::cell::{Cell, CellContent, CellWidth};
+use crate::cell::{CellContent, CellWidth};
 use crate::grid::{RowRef, Screen};
-use crate::intern::{GraphemeArena, GraphemeId};
+use crate::intern::GraphemeArena;
 
 use super::{SelectionKind, SelectionRange};
 
@@ -77,7 +77,7 @@ fn push_piece(
     first: u16,
     last: u16,
 ) {
-    let stop = last.saturating_add(1).min(content_end(row));
+    let stop = last.saturating_add(1).min(row.text_end());
     let mut col = first;
     while col < stop {
         let cell = row.cell(col);
@@ -89,7 +89,7 @@ fn push_piece(
             CellContent::Scalar('\t') => {
                 out.push('\t');
                 // The blanks the tab skipped over are part of it, up to the next stop.
-                while col < stop && is_blank(row.cell(col)) && !screen.tabs().is_stop(col) {
+                while col < stop && row.cell(col).is_blank() && !screen.tabs().is_stop(col) {
                     col += 1;
                 }
             }
@@ -97,31 +97,4 @@ fn push_piece(
             CellContent::Grapheme(cluster) => out.push_str(graphemes.resolve(cluster)),
         }
     }
-}
-
-/// Whether the cell shows nothing: a blank of any style, or a spacer.
-fn is_blank(cell: Cell) -> bool {
-    cell.width().is_spacer()
-        || matches!(
-            cell.content(),
-            CellContent::Scalar(' ') | CellContent::Grapheme(GraphemeId(0))
-        )
-}
-
-/// One past the last column that is text: every column of a wrapped row, else the column
-/// after the last non-blank cell (0 for a blank row).
-fn content_end(row: RowRef<'_>) -> u16 {
-    let cells = row.cells();
-    if row.wrapped() {
-        return u16::try_from(cells.len()).unwrap_or(u16::MAX);
-    }
-    // Cells at or past `occ` equal the last cell, so a blank last cell lets the scan start there.
-    let mut end = match cells.last() {
-        Some(&last) if is_blank(last) => usize::from(row.occ()).min(cells.len()),
-        _ => cells.len(),
-    };
-    while end > 0 && cells.get(end - 1).is_none_or(|&cell| is_blank(cell)) {
-        end -= 1;
-    }
-    u16::try_from(end).unwrap_or(u16::MAX)
 }
