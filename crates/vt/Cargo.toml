@@ -16,11 +16,14 @@ vt-paranoid = []
 # Regular-expression scrollback search (`search::SearchPattern::Regex`). Off by default: the
 # literal matcher needs nothing, and the default dependency set is a promise.
 regex = ["dep:regex"]
-# `hotpath::measure` sites on hot paths. Gains `dep:hotpath` in phase 12.
-hotpath-profiling = []
+# Function timing sites (`hotpath::measure`) on `feed`, the parser, the scroll primitives and
+# `snapshot_update`. Off by default; changes no public item. Alone it compiles hotpath's no-op
+# half: a site measures only when the final binary also enables `hotpath/hotpath`.
+hotpath-profiling = ["dep:hotpath"]
 
 [dependencies]
 bitflags.workspace = true
+hotpath = { workspace = true, optional = true }   # feature `hotpath-profiling` only
 log.workspace = true            # pty diagnostics; one of the six no-default leaf crates
 memchr.workspace = true
 # PUBLIC dependency under `pty`: Poller, Event and PollMode appear in EventedReadWrite.

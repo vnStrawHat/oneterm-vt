@@ -37,7 +37,7 @@ A second file would be a second copy of the same figures that drifts. Between re
 | 3 | bench feature `vt-paranoid` | `--check refuses under vt-paranoid: the whole-history walk dominates the timing` |
 | 4 | bench feature `hotpath-profiling` | `--check refuses under hotpath-profiling: measurement sites change the timing` |
 | 5 | default dir missing or no `*.json` | `no perf record in perf/history; scripts/release.sh writes the first, or pass --baseline FILE` |
-| 6 | `--baseline` unreadable / invalid | `{FILE}: cannot read file` / the `parse_release` error (names the file) |
+| 6 | `--baseline` unreadable / invalid | `{FILE}: cannot read file` (followed by the OS error) / the `parse_release` error (names the file) |
 | 7 | baseline `columns`x`lines` non-zero and != 160x45 | `{src}: baseline geometry {c}x{l}, this build measures 160x45` |
 | 8 | fixture sets differ | ``fixture sets differ: not in baseline: `a`, `b`; not measured: `c` `` (empty side printed as `-`) |
 | 9 | baseline MiB/s not finite or <= 0 | ``{src}: baseline MiB/s for `x` is not a positive number`` |

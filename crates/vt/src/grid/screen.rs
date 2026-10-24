@@ -741,6 +741,7 @@ impl Screen {
     ///
     /// A region that starts at the top of the screen feeds the scrolled-out rows to the
     /// history; rows below such a region keep their screen index. Any other region drops them.
+    #[cfg_attr(feature = "hotpath-profiling", hotpath::measure(impl_type = "Screen"))]
     pub(crate) fn scroll_up(
         &mut self,
         region: ScrollRegion,
@@ -823,6 +824,7 @@ impl Screen {
 
     /// Scrolls `region` down by `n` rows, blanking the rows opened at its top. Never pulls
     /// from the history.
+    #[cfg_attr(feature = "hotpath-profiling", hotpath::measure(impl_type = "Screen"))]
     pub(crate) fn scroll_down(
         &mut self,
         region: ScrollRegion,

@@ -12,7 +12,7 @@ Rules:
 - Never edit a history file. A wrong record is replaced only in a commit that says why.
 - Compare runs from one machine only; the chart warns when a history mixes machines.
 - Numbers are recorded, never gated in CI: a shared runner is noisier than any real regression.
-  The only verdict is `vt-bench grid --check` (phase 12), run by hand on the baseline machine.
+  The only verdict is `vt-bench grid --check`, run by hand on the baseline machine.
 
 ## Commands
 
@@ -21,6 +21,12 @@ Rules:
 cargo run -p oneterm-vt-bench --release -- all --mib 32 --json --machine "<cpu, cores, os>" --out perf/history/v0.1.0.json
 # chart
 cargo run -p oneterm-vt-bench --release -- chart --history perf/history --out perf/chart.svg
+# before a release, by hand on the baseline machine (newest perf/history record by default)
+cargo run -p oneterm-vt-bench --release -- grid --check
+# where does heavy_sgr spend its time? (hotpath-profiling sites; one fixture per report)
+cargo run -p oneterm-vt-bench --release --features hotpath-profiling -- grid --fixture heavy_sgr --mib 32
+# per frame (tier 3 reaches snapshot_update)
+cargo run -p oneterm-vt-bench --release --features hotpath-profiling -- render --fixture dense_cells
 ```
 
 ## Record schema
@@ -81,4 +87,12 @@ Machine: Intel Core i7-12700 (12C/20T), Windows 11, rustc 1.96.0, release profil
 | tui_redraw | 126 | sixel | 47 |
 | scroll_region | 61 | osc_9_7 | 102 |
 
-Tiers 3-5 have no fixed target yet; phase 12 records the first numbers as their baseline.
+## Waivers
+
+A fixture below its pass line, accepted by the owner after a profile. Re-examined each release.
+
+| Fixture | Target | Measured | Ratio | Why (profile summary) | Approved |
+|---|---:|---:|---:|---|---|
+| - | | | | none | |
+
+Tiers 3-5 have no target: recorded per release, not targeted; compare releases on one machine.

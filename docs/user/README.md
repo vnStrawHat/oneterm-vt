@@ -30,7 +30,7 @@ appears when its phase lands; until then it is listed as *planned*.
 | 09 | [`conformance.md`](conformance.md) | supported sequences and modes, inert modes and their DECRQM answers, the DECRQCRA gate, known gaps | 6+ | ready |
 | 10 | [`pty.md`](pty.md) | `pty::PseudoConsole` polled with your own `polling::Poller`: the two tokens, the read/write return values, `OnResize`, what you owe (deregister, drain, `TERM` in `Options::env`); platform differences, drop behaviour, `conpty.dll` beside your executable; turning `pty` off | 11 | ready |
 | 11 | [`versioning.md`](versioning.md) | what to pin, the semver promise, MSRV, features | 0 | written |
-| 12 | `performance.md` | what is measured and what is not, reproducing a run, history and chart, the `vt-bench grid --check` trip-wire, profiling with `hotpath-profiling`, why the numbers are not a promise | 12 | planned |
+| 12 | [`performance.md`](performance.md) | what is measured and what is not, reproducing a run, history and chart, the `vt-bench grid --check` trip-wire, profiling with `hotpath-profiling`, why the numbers are not a promise | 12 | ready |
 | 13 | `api-map.md` | every public type and trait, one line each, grouped by module, with the chapter that teaches it | 13 | planned |
 | 14 | `parser.md` | `parser::Parser` and `Dispatch` without a grid: strip, record, sniff sequences | 1 | ready |
 | 15 | [`cells-and-styles.md`](cells-and-styles.md) | `Cell`, `Style`, resolving ids through `intern::Interner`, `scalar_width` / `cluster_width` | 2 | ready |

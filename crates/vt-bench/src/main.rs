@@ -4,6 +4,7 @@ mod chart;
 mod fixtures;
 mod memory;
 mod perf_history;
+mod regression_check;
 mod render;
 mod resize;
 mod throughput;
@@ -15,8 +16,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
 
-use crate::fixtures::{COLUMNS, LINES};
+use crate::fixtures::{COLUMNS, Fixture, LINES};
 use crate::perf_history::{FrameCost, MemoryCost, PerfRecord, ResizeCost, Throughput, Tiers};
+use crate::regression_check::BuildFlavour;
 use crate::render::DEFAULT_FRAMES;
 use crate::throughput::{CHUNK, RUNS};
 
@@ -27,11 +29,13 @@ static ALLOCATOR: memory::CountingAllocator = memory::CountingAllocator;
 const USAGE: &str = "\
 vt-bench <command> [flags]
 
-Measure (lands phase by phase; see the roadmap):
+Measure:
   all | parser | grid | render | resize | rss
       [--mib N] [--frames N] [--json] [--out FILE] [--machine TEXT]
+      [--fixture NAME]                 parser, grid, render only: one fixture, no --json
   fixtures --out DIR [--mib N]     write the ten benchmark streams as DIR/<name>.vt
-  grid --check [--baseline FILE] [--tolerance R]
+  grid --check [--baseline FILE] [--tolerance R] [--mib N]
+                                   compare tier 2 with the newest perf/history record
 
 Report:
   chart --history DIR --out FILE   SVG of tier-2 MiB/s per release, one line per fixture
@@ -39,6 +43,7 @@ Report:
   help | --help | -h               print this text
 ";
 
+#[cfg_attr(feature = "hotpath-profiling", hotpath::main(percentiles = [50, 99]))]
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     run(&args)
@@ -57,6 +62,19 @@ fn run(args: &[String]) -> ExitCode {
             return ExitCode::SUCCESS;
         }
         "chart" => chart_command(&args[1..]).map(|out| println!("wrote {}", out.display())),
+        "grid" if args[1..].iter().any(|arg| arg == "--check") => {
+            return match regression_check::check_command(&args[1..]) {
+                Ok(report) => {
+                    print!("{}", report.text);
+                    exit_code_for(report.passed)
+                }
+                // No verdict: a refusal or a flag error.
+                Err(error) => {
+                    eprintln!("vt-bench: {error:#}");
+                    ExitCode::from(2)
+                }
+            };
+        }
         "parser" | "grid" | "render" | "resize" | "rss" | "all" => {
             measure_command(command, &args[1..]).map(|text| print!("{text}"))
         }
@@ -72,6 +90,15 @@ fn run(args: &[String]) -> ExitCode {
             eprintln!("vt-bench: {error:#}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// `grid --check`: 0 when every fixture held, 1 when one is slower than the band.
+fn exit_code_for(passed: bool) -> ExitCode {
+    if passed {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
     }
 }
 
@@ -108,6 +135,17 @@ struct MeasureOptions {
     frames: Option<usize>,
     machine: Option<String>,
     out: Option<PathBuf>,
+    /// `--fixture` as given; only `parser`, `grid` and `render` take it.
+    fixture: Option<String>,
+}
+
+/// `--mib N`: a whole number of MiB per fixture, `1..=4096`.
+fn parse_mib(value: &str) -> Result<usize> {
+    value
+        .parse()
+        .ok()
+        .filter(|mib| (1..=4096).contains(mib))
+        .with_context(|| format!("--mib needs a whole number 1..=4096, got '{value}'"))
 }
 
 /// Reads the flags shared by the measure commands.
@@ -118,29 +156,29 @@ fn parse_measure_options(command: &str, args: &[String]) -> Result<MeasureOption
         frames: None,
         machine: None,
         out: None,
+        fixture: None,
     };
+    let takes_fixture = matches!(command, "parser" | "grid" | "render");
     let mut iter = args.iter();
     while let Some(flag) = iter.next() {
         if flag == "--json" {
             options.json = true;
             continue;
         }
-        if !matches!(flag.as_str(), "--mib" | "--frames" | "--out" | "--machine") {
+        let known = match flag.as_str() {
+            "--mib" | "--frames" | "--out" | "--machine" => true,
+            "--fixture" => takes_fixture,
+            _ => false,
+        };
+        if !known {
             bail!("unknown flag '{flag}' for '{command}'");
         }
         let Some(value) = iter.next() else {
             bail!("flag '{flag}' needs a value");
         };
         match flag.as_str() {
-            "--mib" => {
-                options.mib = value
-                    .parse()
-                    .ok()
-                    .filter(|mib| (1..=4096).contains(mib))
-                    .with_context(|| {
-                        format!("--mib needs a whole number 1..=4096, got '{value}'")
-                    })?;
-            }
+            "--mib" => options.mib = parse_mib(value)?,
+            "--fixture" => options.fixture = Some(value.clone()),
             "--out" => options.out = Some(PathBuf::from(value)),
             "--machine" => options.machine = Some(value.clone()),
             "--frames" => {
@@ -160,6 +198,9 @@ fn parse_measure_options(command: &str, args: &[String]) -> Result<MeasureOption
     if options.json && options.machine.is_none() {
         bail!("--json needs --machine");
     }
+    if options.json && options.fixture.is_some() {
+        bail!("--fixture cannot be used with --json: a record holds every fixture");
+    }
     Ok(options)
 }
 
@@ -174,21 +215,29 @@ struct Measured {
 }
 
 /// Runs the tiers `command` names: one tier, or all five for `all`. `frames` is tier 3's
-/// frame count.
-fn measure(command: &str, mib: usize, frames: usize) -> Measured {
+/// frame count; `fixtures` are the streams tiers 1-3 run.
+fn measure(command: &str, mib: usize, frames: usize, fixtures: &[&Fixture]) -> Measured {
     let all = command == "all";
     let mut measured = Measured::default();
     if all || command == "parser" {
         progress("tier 1 parser");
-        measured.tier1_parser = Some(throughput::measure_tier(mib, throughput::parser_pass));
+        measured.tier1_parser = Some(throughput::measure_tier(
+            mib,
+            fixtures,
+            throughput::parser_pass,
+        ));
     }
     if all || command == "grid" {
         progress("tier 2 grid");
-        measured.tier2_grid = Some(throughput::measure_tier(mib, throughput::grid_pass));
+        measured.tier2_grid = Some(throughput::measure_tier(
+            mib,
+            fixtures,
+            throughput::grid_pass,
+        ));
     }
     if all || command == "render" {
         progress("tier 3 render");
-        measured.tier3_render = Some(render::measure_render(frames));
+        measured.tier3_render = Some(render::measure_render(frames, fixtures));
     }
     if all || command == "resize" {
         progress("tier 4 resize");
@@ -207,14 +256,16 @@ fn progress(tier: &str) {
 
 /// The measure commands (`parser`, `grid`, `render`, `resize`, `rss`, `all`). Returns the text for stdout.
 fn measure_command(command: &str, args: &[String]) -> Result<String> {
-    if command == "grid" && args.iter().any(|arg| arg == "--check") {
-        bail!("'grid' is not implemented yet");
-    }
     let options = parse_measure_options(command, args)?;
+    if options.json {
+        regression_check::ensure_recordable(BuildFlavour::current())?;
+    }
+    let fixtures = fixtures::select(options.fixture.as_deref())?;
     let measured = measure(
         command,
         options.mib,
         options.frames.unwrap_or(DEFAULT_FRAMES),
+        &fixtures,
     );
     let report = if options.json {
         render_json(&options, measured)?
@@ -429,9 +480,54 @@ mod tests {
     }
 
     #[test]
-    fn grid_check_stays_unimplemented() {
-        let error = measure_command("grid", &strings(&["--check"])).unwrap_err();
-        assert_eq!(format!("{error:#}"), "'grid' is not implemented yet");
+    fn usage_names_the_new_flags() {
+        assert!(USAGE.contains("--tolerance R] [--mib N]"));
+        assert!(USAGE.contains("--fixture NAME"));
+        assert!(!USAGE.contains("lands phase by phase"));
+    }
+
+    #[test]
+    fn fixture_flag_rules() {
+        for command in ["parser", "grid", "render"] {
+            let options =
+                parse_measure_options(command, &strings(&["--fixture", "heavy_sgr"])).unwrap();
+            assert_eq!(options.fixture.as_deref(), Some("heavy_sgr"));
+        }
+        for command in ["all", "resize", "rss", "fixtures"] {
+            let error = parse_measure_options(command, &strings(&["--fixture", "heavy_sgr"]))
+                .err()
+                .unwrap();
+            assert_eq!(
+                format!("{error:#}"),
+                format!("unknown flag '--fixture' for '{command}'")
+            );
+        }
+        let error = parse_measure_options(
+            "grid",
+            &strings(&["--fixture", "heavy_sgr", "--json", "--machine", "m"]),
+        )
+        .err()
+        .unwrap();
+        assert_eq!(
+            format!("{error:#}"),
+            "--fixture cannot be used with --json: a record holds every fixture"
+        );
+    }
+
+    #[test]
+    fn unknown_fixture_is_refused_before_measuring() {
+        let error = measure_command("grid", &strings(&["--fixture", "nope"])).unwrap_err();
+        assert!(format!("{error:#}").starts_with("unknown fixture 'nope'; one of: plain_ascii"));
+    }
+
+    #[test]
+    fn verdict_maps_to_exit_code() {
+        assert_eq!(exit_code_for(true), ExitCode::SUCCESS);
+        assert_eq!(exit_code_for(false), ExitCode::FAILURE);
+        assert_eq!(
+            run(&strings(&["grid", "--check", "--tolerance", "0"])),
+            ExitCode::from(2)
+        );
     }
 
     #[test]

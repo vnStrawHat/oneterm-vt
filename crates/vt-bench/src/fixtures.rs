@@ -73,6 +73,21 @@ pub(crate) const FIXTURES: [Fixture; 10] = [
     },
 ];
 
+/// The fixtures a measure command runs: all of them in table order, or the one `name` names.
+pub(crate) fn select(name: Option<&str>) -> Result<Vec<&'static Fixture>> {
+    let all: &'static [Fixture] = &FIXTURES;
+    let Some(name) = name else {
+        return Ok(all.iter().collect());
+    };
+    all.iter()
+        .find(|fixture| fixture.name == name)
+        .map(|fixture| vec![fixture])
+        .with_context(|| {
+            let names: Vec<&str> = all.iter().map(|fixture| fixture.name).collect();
+            format!("unknown fixture '{name}'; one of: {}", names.join(", "))
+        })
+}
+
 /// `prefix`, then `unit(i, out)` for `i = 0, 1, ...` until the stream holds `target` bytes.
 fn build(target: usize, prefix: &[u8], mut unit: impl FnMut(usize, &mut Vec<u8>)) -> Vec<u8> {
     let mut out = Vec::with_capacity(target + 4096);
@@ -208,6 +223,22 @@ mod tests {
     fn make(name: &str, target: usize) -> Vec<u8> {
         let fixture = FIXTURES.iter().find(|f| f.name == name).unwrap();
         (fixture.make)(target)
+    }
+
+    #[test]
+    fn select_by_name() {
+        let one = select(Some("heavy_sgr")).unwrap();
+        assert_eq!(one.len(), 1);
+        assert_eq!(one[0].name, "heavy_sgr");
+        let all = select(None).unwrap();
+        let names: Vec<&str> = all.iter().map(|fixture| fixture.name).collect();
+        let table: Vec<&str> = FIXTURES.iter().map(|fixture| fixture.name).collect();
+        assert_eq!(names, table);
+        let error = select(Some("nope")).err().unwrap();
+        assert_eq!(
+            format!("{error:#}"),
+            format!("unknown fixture 'nope'; one of: {}", table.join(", "))
+        );
     }
 
     #[test]

@@ -11,9 +11,15 @@ publish.workspace = true
 name = "vt-bench"
 path = "src/main.rs"
 
+[features]
+# Passthroughs: the bench must know how the engine was built (`grid --check` refuses a skewed build).
+vt-paranoid = ["oneterm-vt/vt-paranoid"]
+hotpath-profiling = ["oneterm-vt/hotpath-profiling", "dep:hotpath", "hotpath/hotpath"]
+
 [dependencies]
 oneterm-vt = { path = "../vt" }
 anyhow.workspace = true
+hotpath = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 

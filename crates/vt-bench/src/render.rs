@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use oneterm_vt::{Config, EventBatch, Size, SnapshotState, Terminal};
 
-use crate::fixtures::{COLUMNS, FIXTURES, LINES};
+use crate::fixtures::{COLUMNS, FIXTURES, Fixture, LINES};
 use crate::perf_history::FrameCost;
 use crate::throughput::{CHUNK, RUNS};
 
@@ -23,12 +23,11 @@ struct Sample {
     cells: u64,
 }
 
-/// Tier 3: for every fixture, the median microseconds per `snapshot_update` over
+/// Tier 3: for each of `fixtures`, the median microseconds per `snapshot_update` over
 /// `frames` frames, and the cells copied per frame.
 ///
 /// Cycles are interleaved across fixtures like tier 2's, and cycle 0 is a discarded warm-up.
-pub(crate) fn measure_render(frames: usize) -> Vec<FrameCost> {
-    let fixtures = &FIXTURES;
+pub(crate) fn measure_render(frames: usize, fixtures: &[&Fixture]) -> Vec<FrameCost> {
     let mut samples: Vec<Vec<Sample>> = fixtures.iter().map(|_| Vec::new()).collect();
     for cycle in 0..=RUNS {
         for (fixture, kept) in fixtures.iter().zip(samples.iter_mut()) {
@@ -119,7 +118,7 @@ mod tests {
 
     #[test]
     fn render_runs_every_fixture() {
-        let rows = measure_render(4);
+        let rows = measure_render(4, &crate::fixtures::select(None).unwrap());
         let names: Vec<&str> = rows.iter().map(|row| row.fixture.as_str()).collect();
         let expected: Vec<&str> = FIXTURES.iter().map(|fixture| fixture.name).collect();
         assert_eq!(names.len(), 10);
@@ -127,8 +126,16 @@ mod tests {
     }
 
     #[test]
+    fn render_runs_selected_only() {
+        let heavy_sgr = crate::fixtures::select(Some("heavy_sgr")).unwrap();
+        let rows = measure_render(2, &heavy_sgr);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].fixture, "heavy_sgr");
+    }
+
+    #[test]
     fn render_values_are_sane() {
-        for row in measure_render(4) {
+        for row in measure_render(4, &crate::fixtures::select(None).unwrap()) {
             assert!(
                 row.us_per_frame.is_finite() && row.us_per_frame >= 0.0,
                 "{}",

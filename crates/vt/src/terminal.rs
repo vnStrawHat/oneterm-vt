@@ -342,6 +342,10 @@ impl Terminal {
     /// Any chunking of one stream gives the same screen and the same events. `now` times
     /// synchronized output (`?2026`): a block opened here holds frames from `now` on (see
     /// [`SyncState`]). The engine reads no clock itself.
+    #[cfg_attr(
+        feature = "hotpath-profiling",
+        hotpath::measure(impl_type = "Terminal")
+    )]
     pub fn feed(&mut self, bytes: &[u8], batch: &mut EventBatch, now: Instant) -> FeedStats {
         batch.clear();
         let state = &mut self.state;
@@ -573,6 +577,10 @@ impl Terminal {
     /// and modes still refreshed, and a change they went through is reported once by the next
     /// real frame. `now` is the time deadlines are checked against; `&mut self` because the
     /// watchdog may close the block here. Call [`SnapshotState::map_colors`] afterwards.
+    #[cfg_attr(
+        feature = "hotpath-profiling",
+        hotpath::measure(impl_type = "Terminal")
+    )]
     pub fn snapshot_update(&mut self, state: &mut SnapshotState, now: Instant) -> SnapshotUpdate {
         let modes = self.mode_snapshot();
         let selection = self.selection_range();

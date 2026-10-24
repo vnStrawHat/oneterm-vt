@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use oneterm_vt::parser::{Dispatch, Parser};
 use oneterm_vt::{Config, EventBatch, Size, Terminal};
 
-use crate::fixtures::{COLUMNS, FIXTURES, LINES};
+use crate::fixtures::{COLUMNS, Fixture, LINES};
 use crate::perf_history::Throughput;
 
 /// Measured cycles per fixture; cycle 0 is a discarded warm-up.
@@ -23,10 +23,14 @@ impl Dispatch for NullDispatch {
     fn execute(&mut self, _byte: u8) {}
 }
 
-/// Runs `pass` on every fixture for `RUNS + 1` interleaved cycles and summarizes each. The stream is regenerated per cycle (untimed) so ten fixtures are never
+/// Runs `pass` on each of `fixtures` for `RUNS + 1` interleaved cycles and summarizes each.
+/// The stream is regenerated per cycle (untimed) so ten fixtures are never
 /// resident at once.
-pub(crate) fn measure_tier(mib: usize, mut pass: impl FnMut(&[u8]) -> Duration) -> Vec<Throughput> {
-    let fixtures = &FIXTURES;
+pub(crate) fn measure_tier(
+    mib: usize,
+    fixtures: &[&Fixture],
+    mut pass: impl FnMut(&[u8]) -> Duration,
+) -> Vec<Throughput> {
     let mut results: Vec<(usize, Vec<Duration>)> = vec![(0, Vec::new()); fixtures.len()];
     for cycle in 0..=RUNS {
         for (fixture, (len, samples)) in fixtures.iter().zip(results.iter_mut()) {
@@ -112,6 +116,7 @@ pub(crate) fn render_table(rows: &[Throughput]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fixtures::FIXTURES;
 
     fn ms(millis: u64) -> Duration {
         Duration::from_millis(millis)
@@ -134,10 +139,27 @@ mod tests {
         assert!(result.spread_percent.is_finite());
     }
 
+    fn select_all() -> Vec<&'static Fixture> {
+        crate::fixtures::select(None).unwrap()
+    }
+
+    #[test]
+    fn measure_tier_runs_selected_only() {
+        let heavy_sgr = crate::fixtures::select(Some("heavy_sgr")).unwrap();
+        let mut passes = 0;
+        let rows = measure_tier(1, &heavy_sgr, |_| {
+            passes += 1;
+            ms(1)
+        });
+        assert_eq!(passes, RUNS + 1);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].fixture, "heavy_sgr");
+    }
+
     #[test]
     fn measure_tier_runs_every_fixture_every_cycle() {
         let mut passes = 0;
-        let rows = measure_tier(1, |_| {
+        let rows = measure_tier(1, &select_all(), |_| {
             passes += 1;
             ms(1)
         });
@@ -147,7 +169,7 @@ mod tests {
 
     #[test]
     fn tier2_runs_every_fixture() {
-        let rows = measure_tier(1, |_| ms(1));
+        let rows = measure_tier(1, &select_all(), |_| ms(1));
         let names: Vec<&str> = rows.iter().map(|row| row.fixture.as_str()).collect();
         let expected: Vec<&str> = FIXTURES.iter().map(|fixture| fixture.name).collect();
         assert_eq!(names.len(), 10);

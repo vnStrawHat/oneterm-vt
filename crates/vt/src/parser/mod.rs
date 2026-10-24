@@ -145,6 +145,7 @@ impl Parser {
 
     /// Parses `bytes`, calling `dispatch` in stream order. A sequence or character may be split
     /// across calls at any byte.
+    #[cfg_attr(feature = "hotpath-profiling", hotpath::measure(impl_type = "Parser"))]
     pub fn advance<D: Dispatch + ?Sized>(&mut self, dispatch: &mut D, bytes: &[u8]) {
         let mut rest = bytes;
         if self.utf8_carry_len > 0 {
