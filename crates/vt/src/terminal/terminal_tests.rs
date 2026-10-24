@@ -1798,3 +1798,56 @@ fn the_erase_cell_follows_only_the_pen_background() {
     s.feed(b"\x1b[49m");
     assert_eq!(s.term.screen().cursor().erase(), Cell::EMPTY);
 }
+
+#[test]
+fn encode_key_reads_the_terminals_modes() {
+    use crate::input::{KeyMods, KeySpec, NamedKey};
+
+    let mut s = Session::new(80, 24);
+    let up = KeySpec::Named(NamedKey::ArrowUp);
+    let escape = KeySpec::Named(NamedKey::Escape);
+    let ctrl_a = KeySpec::Character("a".to_owned());
+    let ctrl = KeyMods {
+        ctrl: true,
+        ..KeyMods::default()
+    };
+    assert_eq!(
+        s.term.encode_key(&up, KeyMods::default()).as_deref(),
+        Some(&b"\x1b[A"[..])
+    );
+    s.feed(b"\x1b[?1h");
+    assert_eq!(
+        s.term.encode_key(&up, KeyMods::default()).as_deref(),
+        Some(&b"\x1bOA"[..])
+    );
+    s.feed(b"\x1b[>1u");
+    assert_eq!(
+        s.term.encode_key(&escape, KeyMods::default()).as_deref(),
+        Some(&b"\x1b[27u"[..])
+    );
+    s.feed(b"\x1b[<u\x1b[>4;2m");
+    assert_eq!(
+        s.term.encode_key(&ctrl_a, ctrl).as_deref(),
+        Some(&b"\x1b[27;5;97~"[..])
+    );
+    s.feed(b"\x1bc");
+    assert_eq!(
+        s.term.encode_key(&ctrl_a, ctrl).as_deref(),
+        Some(&b"\x01"[..])
+    );
+}
+
+#[test]
+fn encode_key_event_reports_a_release() {
+    use crate::input::{KeyEventKind, KeyMods, KeySpec};
+
+    let mut s = Session::new(80, 24);
+    let mut event = KeyEvent::new(KeySpec::Character("a".to_owned()), KeyMods::default());
+    event.kind = KeyEventKind::Release;
+    assert_eq!(s.term.encode_key_event(&event), None);
+    s.feed(b"\x1b[>10u");
+    assert_eq!(
+        s.term.encode_key_event(&event).as_deref(),
+        Some(&b"\x1b[97;1:3u"[..])
+    );
+}

@@ -14,13 +14,16 @@
 //! and per-call counters out, and damage-tracked [`SnapshotState`]s that copy only the rows
 //! that changed, with synchronized output (`?2026`) holding frames while a program redraws, and
 //! [`search`]: literal and regular-expression scrollback search over a copy of the grid,
-//! matches spanning wrapped rows.
+//! matches spanning wrapped rows. [`input`] turns key and mouse events into the bytes the
+//! program expects, honouring DECCKM, the kitty keyboard protocol, `modifyOtherKeys` and the
+//! mouse modes.
 
 #![warn(missing_docs)]
 
 mod cell;
 mod events;
 pub mod grid;
+pub mod input;
 pub mod intern;
 pub mod parser;
 pub mod search;
@@ -96,3 +99,7 @@ mod user_guide_threading {}
 #[cfg(doctest)]
 #[doc = include_str!("../../../docs/user/quickstart.md")]
 mod user_guide_quickstart {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/input.md")]
+mod user_guide_input {}

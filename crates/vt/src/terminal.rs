@@ -16,6 +16,7 @@ use crate::grid::terminal_grid::{ResizeOutcome, ResizePolicy};
 use crate::grid::{
     Charset, DEFAULT_SCROLLBACK, Pos, PrintMode, RowId, Screen, Size, TerminalGrid, Viewport,
 };
+use crate::input::{self, KeyEvent, KeyMods, KeySpec};
 use crate::intern::Interner;
 use crate::parser::Parser;
 use crate::selection::{
@@ -524,6 +525,20 @@ impl Terminal {
     /// The modes a renderer or an input encoder reads, as of now.
     pub fn mode_snapshot(&self) -> ModeSnapshot {
         self.state.mode_snapshot()
+    }
+
+    /// The bytes to send for a key press against this terminal's own modes (`None`: send
+    /// nothing). They change as the program negotiates cursor-key mode, kitty keyboard flags
+    /// or `modifyOtherKeys`; see [`input::encode_key`].
+    pub fn encode_key(&self, key: &KeySpec, mods: KeyMods) -> Option<Vec<u8>> {
+        input::encode_key(key, mods, &self.mode_snapshot())
+    }
+
+    /// The bytes to send for a key event against this terminal's own modes (`None`: send
+    /// nothing). They change as the program negotiates cursor-key mode, kitty keyboard flags
+    /// or `modifyOtherKeys`; see [`input::encode_key_event`].
+    pub fn encode_key_event(&self, event: &KeyEvent) -> Option<Vec<u8>> {
+        input::encode_key_event(event, &self.mode_snapshot())
     }
 
     /// The mouse protocol a program asked for, if any; the same as

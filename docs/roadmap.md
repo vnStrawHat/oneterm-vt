@@ -76,7 +76,7 @@ synchronized output (`?2026`) with a timeout.
 **9. Input encoders**: legacy keys, `modifyOtherKeys`, kitty keyboard protocol, mouse (X10,
 normal, button, any; default/UTF-8/SGR/urxvt encodings).
 - Public: `input::*`; `Terminal::{encode_key, encode_key_event}`.
-- Accept: byte-exact table tests per (event, mode snapshot) pair (API, docs/user/versioning.md, major bump).
+- Accept: byte-exact table tests per (event, mode snapshot) pair (API, docs/user/versioning.md, minor bump).
 
 **10. Graphics / Sixel**: Sixel decoder, placements, graphic lifetime, `SnapshotPlacement`.
 - Public: root `GraphicData, Placement, VIRTUAL_CELL, SnapshotPlacement`;
