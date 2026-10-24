@@ -303,9 +303,16 @@ fn a_cluster_that_never_ends_is_dropped_once() {
 
 #[test]
 fn ten_thousand_of_every_query_answer_in_order_and_release_the_arena() {
-    const QUERIES: &[(&[u8], &[&[u8]])] = &[
+    // DA2 reports the crate version as major * 10000 + minor * 100 + patch.
+    let mut version = env!("CARGO_PKG_VERSION")
+        .split('.')
+        .map(|part| part.parse::<u32>().unwrap_or(0).min(99));
+    let mut next = || version.next().unwrap_or(0);
+    let (major, minor, patch) = (next(), next(), next());
+    let da2 = format!("\x1b[>0;{};1c", major * 10_000 + minor * 100 + patch);
+    let queries: &[(&[u8], &[&[u8]])] = &[
         (b"\x1b[c", &[b"\x1b[?62;4;22c"]),
-        (b"\x1b[>c", &[b"\x1b[>0;100;1c"]),
+        (b"\x1b[>c", &[da2.as_bytes()]),
         (b"\x1b[=c", &[b"\x1bP!|00000000\x1b\\"]),
         (b"\x1b[5n", &[b"\x1b[0n"]),
         (b"\x1b[6n", &[b"\x1b[1;1R"]),
@@ -326,11 +333,11 @@ fn ten_thousand_of_every_query_answer_in_order_and_release_the_arena() {
             &[b"\x1bP1+r436f=323536\x1b\\", b"\x1bP1+r524742=\x1b\\"],
         ),
     ];
-    let round: Vec<u8> = QUERIES
+    let round: Vec<u8> = queries
         .iter()
         .flat_map(|(query, _)| query.iter().copied())
         .collect();
-    let expected: Vec<&[u8]> = QUERIES
+    let expected: Vec<&[u8]> = queries
         .iter()
         .flat_map(|(_, replies)| replies.iter().copied())
         .collect();

@@ -11,6 +11,20 @@ use oneterm_vt::{
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// The crate version as DA2 reports it: `major * 10000 + minor * 100 + patch`.
+fn da2_version() -> u32 {
+    let mut parts = VERSION
+        .split('.')
+        .map(|part| part.parse::<u32>().unwrap_or(0).min(99));
+    let mut next = || parts.next().unwrap_or(0);
+    let (major, minor, patch) = (next(), next(), next());
+    major * 10_000 + minor * 100 + patch
+}
+
+fn da2_reply() -> Vec<u8> {
+    format!("\x1b[>0;{};1c", da2_version()).into_bytes()
+}
+
 struct Harness {
     term: Terminal,
     batch: EventBatch,
@@ -85,7 +99,7 @@ fn da1() {
 #[test]
 fn da2() {
     for query in [&b"\x1b[>c"[..], b"\x1b[>0c"] {
-        assert_eq!(Harness::new().ask(query), b"\x1b[>0;100;1c", "{query:?}");
+        assert_eq!(Harness::new().ask(query), da2_reply(), "{query:?}");
     }
     let mut harness = Harness::new();
     assert!(harness.ask(b"\x1b[>1c").is_empty());
@@ -94,17 +108,18 @@ fn da2() {
 
 #[test]
 fn da2_follows_a_versioned_product_name() {
+    let crate_version = da2_version();
     for (name, version) in [
         ("Acme(1.4.0)", 10_400),
         ("Acme(2)", 20_000),
         ("P(7.4294967296.9)", 70_009),
         ("P(1.200.3)", 19_903),
-        ("P(-1.2.3)", 100),
-        ("P()", 100),
-        ("P(4294967296.0.0)", 100),
-        ("P(x.1.2)", 100),
-        ("no parentheses", 100),
-        ("Acme 1.4.0)", 100),
+        ("P(-1.2.3)", crate_version),
+        ("P()", crate_version),
+        ("P(4294967296.0.0)", crate_version),
+        ("P(x.1.2)", crate_version),
+        ("no parentheses", crate_version),
+        ("Acme 1.4.0)", crate_version),
     ] {
         let reply = named(name).ask(b"\x1b[>c");
         assert_eq!(
@@ -193,7 +208,6 @@ fn xtversion() {
     for query in [&b"\x1b[>q"[..], b"\x1b[>0q"] {
         assert_eq!(Harness::new().ask(query), expected, "{query:?}");
     }
-    assert_eq!(expected, b"\x1bP>|oneterm-vt(0.1.0)\x1b\\");
     let mut harness = Harness::new();
     assert!(harness.ask(b"\x1b[>1q").is_empty());
     assert_eq!(harness.unhandled(), 1);
