@@ -17,7 +17,7 @@ Run in a throwaway clone (`git clone . .tmp/rel-clone`, edited script copied in,
 
 | Workspace | Run | Observed |
 |---|---|---|
-| 0.1.0 | `patch` | `releasing v0.1.0 -> v0.1.1`, exit 1 (dirty tree) |
+| 0.1.0 | `patch` | `releasing v0.1.0 -> v0.1.1`, exit 1 (before 13f: dirty tree; now the Actions guard) |
 | 0.1.0 | `minor` | `releasing v0.1.0 -> v0.1.1`, exit 1 |
 | 0.1.0 | `major` | `releasing v0.1.0 -> v0.2.0`, exit 1 |
 | 0.1.0 | `0.1.0` | `releasing v0.1.0 -> v0.1.0`, exit 1 |
@@ -25,7 +25,18 @@ Run in a throwaway clone (`git clone . .tmp/rel-clone`, edited script copied in,
 | 0.1.0 | `1.2.3x` | usage, exit 2 (dots are escaped now) |
 | 1.2.3 (clone only) | `patch` / `minor` / `major` | `v1.2.4` / `v1.3.0` / `v2.0.0` |
 
-`.github/workflows/release.yml` and `cliff.toml`: unchanged (`git diff` empty).
+13f, clean clone of `main` with the edited script (`VT_BENCH_MACHINE=x`):
+
+- `GITHUB_ACTIONS` unset: `patch`, `minor`, `major`, `0.1.0` print `releasing ...` (as in the table), then
+  `error: releases are cut by the Release workflow (.github/workflows/release.yml)`, exit 1, tree untouched, no tag.
+  `0a1b2`: usage with the new machine example, exit 2.
+- `GITHUB_ACTIONS=true patch`: gate, bench, chart, commit `release: v0.1.1`, tag, last line `tagged v0.1.1`, exit 0.
+- Bundle: `git bundle create release.bundle refs/tags/v0.1.1`; in a second clone `git fetch release.bundle
+  refs/tags/v0.1.1:refs/tags/v0.1.1` and `git checkout --detach v0.1.1` land on `release: v0.1.1`. The workflow's
+  `git push --atomic origin <sha>:refs/heads/main refs/tags/v0.1.1` was run against a bare clone: both refs landed.
+- Found by that run: the DA2 reply is derived from the crate version, but `tests/feed_limits.rs` and
+  `tests/terminal_replies.rs` hard-coded `0.1.0` (`100`); the gate inside `release.sh` failed on any other version. Both now
+  derive the number from `CARGO_PKG_VERSION`.
 
 ## M2 snapshot vs roadmap lists
 
@@ -102,19 +113,23 @@ Gate commands that ran: `cargo fmt --all -- --check`; `cargo clippy --workspace 
 - First native Linux CI run of `scripts/public-api.sh check` (and Windows): if the cross-generated Unix file differs from
   the native one, apply the diff the CI step prints.
 - Repository URL: replace `<your fork url>` in `README.md` ("Use") and `docs/user/versioning.md` (pin example); `git remote add origin`.
-- `VT_BENCH_MACHINE` value (release.md step 7 suggests `i7-12700 12C/20T, Windows 11 26200, rustc 1.96.0`; confirm).
 - `git update-index --chmod=+x scripts/public-api.sh` when committing.
-- Run `scripts/release.sh 0.1.0` on the quiet baseline machine, `grid --check`, push, and record steps 3-13 of release.md
-  (tag sha, release URL, run ids) in this file.
+- Run the Release workflow (release.md steps 7-12): dry run first (M6), then the real run; record tag sha, release URL and run ids
+  in the checklist below.
 
-## Release checklist (release.md steps 3-13)
+## Release checklist (release.md steps 1-12)
 
 | Step | Date | Result |
 |---|---|---|
+| 1 phases 0-13 and 13f committed, tree clean | pending | |
+| 2 repository URL, remote, no ruleset blocks `github-actions[bot]` | pending | |
 | 3 push, CI green on 3 OS | pending | |
 | 4 API review | 2026-10-24 | M2 above |
 | 5 fuzz | pending | |
 | 6 perf verdict | pending | |
-| 7 `scripts/release.sh 0.1.0` | pending | |
-| 8 `grid --check`, chart | pending | |
-| 9-13 push, Release run, notes, assets, record | pending | |
+| 7 workflow dry run (M6), run id | pending | |
+| 8 real run, run id | pending | |
+| 9 `git pull --ff-only`, tag sha | pending | |
+| 10 `gh release view`, URL | pending | |
+| 11 asset `cmp` with `perf/history/v0.1.0.json` | pending | |
+| 12 record | pending | |

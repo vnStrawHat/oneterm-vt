@@ -1,5 +1,8 @@
 # GitHub Actions
 
+> Note: `release.yml` is now a manual workflow, see docs/specs/0014-release/workflow.md; the
+> `release.yml` section below is history.
+
 Toolchain: `rustup toolchain install` with no argument installs the channel and components that
 `rust-toolchain.toml` pins (rustup >= 1.28, current on hosted runners). No toolchain action.
 Actions are pinned by major tag; SHA pinning is an open item.

@@ -15,13 +15,15 @@ except `lib.rs` doctest wiring; no new public item; no new dependency in the wor
 | create | `docs/user/api-map.md`, `docs/user/for-agents.md` | user-docs.md |
 | create | `docs/specs/0014-release/acceptance.md` | tests.md "acceptance.md" |
 | edit | `crates/vt/src/lib.rs` | doctest modules below |
-| edit | `scripts/release.sh` | 0.x kind mapping, escaped regex dots, header line (release.md) |
+| edit | `scripts/release.sh` | 0.x kind mapping, escaped regex dots (13d, done); Actions guard, no traps, header, last line (13f, release.md) |
+| replace | `.github/workflows/release.yml` | workflow.md, verbatim (13f) |
 | edit | `.github/workflows/ci.yml` | two steps below |
 | edit | `.gitignore` | `/fuzz/corpus/`, `/fuzz/artifacts/`, `/fuzz/coverage/` |
 | edit | `README.md` | status, "Use" URL, `## Quick start`, layout rows, "Developing" line (below) |
 | edit | `docs/user/README.md` | read-this-first, linked rows, columns (user-docs.md) |
 | edit | `docs/user/versioning.md`, `performance.md`, `quickstart.md` (if the check fails) | user-docs.md |
-| edit | `docs/agents/commits.md` | `release` type: subject is `release: vX.Y.Z` (what the script writes); "version bump by type" gains "under 0.x see docs/user/versioning.md" |
+| edit | `docs/agents/commits.md`, `docs/perf/README.md`, `docs/user/{versioning,performance}.md`, `docs/roadmap.md` | done by the architect with 13f; coder checks they match the code |
+| edit | `docs/specs/0014-release/acceptance.md` | "Pending (owner)": drop the `VT_BENCH_MACHINE` and `scripts/release.sh` bullets, add "run the Release workflow (release.md steps 7-12)"; checklist rows follow release.md numbering |
 
 ## `crates/vt/src/lib.rs`
 
@@ -50,7 +52,7 @@ surface is ..." with a present-tense summary of the modules (no phase or roadmap
 ```
 
 The phase-11 tree check and the docs step must already be there; if not, stop and report.
-`release.yml` and `cliff.toml`: unchanged.
+`cliff.toml`: unchanged.
 
 ## Root `README.md`
 
@@ -60,6 +62,8 @@ The phase-11 tree check and the docs step must already be there; if not, stop an
 - Layout table rows: `fuzz/` "cargo-fuzz targets, run before each release (not a workspace
   member)"; `scripts/public-api.sh` "check or update the public-API snapshot".
 - "Developing": add `scripts/public-api.sh check   # needs rustup; installs its pinned nightly`.
+- Layout row `scripts/release.sh`: "bump, gate, benchmark, chart, commit, tag; run only by the
+  Release workflow". Add a row `.github/workflows/` "CI on 3 OS; the Release workflow (manual)".
 
 ## Order of work (gate green after each)
 
@@ -70,6 +74,7 @@ The phase-11 tree check and the docs step must already be there; if not, stop an
 | 13c | `api-map.md`, `for-agents.md`, index, versioning, performance, quickstart check, commits.md, lib.rs wiring, `tests/user_guide.rs`, M2, M5 |
 | 13d | `release.sh` mapping, M1 |
 | 13e | `fuzz/`, M4 (Linux/WSL); a finding becomes its own `fix` commit with a regression test |
+| 13f | `release.yml` (workflow.md), `release.sh` edits, README rows, acceptance.md; M1 again; shellcheck |
 
 ## Gate
 
@@ -95,4 +100,6 @@ is checked.
 2. `docs(release): complete user guide, API snapshot gate, fuzz targets` (all of 13a-13e).
    Body: `Spec: docs/specs/0014-release`. Hidden from release notes on purpose (Decision 9).
 3. Any fuzz finding: `fix(<scope>): <what hostile input did>` before 2 or after it.
-4. `release: v0.1.0`, made by `scripts/release.sh 0.1.0` (release.md step 7).
+4. `ci(release): cut releases with a manual Release workflow` (13f, with this spec amendment).
+   Body: `Spec: docs/specs/0014-release`. Hidden from release notes (`ci`).
+5. `release: v0.1.0`, made by the Release workflow as `github-actions[bot]` (release.md step 8).

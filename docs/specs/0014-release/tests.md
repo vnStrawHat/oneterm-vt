@@ -29,10 +29,11 @@ clippy line (existing) builds it without `pty`.
 
 ## Manual checks (coder, results in `acceptance.md`)
 
-**M1 `release.sh` kinds.** The script prints `releasing vOLD -> vNEW` before its clean-tree
-check, so with one uncommitted change each run prints the mapping, exits 1, modifies nothing:
+**M1 `release.sh` kinds.** The script prints `releasing vOLD -> vNEW`, then refuses outside
+GitHub Actions (`releases are cut by the Release workflow ...`), so a local run prints the
+mapping, exits 1 and modifies nothing:
 
-| Run (workspace at `0.1.0`, dirty tree, `VT_BENCH_MACHINE=x`) | Prints |
+| Run (workspace at `0.1.0`, `VT_BENCH_MACHINE=x`, `GITHUB_ACTIONS` unset) | Prints |
 |---|---|
 | `scripts/release.sh patch` | `releasing v0.1.0 -> v0.1.1` |
 | `scripts/release.sh minor` | `releasing v0.1.0 -> v0.1.1` |
@@ -61,10 +62,17 @@ diff shown, exit 1; revert; `check` exits 0. Run `update` once on the coder's OS
 **M4 fuzz.** fuzz.md run for each target; record target, seconds, total execs, peak RSS, corpus
 size, artifacts (must be none). A finding follows fuzz.md "A finding".
 
+**M6 Release workflow dry run (owner, release.md step 7).** `dry_run` (default `true`) runs
+`prepare` and `test` x3 and skips `publish`. Check: job summary has the trip-wire report and the
+notes; artifact `release` holds `release.bundle`, `notes.md`, `chart.svg`, `v0.1.0.json`;
+`git ls-remote --tags origin` shows no new tag and `main` on the remote is unchanged. Nothing
+reached the remote, so the real run reuses the same version. `act` is not used: it cannot run the
+Windows and macOS jobs.
+
 **M5 docs.** `wc -l docs/user/*.md`: every file <= 120 lines except `api-map.md` (<= 170);
 `for-agents.md` <= 100.
 
 ## `acceptance.md` (coder, then owner)
 
 Sections: M1 table with observed output; M2 result and any reasons; M3 result; M4 table;
-release checklist steps 3-13 (release.md) with dates, sha, URLs and run ids (owner).
+release checklist steps 3-12 (release.md) with dates, sha, URLs and run ids, M6 run id (owner).

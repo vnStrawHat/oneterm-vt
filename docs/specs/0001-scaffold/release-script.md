@@ -1,4 +1,5 @@
-> Note: the script now also accepts `patch|minor|major` in place of `<version>`; the rest below is history.
+> Note: the script now also accepts `patch|minor|major` in place of `<version>` and runs only inside
+> the Release workflow (docs/specs/0014-release/workflow.md); the rest below is history.
 
 # `scripts/release.sh <version>`
 
