@@ -67,3 +67,5 @@ assert_eq!(lines[1], "$");
 
 Bad input is never an error. What the engine cannot honour is dropped or degraded and counted in
 the `FeedStats` that `feed` returns (see [limits](limits.md)).
+
+Next: [for-agents](for-agents.md), [threading](threading.md), [api-map](api-map.md).

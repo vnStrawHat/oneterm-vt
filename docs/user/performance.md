@@ -39,7 +39,7 @@ it is noise.
 | `tui_redraw` | 199.3 | 10% | `sixel` | 42.7 | 14% |
 | `scroll_region` | 90.3 | 10% | `osc_9_7` | 160.3 | 11% |
 
-The release record `perf/history/v<version>.json` replaces this table once a release exists.
+Each release's own run is `perf/history/v<version>.json`; `perf/chart.svg` compares releases.
 
 ## Reproduce
 

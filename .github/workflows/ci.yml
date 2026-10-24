@@ -36,6 +36,11 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Test
         run: cargo test --workspace
+      - name: Public API snapshot
+        if: runner.os != 'macOS'
+        run: bash scripts/public-api.sh check
+      - name: Headless example
+        run: cargo run -p oneterm-vt --example headless
       - name: Test with all features
         if: runner.os == 'Linux'
         run: cargo test --workspace --all-features

@@ -4,22 +4,26 @@
 //! no lock, no global state. Terminal input is untrusted: nothing here panics on it or
 //! returns an error for it. Malformed input is dropped, truncated or degraded, and counted.
 //!
-//! The engine is being rebuilt module by module; today the public surface is [`parser`], a
-//! byte-stream parser that reports control sequences to a [`parser::Dispatch`] sink, the
-//! storage and measurement of one grid position: [`Cell`], [`Style`], the [`intern`] tables
-//! a cell points into, and the [`scalar_width`] / [`cluster_width`] column rules, and the
-//! [`grid`]: rows in a ring-buffer scrollback, primary and alternate screens, and the
-//! anchors that follow content, with column reflow and row resize, and the [`Selection`]s
-//! that follow that content. A [`Terminal`] ties them together: bytes in, grid changes, events
-//! and per-call counters out, and damage-tracked [`SnapshotState`]s that copy only the rows
-//! that changed, with synchronized output (`?2026`) holding frames while a program redraws, and
-//! [`search`]: literal and regular-expression scrollback search over a copy of the grid,
-//! matches spanning wrapped rows. [`input`] turns key and mouse events into the bytes the
-//! program expects, honouring DECCKM, the kitty keyboard protocol, `modifyOtherKeys` and the
-//! mouse modes. Sixel images are decoded to RGBA, anchored to the cells they cover and released
-//! with an event when those cells are gone. With the default `pty` feature, [`pty`] starts a
-//! shell behind a pseudo-console (ConPTY on Windows, `openpty` on Unix) that an embedder polls
-//! with `polling`.
+//! A [`Terminal`] is the entry point: it parses program output, updates the [`grid`], and reports
+//! what happened as events and per-call counters ([`EventBatch`], [`FeedStats`]). Drawing is a
+//! second pull: [`SnapshotState`] copies only the rows that changed, and synchronized output
+//! (`?2026`) holds frames while a program redraws. The parts are public on their own:
+//!
+//! - [`parser`]: a byte-stream parser that reports control sequences to a [`parser::Dispatch`] sink.
+//! - [`Cell`], [`Style`], the [`intern`] tables a cell points into, and the [`scalar_width`] /
+//!   [`cluster_width`] column rules.
+//! - [`grid`]: rows in a ring-buffer scrollback, primary and alternate screens, and anchors that
+//!   follow content, with column reflow and row resize; [`Selection`]s follow that content.
+//! - [`search`]: literal and regular-expression scrollback search over a copy of the grid,
+//!   matches spanning wrapped rows.
+//! - [`input`]: key and mouse events as the bytes the program expects, honouring DECCKM, the kitty
+//!   keyboard protocol, `modifyOtherKeys` and the mouse modes.
+//! - Sixel images are decoded to RGBA, anchored to the cells they cover and released with an
+//!   event when those cells are gone.
+//! - With the default `pty` feature, [`pty`] starts a shell behind a pseudo-console (ConPTY on
+//!   Windows, `openpty` on Unix) that an embedder polls with `polling`.
+//!
+//! The user guide is under `docs/user/`; every example in it is compiled by the doctests.
 
 #![warn(missing_docs)]
 
@@ -60,6 +64,66 @@ pub use terminal::{
 pub use width::{cluster_width, scalar_width};
 
 #[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/README.md")]
+mod user_guide_index {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/for-agents.md")]
+mod user_guide_for_agents {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/quickstart.md")]
+mod user_guide_quickstart {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/threading.md")]
+mod user_guide_threading {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/events.md")]
+mod user_guide_events {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/input.md")]
+mod user_guide_input {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/search.md")]
+mod user_guide_search {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/graphics.md")]
+mod user_guide_graphics {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/resize.md")]
+mod user_guide_resize {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/limits.md")]
+mod user_guide_limits {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/conformance.md")]
+mod user_guide_conformance {}
+
+#[cfg(all(doctest, feature = "pty"))]
+#[doc = include_str!("../../../docs/user/pty.md")]
+mod user_guide_pty {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/versioning.md")]
+mod user_guide_versioning {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/performance.md")]
+mod user_guide_performance {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/api-map.md")]
+mod user_guide_api_map {}
+
+#[cfg(doctest)]
 #[doc = include_str!("../../../docs/user/parser.md")]
 mod user_guide_parser {}
 
@@ -72,49 +136,13 @@ mod user_guide_cells_and_styles {}
 mod user_guide_grid {}
 
 #[cfg(doctest)]
-#[doc = include_str!("../../../docs/user/resize.md")]
-mod user_guide_resize {}
-
-#[cfg(doctest)]
 #[doc = include_str!("../../../docs/user/selection.md")]
 mod user_guide_selection {}
-
-#[cfg(doctest)]
-#[doc = include_str!("../../../docs/user/events.md")]
-mod user_guide_events {}
-
-#[cfg(doctest)]
-#[doc = include_str!("../../../docs/user/limits.md")]
-mod user_guide_limits {}
-
-#[cfg(doctest)]
-#[doc = include_str!("../../../docs/user/conformance.md")]
-mod user_guide_conformance {}
 
 #[cfg(doctest)]
 #[doc = include_str!("../../../docs/user/snapshot.md")]
 mod user_guide_snapshot {}
 
 #[cfg(doctest)]
-#[doc = include_str!("../../../docs/user/search.md")]
-mod user_guide_search {}
-
-#[cfg(doctest)]
-#[doc = include_str!("../../../docs/user/threading.md")]
-mod user_guide_threading {}
-
-#[cfg(doctest)]
-#[doc = include_str!("../../../docs/user/quickstart.md")]
-mod user_guide_quickstart {}
-
-#[cfg(doctest)]
-#[doc = include_str!("../../../docs/user/input.md")]
-mod user_guide_input {}
-
-#[cfg(doctest)]
-#[doc = include_str!("../../../docs/user/graphics.md")]
-mod user_guide_graphics {}
-
-#[cfg(all(doctest, feature = "pty"))]
-#[doc = include_str!("../../../docs/user/pty.md")]
-mod user_guide_pty {}
+#[doc = include_str!("../../../README.md")]
+mod readme {}

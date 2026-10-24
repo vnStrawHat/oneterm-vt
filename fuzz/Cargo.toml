@@ -1,0 +1,37 @@
+[package]
+name = "oneterm-vt-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+# No `pty`: nothing spawns. `vt-paranoid` turns silent grid corruption into a crash.
+oneterm-vt = { path = "../crates/vt", default-features = false, features = ["vt-paranoid"] }
+
+[[bin]]
+name = "parser"
+path = "fuzz_targets/parser.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "feed"
+path = "fuzz_targets/feed.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "resize"
+path = "fuzz_targets/resize.rs"
+test = false
+doc = false
+bench = false
+
+# Keeps this crate out of the root workspace: it needs nightly and a C++ toolchain.
+[workspace]

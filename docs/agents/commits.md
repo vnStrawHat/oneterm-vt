@@ -2,11 +2,11 @@
 
 ## Format (Conventional Commits 1.0)
 `<type>(<scope>)!: <subject>` + blank line + body + footers.
-- type: `feat` new behaviour or public item; `fix` bug; `perf` measured speed/memory change; `refactor` no behaviour change; `test`; `docs`; `build` Cargo/deps/profiles; `ci`; `chore` everything else; `release` version bump commit made by scripts/release.sh (subject `release vX.Y.Z`).
+- type: `feat` new behaviour or public item; `fix` bug; `perf` measured speed/memory change; `refactor` no behaviour change; `test`; `docs`; `build` Cargo/deps/profiles; `ci`; `chore` everything else; `release` version bump commit made by scripts/release.sh (subject `release: vX.Y.Z`).
 - scope: a crate module or area: `parser`, `cell`, `intern`, `width`, `grid`, `reflow`, `selection`, `terminal`, `events`, `snapshot`, `search`, `input`, `graphics`, `pty`, `bench`, `docs`, `ci`, `release`, `workspace`. Omit only when the change spans most of the tree.
 - subject: imperative, lower-case, no period, ≤72 chars. Body explains why, names the spec folder (`Spec: docs/specs/0002-parser`). Breaking API change: `!` after scope and a `BREAKING CHANGE:` footer.
 - Every commit ends with the attribution trailer the session provides (`Co-Authored-By: ...`).
-- version bump by type: `!` / `BREAKING CHANGE:` -> major, `feat` -> minor, `fix` / `perf` -> patch.
+- version bump by type: `!` / `BREAKING CHANGE:` -> major, `feat` -> minor, `fix` / `perf` -> patch. Under 0.x see docs/user/versioning.md.
 
 ## When to commit
 - Only green commits: fmt, clippy (`--all-features`), tests and docs all pass at every commit. Never commit WIP.

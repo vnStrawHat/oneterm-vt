@@ -3,3 +3,7 @@
 /.cargo-home/
 /.claude/worktrees/
 /.claude/settings.local.json
+/fuzz/target/
+/fuzz/corpus/
+/fuzz/artifacts/
+/fuzz/coverage/

@@ -59,7 +59,7 @@ use query::DcsQuery;
 
 /// How a [`Terminal`] is built. Always use the struct-update form,
 /// `Config { scrollback_limit: 500, ..Config::default() }`: a new field is a minor version
-/// bump, and that form keeps compiling.
+/// bump, and that form keeps compiling. A full struct literal may stop compiling on a minor bump.
 #[derive(Clone, Debug)]
 pub struct Config {
     /// History rows the primary screen keeps (default 10,000); the grid clamps it to

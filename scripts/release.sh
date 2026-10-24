@@ -4,13 +4,14 @@
 #
 # usage: VT_BENCH_MACHINE="<cpu, cores, os>" scripts/release.sh <patch|minor|major|X.Y.Z>
 # A kind bumps the current workspace.package.version; an explicit X.Y.Z is used as given.
+# Under 0.x, major gives 0.(x+1).0 and minor or patch give 0.x.(y+1); from 1.0, plain semver.
 set -euo pipefail
 
 usage() {
     echo "usage: VT_BENCH_MACHINE=\"<cpu, cores, os>\" scripts/release.sh <patch|minor|major|X.Y.Z>" >&2
 }
 
-if [ $# -ne 1 ] || ! [[ "$1" =~ ^(patch|minor|major|[0-9]+.[0-9]+.[0-9]+)$ ]]; then
+if [ $# -ne 1 ] || ! [[ "$1" =~ ^(patch|minor|major|[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
     usage
     exit 2
 fi
@@ -30,11 +31,11 @@ cd "$(git rev-parse --show-toplevel)"
 
 # Resolve the target version; a kind bumps the current workspace.package.version.
 OLD=$(awk '/^\[/ { p = ($0 == "[workspace.package]") } p && /^version = / { gsub(/[^0-9.]/, ""); print; exit }' Cargo.toml)
-[[ "$OLD" =~ ^[0-9]+.[0-9]+.[0-9]+$ ]] || fail "cannot read workspace.package.version from Cargo.toml"
+[[ "$OLD" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "cannot read workspace.package.version from Cargo.toml"
 IFS=. read -r MA MI PA <<<"$OLD"
 case "$ARG" in
-    major) V="$((MA + 1)).0.0" ;;
-    minor) V="$MA.$((MI + 1)).0" ;;
+    major) if [ "$MA" -eq 0 ]; then V="0.$((MI + 1)).0"; else V="$((MA + 1)).0.0"; fi ;;
+    minor) if [ "$MA" -eq 0 ]; then V="0.$MI.$((PA + 1))"; else V="$MA.$((MI + 1)).0"; fi ;;
     patch) V="$MA.$MI.$((PA + 1))" ;;
     *) V="$ARG" ;;
 esac

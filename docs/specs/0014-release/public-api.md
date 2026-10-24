@@ -78,7 +78,7 @@ After "Test". `Swatinem/rust-cache` keeps `~/.cargo/bin`, so the tool builds onc
 |---|---|
 | no change | per behaviour rules only (reply bytes, encoder bytes, `FeedStats` meaning are major) |
 | only added lines | minor, **except** the cases in the next row |
-| added variant of an enum, or `pub` field of a struct, whose declaration line lacks `#[non_exhaustive]` (the snapshot prints the attribute); added trait method without a default | major |
+| added variant of an enum, or `pub` field of a struct (not `Config`, see versioning.md), whose declaration line lacks `#[non_exhaustive]` (the snapshot prints the attribute); added trait method without a default | major |
 | any removed or changed line, including a lost `impl Send` / `Sync` / `Unpin` | major |
 
 Under 0.x, major means `0.(x+1).0` and minor `0.x.(y+1)` (release.md). The release kind is the
