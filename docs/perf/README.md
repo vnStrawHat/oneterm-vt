@@ -4,24 +4,28 @@ Every release stores one benchmark run, and a chart compares releases.
 
 | Path | What |
 |---|---|
-| `perf/history/v<version>.json` | the run captured by `scripts/release.sh` just before tagging |
+| `perf/history/v<version>.json` | the run captured on the Release workflow's runner just before tagging |
 | `perf/chart.svg` | tier-2 MiB/s per fixture across all releases (`vt-bench chart`) |
 
 Rules:
 
 - Never edit a history file. A wrong record is replaced only in a commit that says why.
-- Compare runs from one machine only; the chart warns when a history mixes machines.
-- Numbers are recorded, never gated in CI: a shared runner is noisier than any real regression.
-  The only verdict is `vt-bench grid --check`, run by hand on the baseline machine.
+- Records come from the release runner (`ubuntu-latest`); `machine` names it:
+  `GitHub ubuntu-latest, <os> <version>, <n> vCPU <cpu model>, rustc <version>`. The chart warns
+  when strings differ (other hardware or compiler); compare such releases with care.
+- Hosted runners are noisy. The Release workflow runs `grid --check` against the previous record
+  (band `0.5`): a trip-wire for structural regressions, not a quality verdict.
+- The quality verdict is the tier-2 target table below, measured by hand on a quiet machine.
+  CI on pushes and pull requests never benchmarks.
 
 ## Commands
 
 ```bash
-# capture (release.sh does this for you)
-cargo run -p oneterm-vt-bench --release -- all --mib 32 --json --machine "<cpu, cores, os>" --out perf/history/v0.1.0.json
+# capture (the Release workflow does this through release.sh)
+cargo run -p oneterm-vt-bench --release -- all --mib 32 --json --machine "<runner, os, cores, cpu, rustc>" --out perf/history/v0.1.0.json
 # chart
 cargo run -p oneterm-vt-bench --release -- chart --history perf/history --out perf/chart.svg
-# before a release, by hand on the baseline machine (newest perf/history record by default)
+# compare with a record (newest perf/history record by default)
 cargo run -p oneterm-vt-bench --release -- grid --check
 # where does heavy_sgr spend its time? (hotpath-profiling sites; one fixture per report)
 cargo run -p oneterm-vt-bench --release --features hotpath-profiling -- grid --fixture heavy_sgr --mib 32
@@ -55,7 +59,7 @@ cargo run -p oneterm-vt-bench --release --features hotpath-profiling -- render -
 |---|---|
 | `version` | workspace version, `N.N.N`; the chart sorts by it |
 | `date` | UTC `YYYY-MM-DD` of the run |
-| `machine` | free text from `--machine`; required |
+| `machine` | free text from `--machine`; required; the release runner's description |
 | `columns`, `lines` | grid geometry for tiers 1-3 |
 | `mib_per_fixture`, `runs` | input size per fixture; cycles per fixture (median reported) |
 | `mib_per_second` | median throughput; `ns_per_byte` is the same figure inverted |

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Release helper: bump the version, run the gate and the benchmark, chart, commit, tag.
-# Run by the owner on the benchmark machine. It commits and tags; it never pushes.
+# Release steps run by .github/workflows/release.yml: bump, gate, bench, chart, commit, tag.
+# It never pushes; the workflow pushes after the 3-OS test.
 #
-# usage: VT_BENCH_MACHINE="<cpu, cores, os>" scripts/release.sh <patch|minor|major|X.Y.Z>
+# usage: VT_BENCH_MACHINE="<runner, os, cores, cpu, rustc>" scripts/release.sh <patch|minor|major|X.Y.Z>
 # A kind bumps the current workspace.package.version; an explicit X.Y.Z is used as given.
 # Under 0.x, major gives 0.(x+1).0 and minor or patch give 0.x.(y+1); from 1.0, plain semver.
 set -euo pipefail
 
 usage() {
-    echo "usage: VT_BENCH_MACHINE=\"<cpu, cores, os>\" scripts/release.sh <patch|minor|major|X.Y.Z>" >&2
+    echo "usage: VT_BENCH_MACHINE=\"<runner, os, cores, cpu, rustc>\" scripts/release.sh <patch|minor|major|X.Y.Z>" >&2
 }
 
 if [ $# -ne 1 ] || ! [[ "$1" =~ ^(patch|minor|major|[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
@@ -18,7 +18,7 @@ fi
 ARG="$1"
 
 if [ -z "${VT_BENCH_MACHINE:-}" ]; then
-    echo "error: VT_BENCH_MACHINE must describe the machine (CPU, cores, OS build)" >&2
+    echo "error: VT_BENCH_MACHINE must name the machine (<runner, os, cores, cpu, rustc>)" >&2
     exit 1
 fi
 
@@ -40,14 +40,12 @@ case "$ARG" in
     *) V="$ARG" ;;
 esac
 echo "releasing v$OLD -> v$V"
+[ "${GITHUB_ACTIONS:-}" = true ] || fail "releases are cut by the Release workflow (.github/workflows/release.yml)"
 
 [ -z "$(git status --porcelain)" ] || fail "working tree is not clean; commit or stash first"
 [ "$(git symbolic-ref --short HEAD 2>/dev/null)" = main ] || fail "releases are cut from main"
 ! git rev-parse -q --verify "refs/tags/v$V" >/dev/null || fail "tag v$V already exists"
 [ ! -e "perf/history/v$V.json" ] || fail "perf/history/v$V.json already exists"
-
-# The tree is modified from here on; leave it for the owner to inspect.
-trap 'echo "release aborted; undo with: git checkout -- . && rm -f \"perf/history/v$V.json\"" >&2' ERR
 
 mkdir -p .tmp
 
@@ -69,11 +67,8 @@ cargo run -p oneterm-vt-bench --release -- all --mib 32 --json \
     --machine "$VT_BENCH_MACHINE" --out "perf/history/v$V.json"
 cargo run -p oneterm-vt-bench --release -- chart --history perf/history --out perf/chart.svg
 
-
 git add Cargo.toml Cargo.lock "perf/history/v$V.json" perf/chart.svg
 git commit -m "release: v$V"
-# The tree is clean again; a tag failure is undone by dropping the release commit.
-trap 'echo "release aborted after commit; undo with: git reset --hard HEAD~1" >&2' ERR
 git tag -a "v$V" -m "oneterm-vt v$V"
 
-echo "next: git push origin main \"v$V\""
+echo "tagged v$V"

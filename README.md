@@ -55,7 +55,8 @@ Next: [docs/user/](docs/user/README.md); AI agents start at [for-agents.md](docs
 | `docs/roadmap.md`, `docs/specs/` | build plan and per-phase specs |
 | `fuzz/` | cargo-fuzz targets, run before each release (not a workspace member) |
 | `scripts/public-api.sh` | check or update the public-API snapshot |
-| `scripts/release.sh` | bump, benchmark, chart, commit, tag |
+| `scripts/release.sh` | bump, gate, benchmark, chart, commit, tag; run only by the Release workflow |
+| `.github/workflows/` | CI on 3 OS; the Release workflow (manual) |
 
 ## Developing
 

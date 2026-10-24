@@ -52,6 +52,14 @@ The behaviour-only rules above (reply bytes, encoder bytes, `FeedStats` meaning)
 in the snapshot and still apply. `git diff v0.1.0 -- crates/vt/public-api.*.txt` shows the whole
 surface change since a release.
 
+## How a release is cut
+
+Only the manual Release workflow (`.github/workflows/release.yml`) releases. It runs
+`scripts/release.sh` on a hosted Linux runner (bump, gate, benchmark record, chart, commit
+`release: vX.Y.Z`, tag), tests that exact commit on Linux, Windows and macOS, then pushes commit
+and tag and creates the GitHub release with the chart and the record attached. A tag is never
+moved; a broken release is followed by a new patch release.
+
 ## Release notes
 
-Generated from commits at tag time; see [docs/agents/commits.md](../agents/commits.md).
+Generated from commits by the Release workflow; see [docs/agents/commits.md](../agents/commits.md).

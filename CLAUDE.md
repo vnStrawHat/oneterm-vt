@@ -8,7 +8,7 @@ Embeddable terminal core in Rust (VT parser, grid, reflow, selection, snapshots,
 - `crates/vt-bench` — package `oneterm-vt-bench`, bin `vt-bench`: benchmark tiers and `chart`. Developer tool, never a dependency of `oneterm-vt`.
 
 Cargo virtual workspace at the root; shared versions, lints, and profiles live in the root `Cargo.toml`.
-Docs: `docs/roadmap.md` (plan), `docs/specs/` (per phase), `docs/user/` (embedder guide), `docs/perf/` (perf history). Release: `scripts/release.sh <version>`.
+Docs: `docs/roadmap.md` (plan), `docs/specs/` (per phase), `docs/user/` (embedder guide), `docs/perf/` (perf history). Release: the Release workflow (Actions tab), see docs/user/versioning.md.
 
 ## Environment rules
 

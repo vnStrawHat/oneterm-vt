@@ -45,7 +45,7 @@ Each release's own run is `perf/history/v<version>.json`; `perf/chart.svg` compa
 
 ```bash
 cargo run -p oneterm-vt-bench --release -- grid --mib 32
-cargo run -p oneterm-vt-bench --release -- all --mib 32 --json --machine "<cpu, cores, os>" --out run.json
+cargo run -p oneterm-vt-bench --release -- all --mib 32 --json --machine "<runner, os, cores, cpu, rustc>" --out run.json
 ```
 
 - Always `--release`; debug numbers say nothing about the shipped code.
@@ -58,9 +58,9 @@ cargo run -p oneterm-vt-bench --release -- all --mib 32 --json --machine "<cpu, 
 
 ## History and chart
 
-`scripts/release.sh` stores one tier 1-5 run per release in `perf/history/v<version>.json` and
-redraws `perf/chart.svg` (tier-2 MiB/s per fixture across releases). Compare runs from one
-machine only. The record schema is in [docs/perf/README.md](../perf/README.md).
+The Release workflow stores one tier 1-5 run per release, made on its hosted Linux runner, in
+`perf/history/v<version>.json` and redraws `perf/chart.svg` (tier-2 MiB/s per fixture across
+releases). Compare runs from one machine only; the record's `machine` names the runner. The record schema is in [docs/perf/README.md](../perf/README.md).
 
 ## The trip-wire
 
@@ -80,8 +80,9 @@ regressions (a clone per cell, a linear scan in a per-byte loop, a lost fast pat
   a baseline figure that is not a positive number.
 - The build refusals read `vt-bench`'s own features; `--features oneterm-vt/vt-paranoid` on the
   command line bypasses them, so do not.
-- Run it by hand on the baseline machine before `scripts/release.sh`, never in CI: a CI runner
-  is another machine and varies run to run by more than the band.
+- The Release workflow runs it against the previous release record before pushing; the wide
+  band absorbs runner noise, so it catches only structural regressions. The numbers table above
+  (a quiet machine) is the quality verdict.
 
 ## Profiling
 
