@@ -35,6 +35,9 @@ No other test module calls `register` (real-shell poll tests live in `tests/pty_
 | `ioctl(slave_fd, TIOCSCTTY as _, 0)` | in the child after `setsid`; `slave_fd` still open (CLOEXEC closes it only at `exec`) |
 | `SignalMask::current`: `sigemptyset`, `pthread_sigmask(SIG_SETMASK, null, p)`, `assume_init` | `sigemptyset` zeroes every byte first (the call writes only a prefix); `assume_init` only after both succeeded |
 | `sigprocmask(SIG_SETMASK, &mask.0, null)` | `mask.0` is initialised (only `current` builds one) |
+| `send(waker_fd, &byte, 1, MSG_NOSIGNAL)` (linux, android, freebsd, netbsd, openbsd, illumos) | `waker` open for the call; `byte` a live one-byte buffer; `MSG_NOSIGNAL` turns a closed peer into an ignored `EPIPE` instead of `SIGPIPE` |
+| `setsockopt(waker_fd, SOL_SOCKET, SO_NOSIGPIPE, &on, size_of::<c_int>())` (Apple) | `waker` open for the call; `on` a live `c_int` whose size is passed |
+| `unsafe fn become_session_leader` (called from the `pre_exec` closure) | the caller is the post-fork, single-threaded child, before `exec`, with `slave_fd` open |
 
 ## Windows blocks
 
@@ -51,7 +54,7 @@ No other test module calls `register` (real-shell poll tests live in `tests/pty_
 | `CloseHandle(pi.hThread)`, `from_raw_handle(pi.hProcess)` | only after success; each handle closed or owned exactly once |
 | `(api.resize)`, `(api.close)` | `hpc` live until `Conpty::drop`; `close` called exactly once there |
 | `ReadFile` / `WriteFile` | slice pointer and length valid for the call (length clamped to `u32`); handle owned by the calling thread's closure |
-| `RegisterWaitForSingleObject(.., Arc::as_ptr(&sender), ..)` | the `Arc` is held by the watcher until after `UnregisterWaitEx(.., INVALID_HANDLE_VALUE)` returns, which waits for a running callback |
+| `RegisterWaitForSingleObject(.., Arc::as_ptr(&sender), ..)` | the `Arc` is held by the watcher until after `UnregisterWaitEx(.., INVALID_HANDLE_VALUE)` returns, which waits for a running callback; if that call fails, the `Arc` is leaked (`mem::forget` of a clone) so a late callback cannot dangle |
 | callback `&*(context as *const ChildExitSender)` | as above: pointee alive for the whole callback |
 | `GetExitCodeProcess`, `GetProcessId`, `WaitForSingleObject`, `TerminateProcess` | process handle owned by the watcher, closed only after `UnregisterWaitEx` and the grace wait |
 

@@ -4,6 +4,7 @@
 pub struct PseudoConsole {
     master: File,                          // non-blocking, FD_CLOEXEC; reader and writer
     exit_signal: UnixStream,               // non-blocking; readable once the child exited
+    _wake_keepalive: UnixStream,           // second handle on the reaper's end; keeps `exit_signal` from EOF
     exit_events: mpsc::Receiver<ChildEvent>,
     pid: u32,
 }
@@ -19,14 +20,15 @@ pub struct PseudoConsole {
 | 4 | best effort: `tcgetattr`, `c_iflag |= IUTF8`, `tcsetattr(TCSANOW)` on the master (Linux, macOS only) | ignored |
 | 5 | `TIOCSWINSZ` on the master with `size` (resize below) | resize error |
 | 6 | `Command::new(program)` + `args`; default program `$SHELL`, else `/bin/sh` | |
-| 7 | stdin/stdout/stderr = `Stdio::from(slave.try_clone()?)` each (std dups with CLOEXEC; `dup2` onto 0-2 in the child clears it) | error |
+| 7 | stdin/stdout/stderr = `Stdio::from(slave.try_clone()?)` each (std dups with CLOEXEC; `dup2` onto 0-2 in the child clears it) | `dup(slave) failed: <e>` |
 | 8 | env: `env_remove` each `DROPPED_PARENT_ENV` name, then `env(k, v)` per entry | |
 | 9 | `pre_exec` closure (child side, below); captures only `Copy`/pre-built values | |
-| 10 | `command.spawn()`; error -> `cannot start '<program>': <e>` (kind kept) | error |
-| 11 | `pid = child.id()`; `fcntl(F_GETFL)` then `F_SETFL | O_NONBLOCK` on the master | error |
-| 12 | `UnixStream::pair()` -> `(exit_signal, waker)`; `exit_signal.set_nonblocking(true)` | error |
-| 13 | `mpsc::channel()`; spawn the reaper thread (below) | `io::Error` from `Builder::spawn` |
-| 14 | return; `slave` and the `Command` (its stdio dups) drop here, so only the child holds the slave | |
+| 10 | `fcntl(F_GETFL)` then `F_SETFL | O_NONBLOCK` on the master (the child holds no master, so it never sees the flag) | `fcntl(..) failed: <e>` |
+| 11 | `UnixStream::pair()` -> `(exit_signal, waker)`; `exit_signal.set_nonblocking(true)` | `socketpair failed` / `set_nonblocking on the exit signal failed` |
+| 12 | Apple only: `setsockopt(SO_NOSIGPIPE)` on `waker`; `keepalive = waker.try_clone()`; `mpsc::channel()` | `setsockopt(SO_NOSIGPIPE) failed` / `dup(waker) failed` |
+| 13 | `command.spawn()`; error -> `cannot start '<program>': <e>` (kind kept) | error |
+| 14 | `pid = child.id()`; drop `Command` (its stdio dups) and `slave`, so only the child holds the slave; spawn the reaper thread (below). A failed thread spawn returns `reaper thread failed: <e>` and leaves the child unreaped | `io::Error` from `Builder::spawn` |
+| 15 | return `PseudoConsole` | |
 
 `Command` with a `pre_exec` closure always uses `fork` + `exec` (std skips `posix_spawn`), and
 reports `exec` failure (missing program) through its own CLOEXEC pipe: no hand-rolled `forkpty`.
@@ -48,16 +50,22 @@ Async-signal-safe calls only; no allocation (the `CString` cwd and the mask are 
 ## Child exit: a reaper thread (decision)
 
 - Thread `oneterm-vt-pty-reaper` owns the `Child`: `child.wait()`, then
-  `send(ChildEvent::Exited(status.ok()))`, then `write_all(&[1])` on `waker`. Event before wake,
+  `send(ChildEvent::Exited(status.ok()))`, then one wake byte on `waker`: `send(.., MSG_NOSIGNAL)`
+  on linux, android, freebsd, netbsd, openbsd, illumos; plain `write` elsewhere, with `SO_NOSIGPIPE`
+  set on Apple (a console dropped first closes the peer, and a plain write would raise `SIGPIPE`). Event before wake,
   so a poll woken by the byte always finds the event. Both results ignored (the session may be gone).
 - Not joined; it outlives the `PseudoConsole` until the child exits. It holds only the `Child`,
   the `Sender` and `waker`.
+- The reaper drops `waker` when it ends, which would leave `exit_signal` at end-of-file
+  (permanently readable). `PseudoConsole._wake_keepalive` holds a `try_clone` of `waker` (same
+  socket end) so `exit_signal` reads `WouldBlock` after the byte is consumed.
 - Rejected: a `SIGCHLD` handler (process-global; a library must not claim it) and `waitpid`
   polling (needs a timer, latency). Linux `pidfd`/kqueue `EVFILT_PROC` are platform splits for
   no gain. If the embedder sets `SIGCHLD` to `SIG_IGN`, `wait` fails (`ECHILD`) -> `Exited(None)`.
 - `next_child_event`: read one byte from `exit_signal` (`WouldBlock` fine; other errors
-  `log::error!`), then `exit_events.try_recv().ok()`. Reading the byte first stops a
-  level-triggered poll from spinning; the event is reported exactly once.
+  `log::error!`), then `exit_events.try_recv().ok()`. Reading the byte first drains the
+  readable state, and the keepalive keeps it from returning as end-of-file, so a level-triggered
+  poll does not spin; the event is reported exactly once.
 
 ## Polling registration
 

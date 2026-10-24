@@ -9,8 +9,8 @@ publish.workspace = true
 
 [features]
 default = ["pty"]
-# Pseudo-console transport (ConPTY / openpty). Gains its dependencies in phase 11.
-pty = []
+# Pseudo-console transport (ConPTY / openpty), pollable with `polling`.
+pty = ["dep:polling", "dep:windows-sys", "dep:libc"]
 # Widens the integrity walk to the whole history wherever the walk runs; for tests, fuzzing and CI only.
 vt-paranoid = []
 # Regular-expression scrollback search (`search::SearchPattern::Regex`). Off by default: the
@@ -21,12 +21,30 @@ hotpath-profiling = []
 
 [dependencies]
 bitflags.workspace = true
+log.workspace = true            # pty diagnostics; one of the six no-default leaf crates
 memchr.workspace = true
+# PUBLIC dependency under `pty`: Poller, Event and PollMode appear in EventedReadWrite.
+polling = { workspace = true, optional = true }
 # Optional: the `regex` feature's matcher; default features kept (Unicode classes, perf).
 regex = { workspace = true, optional = true }
 rustc-hash.workspace = true
 unicode-segmentation.workspace = true
 unicode-width.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, optional = true, features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Console",
+    "Win32_System_IO",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Pipes",
+    "Win32_System_Threading",
+] }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest.workspace = true

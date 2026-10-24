@@ -17,7 +17,9 @@
 //! matches spanning wrapped rows. [`input`] turns key and mouse events into the bytes the
 //! program expects, honouring DECCKM, the kitty keyboard protocol, `modifyOtherKeys` and the
 //! mouse modes. Sixel images are decoded to RGBA, anchored to the cells they cover and released
-//! with an event when those cells are gone.
+//! with an event when those cells are gone. With the default `pty` feature, [`pty`] starts a
+//! shell behind a pseudo-console (ConPTY on Windows, `openpty` on Unix) that an embedder polls
+//! with `polling`.
 
 #![warn(missing_docs)]
 
@@ -28,6 +30,8 @@ pub mod grid;
 pub mod input;
 pub mod intern;
 pub mod parser;
+#[cfg(feature = "pty")]
+pub mod pty;
 pub mod search;
 mod selection;
 mod snapshot;
@@ -110,3 +114,7 @@ mod user_guide_input {}
 #[cfg(doctest)]
 #[doc = include_str!("../../../docs/user/graphics.md")]
 mod user_guide_graphics {}
+
+#[cfg(all(doctest, feature = "pty"))]
+#[doc = include_str!("../../../docs/user/pty.md")]
+mod user_guide_pty {}

@@ -16,6 +16,7 @@ Details:
 - Reply bytes are API: programs parse them. `Config::product_name` changes the identity part of a
   reply, never its shape.
 - The meaning of each `FeedStats` counter is API; counting something different is a major bump.
+- `polling` is the one public dependency (under `pty`); a `polling` major bump is a `major` bump here.
 
 Not promised: grid internals reachable through `grid::Screen`, exact `SeqNo` values, allocation
 behaviour, performance. Promised: a `RowId` names the same content for as long as that content is

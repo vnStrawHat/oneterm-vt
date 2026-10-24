@@ -36,7 +36,7 @@ pub struct PseudoConsole {           // field order IS drop order (D3)
 | 9 | command line (below) as a mutable NUL-terminated `Vec<u16>`; cwd as `Vec<u16>` or null; env block (below) |
 | 10 | `CreateProcessW(null, cmd, null, null, FALSE, EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT, env, cwd, &startup.StartupInfo, &mut pi)`; `0` -> `cannot start ..` |
 | 11 | `CloseHandle(pi.hThread)`; `OwnedHandle::from_raw_handle(pi.hProcess)` |
-| 12 | build `PipeReader::new(conout, 1 MiB)`, `PipeWriter::new(conin, 1 MiB)`, `ChildExitWatcher::new(process)` as locals (a `?` inside a struct literal would drop in the wrong order), then the struct |
+| 12 | build `ChildExitWatcher::new(process)`, `PipeWriter::new(conin, 1 MiB)`, then `PipeReader::new(conout, 1 MiB)` as locals in the reverse of the field drop order (a `?` inside a struct literal would drop in the wrong order; the watcher first so its drop gives the child a grace period), then the struct |
 
 ## Command line (`cmdline`, `push_escaped_arg`)
 
@@ -106,3 +106,6 @@ the ring posts `CompletionPacket`s to the registered poller (`PollerIocpExt::pos
 - Drop (field order): reader to discard mode; `ClosePseudoConsole` (returns at once from build
   26100; earlier hosts wait until the host exits, which needs conout drained); writer closed;
   watcher grace/terminate. The drop blocks up to about 2 s: owner thread, not UI thread (rustdoc).
+- On hosts before build 26100, `drop` can block longer: `ClosePseudoConsole` waits for a client
+  that never disconnects. Upgrade path, if it ever matters: close the console on a detached
+  thread while the grace/terminate step runs.

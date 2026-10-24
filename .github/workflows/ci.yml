@@ -44,6 +44,10 @@ jobs:
         run: |
           cargo clippy -p oneterm-vt --all-targets --no-default-features -- -D warnings
           cargo test -p oneterm-vt --no-default-features
+          deps="$(cargo tree -p oneterm-vt -e normal --no-default-features --prefix none --format '{p}' \
+            | awk 'NR > 1 { print $1 }' | sort -u | tr '\n' ' ')"
+          [ "$deps" = "bitflags log memchr rustc-hash unicode-segmentation unicode-width " ] \
+            || { echo "::error::--no-default-features dependency set changed: $deps"; exit 1; }
       - name: Docs
         env:
           RUSTDOCFLAGS: -D warnings
