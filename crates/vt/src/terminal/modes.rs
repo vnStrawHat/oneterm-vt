@@ -684,6 +684,7 @@ impl Handler<'_> {
         state.carry = None;
         state.dcs_query = None;
         state.dcs_payload.clear();
+        state.graphics.reset();
         self.out.push(VtEvent::ScreenCleared);
         self.note_cursor_style(before);
     }

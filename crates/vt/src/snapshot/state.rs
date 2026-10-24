@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use rustc_hash::FxHashMap;
 
+use crate::graphics::Placement;
 use crate::grid::{RowId, RowRef, Screen, SeqNo, Size, TerminalGrid, Viewport};
 use crate::intern::{GraphicId, Hyperlink, HyperlinkId, Interner};
 use crate::selection::SelectionRange;
@@ -58,9 +59,7 @@ pub struct SnapshotCursor {
     pub visible: bool,
 }
 
-/// An image placed on the grid, as a renderer sees it.
-///
-/// Images are not supported yet: [`SnapshotState::placements`] is always empty.
+/// An image placed on the grid, as a renderer sees it: where its top-left cell is now.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SnapshotPlacement {
     /// The image.
@@ -109,6 +108,8 @@ pub struct SnapshotState {
     selection: Option<SelectionRange>,
     modes: ModeSnapshot,
     placements: Vec<SnapshotPlacement>,
+    /// The refill target of `placements`, swapped in after the compare; its capacity is reused.
+    scratch: Vec<SnapshotPlacement>,
     hyperlinks: FxHashMap<HyperlinkId, Hyperlink>,
     /// Set by `invalidate`: the next real update is `Full`.
     force_full: bool,
@@ -126,6 +127,7 @@ pub(crate) struct EngineView<'a> {
     pub(crate) generation: u32,
     pub(crate) palette_epoch: u32,
     pub(crate) selection: Option<SelectionRange>,
+    pub(crate) placements: &'a [Placement],
 }
 
 impl SnapshotState {
@@ -187,12 +189,14 @@ impl SnapshotState {
         self.hyperlinks.get(&id)
     }
 
-    /// The images on the viewport. Always empty until images are supported.
+    /// The live images, oldest first (draw order), as of the last update, held-back frames
+    /// included. Both screens' placements are listed, so one on the hidden screen, or above
+    /// the viewport, has rows outside it.
     pub fn placements(&self) -> &[SnapshotPlacement] {
         &self.placements
     }
 
-    /// The placement of image `id`, if it is on the viewport.
+    /// The placement of image `id`; `None` once it was released.
     pub fn placement(&self, id: GraphicId) -> Option<&SnapshotPlacement> {
         self.placements.iter().find(|placement| placement.id == id)
     }
@@ -258,13 +262,16 @@ impl SnapshotState {
             generation,
             palette_epoch,
             selection,
+            placements,
         } = engine;
         let screen = grid.screen();
-        self.placements.clear();
 
         let cursor = snapshot_cursor(screen, modes.show_cursor);
-        let meta_changed =
-            self.modes != modes || self.cursor != cursor || self.selection != selection;
+        let placements_changed = self.refill_placements(grid, placements);
+        let meta_changed = self.modes != modes
+            || self.cursor != cursor
+            || self.selection != selection
+            || placements_changed;
         self.modes = modes;
         self.cursor = cursor;
         self.selection = selection;
@@ -316,6 +323,28 @@ impl SnapshotState {
             self.meta_dirty = false;
         }
         update
+    }
+
+    /// Rebuilds `placements` from the engine's list, oldest first, resolving each anchor; a
+    /// dead anchor is skipped (the engine's next sweep releases it). Returns whether the
+    /// list differs from the previous one.
+    fn refill_placements(&mut self, grid: &TerminalGrid, placements: &[Placement]) -> bool {
+        self.scratch.clear();
+        for placement in placements {
+            if let Some(pos) = grid.anchors().get(placement.anchor) {
+                self.scratch.push(SnapshotPlacement {
+                    id: placement.id,
+                    row: pos.row,
+                    col: pos.col,
+                    cols: placement.cols,
+                    rows: placement.rows,
+                    pixel_size: placement.pixel_size,
+                });
+            }
+        }
+        let changed = self.scratch != self.placements;
+        std::mem::swap(&mut self.scratch, &mut self.placements);
+        changed
     }
 
     /// The signed distance the viewport top moved since the last copy (positive: down the
@@ -396,9 +425,15 @@ fn snapshot_cursor(screen: &Screen, visible: bool) -> SnapshotCursor {
 
 #[cfg(test)]
 impl SnapshotState {
-    /// The capacities of the `changed` list and the hyperlink cache, for the steadiness test.
-    pub(super) fn buffer_capacities(&self) -> [usize; 2] {
-        [self.changed.capacity(), self.hyperlinks.capacity()]
+    /// The capacities of the `changed` list, the hyperlink cache and the two placement lists, for
+    /// the steadiness test.
+    pub(super) fn buffer_capacities(&self) -> [usize; 4] {
+        [
+            self.changed.capacity(),
+            self.hyperlinks.capacity(),
+            self.placements.capacity(),
+            self.scratch.capacity(),
+        ]
     }
 }
 

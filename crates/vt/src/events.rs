@@ -10,6 +10,7 @@ pub use batch::{ByteSpan, EventBatch, ParamSpans, StrSpan};
 pub(crate) use batch::{EVENT_ARENA_SOFT, EVENT_LIST_SOFT};
 
 use crate::grid::RowsScrolled;
+use crate::intern::GraphicId;
 use crate::parser::StringTerm;
 use crate::terminal::ColorKey;
 
@@ -86,6 +87,11 @@ pub enum VtEvent {
     Pointer(StrSpan),
     /// OSC 133: a shell-integration mark.
     ShellMark(ShellMark),
+    /// The image is gone from the grid (its rows were scrolled out, erased or reflowed away,
+    /// it was evicted, covered by a newer image, or its pixels were dropped from the queue).
+    /// Free the texture you made from the [`GraphicData`](crate::GraphicData) with this id;
+    /// the id is never used again. Delivered once per image, before [`VtEvent::Repaint`].
+    GraphicReleased(GraphicId),
     /// `Terminal::cursor_style` differs from its value before the sequence that just ran.
     CursorStyleChanged,
     /// An OSC the embedder routed with `Forward` or `BuiltinAndForward`. One span per
@@ -185,4 +191,7 @@ pub struct FeedStats {
     /// Wide glyphs that could not be placed (a one-column screen, or the last column with
     /// autowrap off).
     pub wide_glyphs_dropped: u32,
+    /// Images whose pixels were dropped before `Terminal::take_graphics` because more than
+    /// 128 MiB were waiting; each also gets a `GraphicReleased`.
+    pub graphics_dropped: u32,
 }

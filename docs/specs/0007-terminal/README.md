@@ -54,7 +54,7 @@ chapters; **6e** bench tiers.
 11. * Behaviour extensions: empty OSC 0/2 -> `TitleReset`; `CursorStyleChanged` on every `cursor_style()` change (DECSCUSR, `?12`, `?25`, DECSTR, RIS), not only OSC 50.
 12. Forwarded OSCs: the 16th param is re-split, one span per `;`-separated parameter (linear in the payload; large only with `large(n)`). * OSC 7 rejoins `;` and decodes only `file://`; * OSC 52 base64 canonical only.
 13. OSC colour queries stay events; `ColorKey::color_reply` (wrapping `query_prefix`) pins the reply bytes.
-14. DA1 claims Sixel from phase 6 (lands in 10, before v0.1.0); `CSI 14 t` answers `4;0;0` until phase 10.
+14. DA1 claims Sixel from phase 6 (lands in 10, before v0.1.0); `CSI 14 t` answers the effective cell (`VIRTUAL_CELL` until `set_cell_pixels`, phase 10).
 15. Public surface (terminal.md) deliberately has no `grid_mut`/`interner_mut` (`scroll_viewport` covers scrolling back and, with a large positive delta, scroll-to-bottom), no OSC 133 anchors, no `log`.
 16. * Deliberate contract choices: `ColorKey` drops the never-written `BrightForeground`/`DimForeground`/`Dim(u8)` (selection keys keep indices 269/270; 259..=268 is a gap) and is `#[non_exhaustive]`; `FeedStats` and `ClipboardKind` are `#[non_exhaustive]` (minor-version notes, events.md).
 17. `set_theme_colors(&mut self, &Palette)` moves to phase 7 with `Palette` (nothing reads it before).

@@ -45,7 +45,11 @@ assert_eq!(stats.bytes, 10);
 | `?2027` cluster carried across chunks | 32 scalars | not carried; the next chunk starts a new cluster | `dropped_cluster_carries` |
 | cluster in a cell | 16 scalars | cut | `grapheme_truncated` |
 | grapheme arena | 262,144 entries, 1,048,576 scalars; swept after each feed | stored as a blank | `grapheme_table_exhausted` |
-| styles / extras | 65,536 each | the default style / no link | `style_table_exhausted` / `hyperlink_table_exhausted` |
+| styles / extras | 65,536 each; an extras entry is freed once no cell names it (sweep every 4,096 new entries) | the default style / no link or image | `style_table_exhausted` / `hyperlink_table_exhausted` |
+| image side | 4096 px per axis | pixels past it are dropped | - |
+| image decode buffer | 64 MiB (4096 x 4096 RGBA) | cannot be exceeded | - |
+| images waiting for `take_graphics` | 128 MiB of pixels (each image counts at least its struct size) | the oldest is dropped and released | `graphics_dropped` |
+| image placements | 256 live | the oldest is released | - |
 | hyperlinks | 65,536 links, 4 MiB of text | the link is dropped, the text prints | `hyperlink_table_exhausted` |
 | REP | 65,535 prints per sequence | clamped | - |
 | product name | 64 bytes after dropping control characters | cut at a character | - |
@@ -71,6 +75,7 @@ The meaning of every field is part of the API; counting something else is a majo
 | `grapheme_table_exhausted` | clusters stored as a blank because the arena was full |
 | `dropped_cluster_carries` | `?2027` clusters over 32 scalars |
 | `wide_glyphs_dropped` | wide glyphs that could not be placed (one column, or the last column with autowrap off) |
+| `graphics_dropped` | images whose pixels were dropped before `take_graphics` (the queue passed 128 MiB) |
 
 `FeedStats` is `#[non_exhaustive]` and read-only: a new counter is a minor version.
 

@@ -47,7 +47,7 @@ assert_eq!(answer(&mut term, b"\x1b[?9999$p"), b"\x1b[?9999;0$y"); // unknown
 | reports | `DA1 DA2 DA3 DSR CPR DECXCPR XTVERSION DECRQSS DECRQCRA XTGETTCAP`, `CSI 14 t`, `CSI 18 t` |
 | window | `CSI 22 t` / `CSI 23 t` title stack |
 | OSC | `0 1 2 4 7 8 9 9;4 10 11 12 17 19 22 50 52 104 110 111 112 133`; others routable with `OscRoutes` |
-| DCS | `$ q` (DECRQSS), `+ q` (XTGETTCAP); APC, SOS and PM are consumed and counted |
+| DCS | `q` (Sixel, see [graphics](graphics.md)), `$ q` (DECRQSS), `+ q` (XTGETTCAP); APC, SOS and PM are consumed and counted |
 
 Modes with a live effect: `?1 ?5 ?6 ?7 ?12 ?25 ?45 ?47 ?1047 ?1048 ?1049 ?2027` and `4`, and
 `?2026` (synchronized output, see [threading](threading.md)). Modes the engine stores and you read
@@ -80,5 +80,8 @@ read.
 - DA1 reports level 62 (VT220 with Sixel and ANSI colour); VT320+ features are not claimed.
 - Only 7-bit introducers are sequences. A raw C1 byte (`0x80..=0x9F`) is a control that is counted
   as unhandled, never a CSI or OSC introducer.
-- Sixel is answered in DA1 but not decoded yet: `DCS q` is counted as unhandled.
-- `CSI 14 t` answers `4;0;0` until the cell size is known.
+- Sixel is decoded in scrolling mode with the DEC cursor rule. Gaps: the `P2`
+  background select, pixel aspect and grid size, DECSDM (`?80`, an unknown mode), XTSMGRAPHICS and
+  `CSI 16 t`. Other image protocols are not understood.
+- `CSI 14 t` answers `rows * cell_height ; cols * cell_width` of the cell set with
+  `Terminal::set_cell_pixels`, or of the 10 x 20 `VIRTUAL_CELL` until then.

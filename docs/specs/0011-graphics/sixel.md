@@ -10,7 +10,7 @@ impl SixelDecoder {
     pub(crate) fn put(&mut self, byte: u8);
     pub(crate) fn finish(self) -> Option<DecodedSixel>;   // None: nothing to place
 }
-pub(crate) struct DecodedSixel { pub width: u32, pub height: u32, pub rgba: Vec<u8>, pub band_pixels: u32 }
+pub(crate) struct DecodedSixel { pub(crate) width: u32, pub(crate) height: u32, pub(crate) rgba: Vec<u8>, pub(crate) band_pixels: u32 }
 ```
 
 Fields: `palette: [[u8; 4]; 256]`, `color: u8`, `x`, `band`, measured `width`/`height` (u32),
@@ -85,7 +85,8 @@ construction (`debug_assert!`). Index with `get_mut` or a stated bound; no panic
 - `rgba` = `width * height * 4` bytes, row-major, stride `width * 4`, **straight alpha**; never
   painted = `[0, 0, 0, 0]`. Copy `min(width, stride)` x `min(height, buffered rows)`.
 - `band_pixels = band * 6`: the height of the bands *above* the last one (cursor rule,
-  placement.md).
+  placement.md). A `#` or `"` command still open at the end is run first (a `!` is dropped).
+  `band_pixels` is clamped to 4096.
 
 ## Decisions
 

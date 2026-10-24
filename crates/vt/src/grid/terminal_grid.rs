@@ -6,6 +6,8 @@
 //! `?1047` wipes before it leaves; `?1049` saves the primary cursor, enters, then wipes (so the
 //! wipe uses the entering pen's background).
 
+use rustc_hash::FxHashSet;
+
 use crate::grid::anchor::Anchors;
 use crate::grid::integrity::IntegrityViolation;
 use crate::grid::row::{Row, SeqNo};
@@ -342,6 +344,14 @@ impl TerminalGrid {
         self.primary.remap_graphemes(&remap);
         self.alt.remap_graphemes(&remap);
         self.debug_check();
+    }
+
+    /// Replaces `out` with every extras id a cell, a pen or a saved cursor of either screen
+    /// holds. Rows without the `HAS_EXTRAS` hint are skipped.
+    pub(crate) fn live_extras_ids(&self, out: &mut FxHashSet<u16>) {
+        out.clear();
+        self.primary.collect_extras_ids(out);
+        self.alt.collect_extras_ids(out);
     }
 
     /// Tier 3 in a debug build, against the interner the cells point into; a no-op in release.

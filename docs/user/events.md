@@ -49,6 +49,7 @@ redraw, not damage.
 | `Progress(Progress)` | OSC 9;4 | taskbar state |
 | `Pointer(span)` | OSC 22 | set the mouse pointer |
 | `ShellMark(ShellMark)` | OSC 133 A/B/C/D | prompt navigation |
+| `GraphicReleased(GraphicId)` | a Sixel image left the grid (see [graphics](graphics.md)) | free the texture made from that id; ids never return |
 | `CursorStyleChanged` | `Terminal::cursor_style()` differs now | redraw the cursor |
 | `ScreenCleared` | ED 2, ED 3 or RIS (before their scroll events) | drop caches of the screen |
 | `RowsScrolled(..)` / `RowsTrimmed { oldest }` | content moved ids / history rows fell off | move or drop caches keyed on `RowId` |

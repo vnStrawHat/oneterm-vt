@@ -91,7 +91,7 @@ insert mode, wide handling all apply); nothing printed yet -> nothing. At most 6
 | `ignore` | unhandled; payload discarded |
 | `$ q` | `dcs_query = Some(Decrqss)`, `dcs_payload.clear()` |
 | `+ q` | same with `Xtgettcap` |
-| `q` (no intermediate) | Sixel: unhandled until phase 10 |
+| `q` (no intermediate) | Sixel: decoded and placed (0011) |
 | anything else | unhandled |
 
 - `dcs_put`: a query is open and `dcs_payload.len() < QUERY_MAX_BYTES` -> push; else drop.

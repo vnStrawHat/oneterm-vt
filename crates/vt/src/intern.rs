@@ -3,8 +3,10 @@
 //! One [`Interner`] belongs to one terminal and is shared by its screens, so an id never
 //! changes meaning when the screens swap. Overflow is handled in two ways:
 //!
-//! - **Styles, extras and hyperlinks never move.** A full table reuses, inserts, or falls
-//!   back: an issued id resolves to the same value for the table's life.
+//! - **Styles and hyperlinks never move; extras ids are reclaimed by a full-grid sweep.** A
+//!   full table reuses, inserts, or falls back: an issued id resolves to the same value for the
+//!   table's life, except that the terminal frees an extras id once no cell, pen or saved
+//!   cursor names it (every image takes one entry).
 //! - **Graphemes are collected.** [`GraphemeArena::sweep`] rebuilds the arena from the ids
 //!   still in use and returns a [`GraphemeRemap`], because unique clusters are the one kind
 //!   of attacker-reachable growth with no natural reuse.
@@ -26,12 +28,14 @@
 
 use std::hash::Hash;
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::cell::Style;
 
 /// Entries in an [`InternTable`], id 0 included.
 const TABLE_CAPACITY: usize = 1 << 16;
+/// New entries after which [`InternTable::needs_sweep`] turns true.
+const SWEEP_INTERVAL: u32 = 4096;
 /// Longest cluster kept, in scalars.
 const GRAPHEME_MAX_LEN: usize = 16;
 /// Most clusters in the arena, id 0 included. Far below the 21-bit id space a cell can
@@ -100,7 +104,8 @@ impl Extras {
 
 /// A deduplicating table of small values addressed by `u16` ids.
 ///
-/// Id 0 always holds `T::default()`. Ids are never reused or moved. At 65,536 entries a new
+/// Id 0 always holds `T::default()`. Ids are never moved; one is reused only after its owner
+/// swept it as unreferenced (the terminal does this for extras only). At 65,536 entries a new
 /// value gets id 0 and is counted by [`exhausted`](Self::exhausted); known values still hit.
 /// The hash is not collision-resistant; the cap bounds the worst probe chain.
 #[derive(Debug)]
@@ -108,6 +113,10 @@ pub struct InternTable<T> {
     entries: Vec<T>,
     index: FxHashMap<T, u16>,
     exhausted: u32,
+    /// Swept slots; each holds `T::default()` until a new value takes it.
+    free: Vec<u16>,
+    /// Misses since the last sweep, the full-table ones included.
+    since_sweep: u32,
 }
 
 impl<T: Copy + Eq + Hash + Default> Default for InternTable<T> {
@@ -118,6 +127,8 @@ impl<T: Copy + Eq + Hash + Default> Default for InternTable<T> {
             entries: vec![T::default()],
             index,
             exhausted: 0,
+            free: Vec::new(),
+            since_sweep: 0,
         }
     }
 }
@@ -126,6 +137,14 @@ impl<T: Copy + Eq + Hash + Default> InternTable<T> {
     /// Returns the id of `value`, adding it if it is new and the table has room.
     pub fn intern(&mut self, value: T) -> u16 {
         if let Some(&id) = self.index.get(&value) {
+            return id;
+        }
+        self.since_sweep = self.since_sweep.saturating_add(1);
+        if let Some(id) = self.free.pop() {
+            if let Some(slot) = self.entries.get_mut(usize::from(id)) {
+                *slot = value;
+            }
+            self.index.insert(value, id);
             return id;
         }
         if self.entries.len() >= TABLE_CAPACITY {
@@ -163,6 +182,38 @@ impl<T: Copy + Eq + Hash + Default> InternTable<T> {
         self.entries.truncate(1);
         self.index.clear();
         self.index.insert(T::default(), 0);
+        self.free.clear();
+        self.since_sweep = 0;
+    }
+
+    /// Whether enough new entries arrived since the last sweep that one is due.
+    pub(crate) fn needs_sweep(&self) -> bool {
+        self.since_sweep >= SWEEP_INTERVAL
+    }
+
+    /// Whether `id` is a swept slot waiting for reuse. A value equal to the default always
+    /// interns to id 0, so a default at any other id marks a free slot.
+    pub(crate) fn is_free(&self, id: u16) -> bool {
+        id != 0 && self.entries.get(usize::from(id)) == Some(&T::default())
+    }
+
+    /// Frees every entry (id 0 excepted) that is not in `live`: forgets its value and offers
+    /// the slot to the next new value. Ids are never renumbered. The caller passes every id a
+    /// cell, pen or saved cursor still holds.
+    pub(crate) fn sweep_unreferenced(&mut self, live: &FxHashSet<u16>) {
+        for index in 1..self.entries.len() {
+            // Fits: `index < entries.len() <= TABLE_CAPACITY == 1 << 16`.
+            let id = index as u16;
+            if live.contains(&id) || self.is_free(id) {
+                continue;
+            }
+            if let Some(slot) = self.entries.get_mut(index) {
+                self.index.remove(slot);
+                *slot = T::default();
+                self.free.push(id);
+            }
+        }
+        self.since_sweep = 0;
     }
 }
 

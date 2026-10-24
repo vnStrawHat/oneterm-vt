@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::fmt::{self, Write as _};
 
 use crate::cell::CellContent;
+use crate::graphics::placement::effective_cell;
 
 use super::State;
 use super::csi::{Args, DeviceAttributes};
@@ -265,7 +266,7 @@ impl Handler<'_> {
         };
         match args.next_raw().unwrap_or(0) {
             14 => {
-                let (cell_width, cell_height) = self.state.cell_pixels;
+                let (cell_width, cell_height) = effective_cell(self.state.cell_pixels);
                 let height = u32::from(rows) * u32::from(cell_height);
                 let width = u32::from(cols) * u32::from(cell_width);
                 self.reply(format_args!("\x1b[4;{height};{width}t"));

@@ -984,7 +984,7 @@ fn apc_and_unknown_dcs_are_unhandled() {
     assert_eq!(s.feed(b"\x1b^payload\x1b\\").unhandled_sequences, 1);
     assert_eq!(s.feed(b"\x1bXpayload\x1b\\").unhandled_sequences, 1);
     assert_eq!(s.feed(b"\x1bP1xdata\x1b\\").unhandled_sequences, 1);
-    assert_eq!(s.feed(b"\x1bPqdata\x1b\\").unhandled_sequences, 1);
+    assert_eq!(s.feed(b"\x1bPzdata\x1b\\").unhandled_sequences, 1);
 }
 
 #[test]

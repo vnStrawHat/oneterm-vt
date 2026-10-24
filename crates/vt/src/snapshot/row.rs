@@ -53,8 +53,8 @@ pub struct SnapshotCell {
     /// [`SnapshotState::hyperlink`](crate::SnapshotState::hyperlink).
     pub hyperlink: Option<HyperlinkId>,
     /// The image covering the cell; resolve it with
-    /// [`SnapshotState::placement`](crate::SnapshotState::placement). Always `None` until
-    /// images are supported.
+    /// [`SnapshotState::placement`](crate::SnapshotState::placement), which is `None` once the
+    /// image was released (a cell can outlive its placement, for instance after an eviction).
     pub graphic: Option<GraphicId>,
 }
 

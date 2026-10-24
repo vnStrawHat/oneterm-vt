@@ -265,7 +265,8 @@ fn modify_other_keys_query() {
 
 #[test]
 fn text_area_in_pixels() {
-    assert_eq!(Harness::new().ask(b"\x1b[14t"), b"\x1b[4;0;0t");
+    // 24 x 80 cells of the fallback 10 x 20 pixel cell until the embedder sets one.
+    assert_eq!(Harness::new().ask(b"\x1b[14t"), b"\x1b[4;480;800t");
 }
 
 #[test]

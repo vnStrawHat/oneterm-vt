@@ -18,7 +18,7 @@ Every reply is pushed as `VtEvent::Reply` and is **API**: changing a byte is a m
 | XTVERSION | `CSI > q`, `CSI > 0 q` | `ESC P > \| {name} ST`; default name `oneterm-vt(0.1.0)` |
 | kitty flags | `CSI ? u` | `ESC [ ? {live flags} u` |
 | modifyOtherKeys | `CSI ? 4 m` | `ESC [ > 4 ; {level} m` |
-| text area px | `CSI 14 t` | `ESC [ 4 ; {rows * cell_h} ; {cols * cell_w} t` (`0 ; 0` until phase 10) |
+| text area px | `CSI 14 t` | `ESC [ 4 ; {rows * cell_h} ; {cols * cell_w} t` of the effective cell: `cell_pixels`, or `VIRTUAL_CELL` (10 x 20) when either axis is 0 (phase 10, 0011 D4) |
 | text area cells | `CSI 18 t` | `ESC [ 8 ; {rows} ; {cols} t` |
 | DECRQCRA | `CSI {id};{pg};{t};{l};{b};{r} * y` | `ESC P {id} ! ~ {HHHH} ST`, gated, below |
 | DECRQSS | `DCS $ q {req} ST` | `ESC P 1 $ r {value}{req} ST` or `ESC P 0 $ r ST`, below |

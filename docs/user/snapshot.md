@@ -64,8 +64,8 @@ refresh on every update. A row's `id` follows content. `rows_copied()` stays fla
 ## Rows and styles
 
 Skip `cell.width.is_spacer()` cells: the wide cell on their left draws them. `cell.hyperlink` is
-resolved with `state.hyperlink(id)`. `cell.graphic` and `state.placements()` stay `None` / empty
-until images land.
+resolved with `state.hyperlink(id)`. `cell.graphic` and `state.placements()` carry Sixel images
+(see [graphics](graphics.md)); a placement change counts as a `Partial` update.
 
 ## Colours: `Palette`, theme and program overrides
 

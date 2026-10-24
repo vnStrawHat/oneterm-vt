@@ -8,10 +8,14 @@
 
 use std::borrow::Cow;
 use std::fmt;
+use std::sync::Arc;
 use std::time::Instant;
+
+use rustc_hash::FxHashSet;
 
 use crate::cell::{Cell, Rgb, Style};
 use crate::events::{EventBatch, FeedStats};
+use crate::graphics::{GraphicData, GraphicsState, Placement};
 use crate::grid::terminal_grid::{ResizeOutcome, ResizePolicy};
 use crate::grid::{
     Charset, DEFAULT_SCROLLBACK, Pos, PrintMode, RowId, Screen, Size, TerminalGrid, Viewport,
@@ -29,6 +33,7 @@ use crate::snapshot::{
 mod color;
 mod csi;
 mod dispatch;
+mod graphics;
 mod modes;
 mod osc;
 mod osc_routes;
@@ -128,8 +133,12 @@ struct State {
     dcs_payload: Vec<u8>,
     selection: Option<Selection>,
     lines_produced: u64,
-    /// Cell size in pixels, `(width, height)`; read by `CSI 14 t`.
+    /// Cell size in pixels, `(width, height)`, `(0, 0)` until the embedder sets it; images and
+    /// `CSI 14 t` read the effective cell.
     cell_pixels: (u16, u16),
+    graphics: GraphicsState,
+    /// Scratch for the extras sweep, kept for its capacity.
+    live_extras: FxHashSet<u16>,
     stats: FeedStats,
     dispatched: bool,
 }
@@ -316,6 +325,8 @@ impl Terminal {
             selection: None,
             lines_produced: 0,
             cell_pixels: (0, 0),
+            graphics: GraphicsState::new(),
+            live_extras: FxHashSet::default(),
             stats: FeedStats::default(),
             dispatched: false,
         };
@@ -340,6 +351,8 @@ impl Terminal {
         };
         state.dispatched = false;
         if bytes.is_empty() {
+            // A resize may have released images since the last feed; deliver them here.
+            state.graphics.drain_released(batch);
             return state.stats;
         }
         let before = state.baselines();
@@ -355,6 +368,11 @@ impl Terminal {
         if state.interner.needs_grapheme_sweep() {
             state.grid.sweep_graphemes(&mut state.interner.graphemes);
         }
+        if !state.graphics.placements.is_empty() {
+            state.graphics.sweep(&mut state.grid);
+        }
+        state.graphics.drain_released(batch);
+        state.sweep_extras_if_due();
         state.add_deltas(before);
         state.stats.unhandled_sequences = state
             .stats
@@ -375,6 +393,7 @@ impl Terminal {
         state.bump_generation();
         state.carry = None;
         state.prune_selection();
+        state.graphics.sweep(&mut state.grid);
         outcome
     }
 
@@ -566,8 +585,40 @@ impl Terminal {
             generation: engine.generation,
             palette_epoch: engine.palette_epoch,
             selection,
+            placements: &engine.graphics.placements,
         };
         state.begin_update(view, now)
+    }
+
+    /// Takes the images decoded since the last call, oldest first. This is the only drain:
+    /// several [`SnapshotState`]s may exist, and a frame skipped by `?2026` loses nothing.
+    ///
+    /// Each [`GraphicData`] is handed out once. The order for one cycle is
+    /// [`feed`](Self::feed), `take_graphics` (upload the pixels, keyed by
+    /// [`GraphicData::id`]), handle the batch (a
+    /// [`GraphicReleased`](crate::VtEvent::GraphicReleased) event frees that texture), then
+    /// [`snapshot_update`](Self::snapshot_update). An image released before it was taken is still
+    /// handed out here once, so the release that follows frees it. At most 128 MiB of pixels
+    /// wait; past that the oldest are dropped and counted in [`FeedStats::graphics_dropped`].
+    pub fn take_graphics(&mut self) -> Vec<Arc<GraphicData>> {
+        let graphics = &mut self.state.graphics;
+        graphics.pending_bytes = 0;
+        std::mem::take(&mut graphics.pending)
+    }
+
+    /// The live image placements, oldest first (draw order). Read-only; a renderer usually
+    /// reads them through [`SnapshotState::placements`] instead, which resolves each anchor
+    /// to a row and column.
+    pub fn placements(&self) -> &[Placement] {
+        &self.state.graphics.placements
+    }
+
+    /// Tells the engine how big a cell is in device pixels. It sizes the footprint of images
+    /// placed from now on (`ceil(pixels / cell)` per axis) and the answer to `CSI 14 t`. A
+    /// zero axis means unknown: [`VIRTUAL_CELL`](crate::VIRTUAL_CELL) is used for both.
+    /// Images already placed keep their footprint; call this on every font or DPI change.
+    pub fn set_cell_pixels(&mut self, width: u16, height: u16) {
+        self.state.cell_pixels = (width, height);
     }
 
     /// The pen: the cell a printed glyph inherits (style, hyperlink, semantic zone).

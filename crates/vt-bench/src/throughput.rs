@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use oneterm_vt::parser::{Dispatch, Parser};
 use oneterm_vt::{Config, EventBatch, Size, Terminal};
 
-use crate::fixtures::{COLUMNS, FIXTURES, Fixture, LINES};
+use crate::fixtures::{COLUMNS, FIXTURES, LINES};
 use crate::perf_history::Throughput;
 
 /// Measured cycles per fixture; cycle 0 is a discarded warm-up.
@@ -23,20 +23,10 @@ impl Dispatch for NullDispatch {
     fn execute(&mut self, _byte: u8) {}
 }
 
-/// Tier 2 runs every fixture but `sixel`, which waits for the graphics phase.
-pub(crate) fn tier2_includes(fixture: &Fixture) -> bool {
-    fixture.name != "sixel"
-}
-
-/// Runs `pass` on every fixture `include` accepts for `RUNS + 1` interleaved cycles and
-/// summarizes each. The stream is regenerated per cycle (untimed) so ten fixtures are never
+/// Runs `pass` on every fixture for `RUNS + 1` interleaved cycles and summarizes each. The stream is regenerated per cycle (untimed) so ten fixtures are never
 /// resident at once.
-pub(crate) fn measure_tier(
-    mib: usize,
-    include: impl Fn(&Fixture) -> bool,
-    mut pass: impl FnMut(&[u8]) -> Duration,
-) -> Vec<Throughput> {
-    let fixtures: Vec<&Fixture> = FIXTURES.iter().filter(|fixture| include(fixture)).collect();
+pub(crate) fn measure_tier(mib: usize, mut pass: impl FnMut(&[u8]) -> Duration) -> Vec<Throughput> {
+    let fixtures = &FIXTURES;
     let mut results: Vec<(usize, Vec<Duration>)> = vec![(0, Vec::new()); fixtures.len()];
     for cycle in 0..=RUNS {
         for (fixture, (len, samples)) in fixtures.iter().zip(results.iter_mut()) {
@@ -67,6 +57,8 @@ pub(crate) fn grid_pass(bytes: &[u8]) -> Duration {
     let start = Instant::now();
     for chunk in bytes.chunks(CHUNK) {
         term.feed(black_box(chunk), &mut batch, now);
+        // An embedder drains the images after every feed; for most fixtures this is empty.
+        black_box(term.take_graphics());
     }
     let elapsed = start.elapsed();
     black_box(&term);
@@ -145,29 +137,44 @@ mod tests {
     #[test]
     fn measure_tier_runs_every_fixture_every_cycle() {
         let mut passes = 0;
-        let rows = measure_tier(
-            1,
-            |_| true,
-            |_| {
-                passes += 1;
-                ms(1)
-            },
-        );
+        let rows = measure_tier(1, |_| {
+            passes += 1;
+            ms(1)
+        });
         assert_eq!(passes, FIXTURES.len() * (RUNS + 1));
         assert_eq!(rows.len(), FIXTURES.len());
     }
 
     #[test]
-    fn tier2_skips_sixel() {
-        let rows = measure_tier(1, tier2_includes, |_| ms(1));
+    fn tier2_runs_every_fixture() {
+        let rows = measure_tier(1, |_| ms(1));
         let names: Vec<&str> = rows.iter().map(|row| row.fixture.as_str()).collect();
-        let expected: Vec<&str> = FIXTURES
-            .iter()
-            .map(|fixture| fixture.name)
-            .filter(|name| *name != "sixel")
-            .collect();
-        assert_eq!(names.len(), 9);
+        let expected: Vec<&str> = FIXTURES.iter().map(|fixture| fixture.name).collect();
+        assert_eq!(names.len(), 10);
         assert_eq!(names, expected);
+    }
+
+    #[test]
+    fn sixel_fixture_places_an_image_per_unit() {
+        let fixture = FIXTURES
+            .iter()
+            .find(|fixture| fixture.name == "sixel")
+            .expect("sixel exists");
+        let bytes = (fixture.make)(1 << 16);
+        let size = Size {
+            rows: LINES as u16,
+            cols: COLUMNS as u16,
+        };
+        let mut term = Terminal::new(size, Config::default());
+        let mut batch = EventBatch::new();
+        let mut images = 0;
+        for chunk in bytes.chunks(CHUNK) {
+            term.feed(chunk, &mut batch, Instant::now());
+            images += term.take_graphics().len();
+        }
+        assert!(images > 0);
+        assert_eq!(images as u64, term.lines_produced());
+        assert!(grid_pass(&bytes) > Duration::ZERO);
     }
 
     #[test]

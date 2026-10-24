@@ -11,6 +11,8 @@
 use std::fmt;
 use std::ops::Range;
 
+use rustc_hash::FxHashSet;
+
 use crate::cell::{Cell, CellContent, Style};
 use crate::grid::anchor::{AnchorId, AnchorKind, Anchors};
 use crate::grid::integrity::IntegrityViolation;
@@ -999,6 +1001,27 @@ impl Screen {
                     CellContent::Scalar(_) => None,
                 })
             })
+    }
+
+    /// Adds to `out` the extras ids this screen holds: every cell of the rows flagged
+    /// `HAS_EXTRAS` (history included; the hint has no false negatives) and both cursors' pens.
+    pub(crate) fn collect_extras_ids(&self, out: &mut FxHashSet<u16>) {
+        for row in self
+            .slots
+            .iter()
+            .flatten()
+            .filter(|row| row.header().flags.contains(RowFlags::HAS_EXTRAS))
+        {
+            // Most cells of a flagged row hold none; skipping id 0 saves the hashing.
+            for cell in row.cells() {
+                let id = cell.extras_id().0;
+                if id != 0 {
+                    out.insert(id);
+                }
+            }
+        }
+        out.insert(self.cursor.template().extras_id().0);
+        out.insert(self.saved_cursor.template().extras_id().0);
     }
 
     /// Rewrites the cluster ids of every live row flagged `HAS_GRAPHEME` through `remap`.

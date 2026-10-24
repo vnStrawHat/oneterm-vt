@@ -177,7 +177,7 @@ impl Handler<'_> {
         let state = &mut *self.state;
         let template = state.grid.screen().cursor().template();
         let current = *state.interner.resolve_extras(template.extras_id());
-        let extras = state.interner.extras(Extras {
+        let extras = state.intern_extras(Extras {
             hyperlink: link,
             ..current
         });

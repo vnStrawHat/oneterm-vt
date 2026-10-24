@@ -5,6 +5,7 @@ use std::time::Instant;
 
 use crate::cell::{Cell, CellContent};
 use crate::events::{EventBatch, VtEvent};
+use crate::graphics::sixel::SixelDecoder;
 use crate::grid::{Charset, ScrollReport};
 use crate::parser::{Dispatch, Intermediates, OscParams, Params, StringTerm};
 use crate::selection::Invalidation;
@@ -48,7 +49,7 @@ impl Handler<'_> {
     }
 
     /// A line feed on either screen: scrolls at the region bottom and counts one line.
-    fn line_feed(&mut self) {
+    pub(super) fn line_feed(&mut self) {
         self.state.lines_produced = self.state.lines_produced.saturating_add(1);
         let report = self.state.grid.linefeed();
         self.report(report);
@@ -156,7 +157,11 @@ impl Handler<'_> {
         let query = match (intermediates.as_slice(), byte) {
             ([b'$'], b'q') => DcsQuery::Decrqss,
             ([b'+'], b'q') => DcsQuery::Xtgettcap,
-            // Sixel (`q` alone) waits for the graphics phase.
+            // Sixel: `q` alone. The DCS parameters (aspect, background, grid) are ignored.
+            ([], b'q') => {
+                self.state.graphics.decoder = Some(SixelDecoder::new());
+                return;
+            }
             _ => {
                 self.unhandled();
                 return;
@@ -168,10 +173,17 @@ impl Handler<'_> {
 
     fn dcs_close(&mut self, aborted: bool) {
         let query = self.state.dcs_query.take();
+        let decoder = self.state.graphics.decoder.take();
         if aborted {
             let stats = &mut self.state.stats;
             stats.aborted_dcs = stats.aborted_dcs.saturating_add(1);
             self.state.dcs_payload.clear();
+            return;
+        }
+        if let Some(decoder) = decoder {
+            if let Some(image) = decoder.finish() {
+                self.place(image);
+            }
             return;
         }
         let Some(query) = query else {
@@ -238,7 +250,9 @@ impl Dispatch for Handler<'_> {
     }
 
     fn dcs_put(&mut self, byte: u8) {
-        if self.state.dcs_query.is_some() && self.state.dcs_payload.len() < QUERY_MAX_BYTES {
+        if let Some(decoder) = &mut self.state.graphics.decoder {
+            decoder.put(byte);
+        } else if self.state.dcs_query.is_some() && self.state.dcs_payload.len() < QUERY_MAX_BYTES {
             self.state.dcs_payload.push(byte);
         }
     }

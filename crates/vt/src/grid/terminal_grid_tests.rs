@@ -462,3 +462,70 @@ fn check_reports_stale_screen_owned_anchors() {
     f.grid.sync_anchors();
     assert_eq!(f.grid.check_integrity(None), Ok(()));
 }
+
+// extras walk
+
+fn linked(f: &mut Fixture, n: u32) -> crate::intern::ExtrasId {
+    use crate::intern::{Extras, HyperlinkId};
+    f.interner.extras(Extras {
+        hyperlink: Some(HyperlinkId(n)),
+        graphic: None,
+    })
+}
+
+fn pen(f: &mut Fixture, extras: crate::intern::ExtrasId) {
+    let template = Cell::EMPTY.with_extras(extras);
+    f.grid.screen_mut().set_template(template, &mut f.interner);
+}
+
+#[test]
+fn live_extras_ids_reads_history_and_templates() {
+    use crate::intern::ExtrasId;
+    use rustc_hash::FxHashSet;
+
+    let mut f = fixture_with(3, 10, 100);
+    let ids: Vec<ExtrasId> = (1..=6).map(|n| linked(&mut f, n)).collect();
+    // A cell that scrolled into history.
+    pen(&mut f, ids[0]);
+    f.print("a");
+    pen(&mut f, ExtrasId::NONE);
+    for _ in 0..4 {
+        f.newline();
+    }
+    assert!(f.grid.primary().history_len() >= 1);
+    // A cell on the screen, a saved cursor, the pen of the primary screen.
+    pen(&mut f, ids[1]);
+    f.print("b");
+    pen(&mut f, ids[3]);
+    f.grid.screen_mut().save_cursor();
+    pen(&mut f, ids[2]);
+    // The pen of the alternate screen.
+    f.grid.enter_alt();
+    pen(&mut f, ids[4]);
+    f.check();
+
+    let mut live = FxHashSet::default();
+    live.insert(60_000);
+    f.grid.live_extras_ids(&mut live);
+    for id in &ids[..5] {
+        assert!(live.contains(&id.0), "{id:?} is held");
+    }
+    assert!(!live.contains(&ids[5].0), "an unreferenced id is not live");
+    assert!(!live.contains(&60_000), "the set is replaced, not extended");
+}
+
+#[test]
+fn live_extras_ids_skips_unhinted_rows() {
+    use rustc_hash::FxHashSet;
+
+    let mut f = fixture_with(3, 10, 100);
+    let unused = linked(&mut f, 1);
+    f.print("plain text only");
+    let mut live = FxHashSet::default();
+    f.grid.live_extras_ids(&mut live);
+    assert!(!live.contains(&unused.0));
+    assert!(
+        live.iter().all(|id| *id == 0),
+        "only the empty entry is held: {live:?}"
+    );
+}

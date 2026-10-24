@@ -314,7 +314,7 @@ fn ten_thousand_of_every_query_answer_in_order_and_release_the_arena() {
         (b"\x1b[?7$p", &[b"\x1b[?7;1$y"]),
         (b"\x1b[?u", &[b"\x1b[?0u"]),
         (b"\x1b[?4m", &[b"\x1b[>4;0m"]),
-        (b"\x1b[14t", &[b"\x1b[4;0;0t"]),
+        (b"\x1b[14t", &[b"\x1b[4;480;800t"]),
         (b"\x1b[18t", &[b"\x1b[8;24;80t"]),
         (b"\x1bP$qm\x1b\\", &[b"\x1bP1$r0m\x1b\\"]),
         (

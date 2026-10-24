@@ -24,7 +24,7 @@ appears when its phase lands; until then it is listed as *planned*.
 | 03 | [`events.md`](events.md) | `EventBatch` and every `VtEvent`; answering `Reply`, `ColorQuery` (`ColorKey::color_reply`), `ClipboardLoad`; `OscRoutes` | 6 | ready |
 | 04 | [`input.md`](input.md) | `input::encode_key_event` / `Terminal::encode_key`: the four-rung ladder (legacy, `modifyOtherKeys`, kitty flags), `KeyEvent` fields; `encode_mouse_*` per reporting mode and encoding; what the embedder still owes (paste, focus, alternate scroll) | 9 | ready |
 | 05 | [`search.md`](search.md) | `search::GridText` and `search_grid_text`: copy under the lock, search without it; matches across wrapped rows, `SearchMatch` to viewport rows, `MAX_MATCHES`; `regex` feature | 8 | ready |
-| 06 | `graphics.md` | Sixel lifecycle: `Terminal::take_graphics` (`GraphicData`), `Placement` / `SnapshotPlacement`, drawing by cells with `graphic_offset`, `VtEvent::GraphicReleased`, `set_cell_pixels` and `VIRTUAL_CELL`, ceilings | 10 | planned |
+| 06 | [`graphics.md`](graphics.md) | Sixel lifecycle: `Terminal::take_graphics` (`GraphicData`), `Placement` / `SnapshotPlacement`, drawing by cells with `graphic_offset`, `VtEvent::GraphicReleased`, `set_cell_pixels` and `VIRTUAL_CELL`, ceilings | 10 | ready |
 | 07 | [`resize.md`](resize.md) | `grid::TerminalGrid::resize`, `ResizePolicy` (PTY vs ConPTY), `ResizeOutcome`; what reflow keeps, what dies | 4, 6 | ready |
 | 08 | [`limits.md`](limits.md) | every ceiling on hostile input and what happens past it; each `FeedStats` counter | 6 | ready |
 | 09 | [`conformance.md`](conformance.md) | supported sequences and modes, inert modes and their DECRQM answers, the DECRQCRA gate, known gaps | 6+ | ready |

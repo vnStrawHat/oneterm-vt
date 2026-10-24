@@ -306,3 +306,114 @@ fn interner_routes_to_its_tables() {
     assert_eq!(interner.resolve_grapheme(grapheme), "e\u{301}");
     assert!(!interner.needs_grapheme_sweep());
 }
+
+// ---- extras reclamation ----
+
+fn image(n: u64) -> Extras {
+    Extras {
+        graphic: Some(GraphicId(n)),
+        ..Extras::NONE
+    }
+}
+
+fn live(ids: &[u16]) -> FxHashSet<u16> {
+    ids.iter().copied().collect()
+}
+
+#[test]
+fn freed_slot_reused_first() {
+    let mut table = InternTable::<Extras>::default();
+    let [a, b, c] = [1, 2, 3].map(|n| table.intern(image(n)));
+    table.sweep_unreferenced(&live(&[b]));
+    assert!(table.is_free(a) && table.is_free(c) && !table.is_free(b));
+    // The most recently freed slot goes first, and the table does not grow while any is free.
+    assert_eq!(table.intern(image(4)), c);
+    assert_eq!(table.intern(image(5)), a);
+    assert_eq!(table.entries(), 4);
+    assert_eq!(*table.resolve(a), image(5));
+    assert_eq!(table.intern(image(6)), 4);
+    assert_eq!(table.entries(), 5);
+}
+
+#[test]
+fn sweep_frees_exactly_unreferenced() {
+    let mut table = InternTable::<Extras>::default();
+    let ids: Vec<u16> = (1..=6).map(|n| table.intern(image(n))).collect();
+    table.sweep_unreferenced(&live(&[ids[1], ids[4]]));
+    for (index, id) in ids.iter().enumerate() {
+        let kept = index == 1 || index == 4;
+        assert_eq!(table.is_free(*id), !kept, "id {id}");
+        assert_eq!(*table.resolve(*id) == Extras::NONE, !kept);
+    }
+    // Kept values still hit; swept values are forgotten and intern afresh.
+    assert_eq!(table.intern(image(2)), ids[1]);
+    assert_eq!(table.entries(), 7);
+    let again = table.intern(image(1));
+    assert!(ids.contains(&again) && !table.is_free(again));
+    // A second sweep with the same live set frees nothing new and keeps the slots listed once.
+    table.sweep_unreferenced(&live(&[ids[1], ids[4], again]));
+    let reused: Vec<u16> = (0..3).map(|n| table.intern(image(10 + n))).collect();
+    let mut sorted = reused.clone();
+    sorted.sort_unstable();
+    sorted.dedup();
+    assert_eq!(sorted.len(), 3, "no slot is handed out twice");
+}
+
+#[test]
+fn every_miss_counts_towards_sweep() {
+    let mut table = InternTable::<Extras>::default();
+    for n in 0..4095 {
+        table.intern(image(n));
+    }
+    assert!(!table.needs_sweep());
+    for _ in 0..100 {
+        table.intern(image(0));
+    }
+    assert!(!table.needs_sweep(), "hits do not count");
+    table.intern(image(9_999));
+    assert!(table.needs_sweep());
+    table.sweep_unreferenced(&FxHashSet::default());
+    assert!(!table.needs_sweep());
+
+    // A full table still counts its refused values, so a sweep comes due without growth.
+    let mut full = InternTable::<Extras>::default();
+    for n in 0..70_000 {
+        full.intern(image(n));
+    }
+    assert_eq!(full.entries(), 1 << 16);
+    assert!(full.exhausted() > 0);
+    assert!(full.needs_sweep());
+    let everything: FxHashSet<u16> = (1..=u16::MAX).collect();
+    full.sweep_unreferenced(&everything);
+    assert!(!full.needs_sweep());
+    for n in 80_000..80_000 + 4096 {
+        assert_eq!(full.intern(image(n)), 0);
+    }
+    assert!(full.needs_sweep());
+}
+
+#[test]
+fn clear_empties_free_list() {
+    let mut table = InternTable::<Extras>::default();
+    for n in 1..=3 {
+        table.intern(image(n));
+    }
+    table.sweep_unreferenced(&FxHashSet::default());
+    table.clear();
+    assert_eq!(table.entries(), 1);
+    assert!(!table.needs_sweep());
+    // Not a stale slot from the old free list: the first id after a clear is 1.
+    assert_eq!(table.intern(image(9)), 1);
+    assert_eq!(table.entries(), 2);
+}
+
+#[test]
+fn id_zero_never_freed() {
+    let mut table = InternTable::<Extras>::default();
+    table.intern(image(1));
+    table.sweep_unreferenced(&FxHashSet::default());
+    assert!(!table.is_free(0));
+    assert_eq!(*table.resolve(0), Extras::NONE);
+    assert_eq!(table.intern(Extras::NONE), 0);
+    assert_eq!(table.entries(), 2);
+}

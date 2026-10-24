@@ -76,3 +76,18 @@ our parser never ends a string on `0x9C` (0002 D4).
 5. Drawing: by cells with `graphic_offset` (recommended) or by placement; 1:1 pixels, clip.
 6. Ceilings: 4096 px per axis, 16 MiB payload, 256 placements, 128 MiB queue (`graphics_dropped`).
 7. Not supported: P2 background, pixel aspect, `?80`, XTSMGRAPHICS, other image protocols.
+
+## Acceptance notes (phase 10, coder)
+
+Machine: Windows 11, 20 logical CPUs (Intel family 6 model 151). Runs: `cargo run -p
+oneterm-vt-bench --release -- grid` and `-- render` (geometry 160x45, 32 MiB per fixture, median
+of 5 cycles after 1 warm-up, 64 KiB chunks, 600 frames), one at a time. The `sixel` fixture is one
+12x12 px image (two bands) plus CRLF per 70 bytes, so every unit places one image.
+
+| Tier | Fixture | Result |
+|---|---|---|
+| 2 `grid` | `sixel` | 44.3 MiB/s, 21.52 ns/B, spread 2% |
+| 3 `render` | `sixel` | 5.3 us/frame, 1325 cells/frame |
+
+For scale, tier 2 on the same run: `plain_ascii` 158.4 MiB/s, `scroll_region` 89.4 MiB/s. The 47
+MiB/s target is phase 12's; the extras sweep (one per 4,096 images) is inside this number.

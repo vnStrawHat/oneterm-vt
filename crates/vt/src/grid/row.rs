@@ -314,7 +314,8 @@ pub(crate) fn check_cell_ids(cell: Cell, interner: &Interner) -> Result<(), Unkn
     if usize::from(cell.style_id().0) >= interner.styles.entries() {
         return Err(UnknownId::Style);
     }
-    if usize::from(cell.extras_id().0) >= interner.extras.entries() {
+    let extras = cell.extras_id().0;
+    if usize::from(extras) >= interner.extras.entries() || interner.extras.is_free(extras) {
         return Err(UnknownId::Extras);
     }
     if let CellContent::Grapheme(id) = cell.content()
@@ -628,10 +629,6 @@ impl<'a> RowMut<'a> {
     }
 
     /// Marks that an image covers some cell of the row.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "Sixel placement marks rows from phase 10")
-    )]
     pub(crate) fn mark_graphic(&mut self) {
         self.row.header.flags |= RowFlags::HAS_GRAPHIC;
     }

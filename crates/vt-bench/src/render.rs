@@ -8,9 +8,9 @@ use std::time::{Duration, Instant};
 
 use oneterm_vt::{Config, EventBatch, Size, SnapshotState, Terminal};
 
-use crate::fixtures::{COLUMNS, FIXTURES, Fixture, LINES};
+use crate::fixtures::{COLUMNS, FIXTURES, LINES};
 use crate::perf_history::FrameCost;
-use crate::throughput::{CHUNK, RUNS, tier2_includes};
+use crate::throughput::{CHUNK, RUNS};
 
 /// Frames per cycle unless `--frames` says otherwise.
 pub(crate) const DEFAULT_FRAMES: usize = 600;
@@ -23,12 +23,12 @@ struct Sample {
     cells: u64,
 }
 
-/// Tier 3: for every fixture tier 2 runs, the median microseconds per `snapshot_update` over
+/// Tier 3: for every fixture, the median microseconds per `snapshot_update` over
 /// `frames` frames, and the cells copied per frame.
 ///
 /// Cycles are interleaved across fixtures like tier 2's, and cycle 0 is a discarded warm-up.
 pub(crate) fn measure_render(frames: usize) -> Vec<FrameCost> {
-    let fixtures: Vec<&Fixture> = FIXTURES.iter().filter(|f| tier2_includes(f)).collect();
+    let fixtures = &FIXTURES;
     let mut samples: Vec<Vec<Sample>> = fixtures.iter().map(|_| Vec::new()).collect();
     for cycle in 0..=RUNS {
         for (fixture, kept) in fixtures.iter().zip(samples.iter_mut()) {
@@ -74,6 +74,8 @@ fn run_cycle(stream: &[u8], frames: usize) -> Sample {
         let rest = stream.get(frame * FRAME_BYTES..).unwrap_or_default();
         let bytes = rest.get(..FRAME_BYTES).unwrap_or(rest);
         term.feed(bytes, &mut batch, now);
+        // Images are drained after every feed, outside the timed update.
+        black_box(term.take_graphics());
         let start = Instant::now();
         black_box(term.snapshot_update(&mut state, now));
         spent += start.elapsed();
@@ -116,15 +118,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn render_skips_sixel() {
+    fn render_runs_every_fixture() {
         let rows = measure_render(4);
         let names: Vec<&str> = rows.iter().map(|row| row.fixture.as_str()).collect();
-        let expected: Vec<&str> = FIXTURES
-            .iter()
-            .map(|fixture| fixture.name)
-            .filter(|name| *name != "sixel")
-            .collect();
-        assert_eq!(names.len(), 9);
+        let expected: Vec<&str> = FIXTURES.iter().map(|fixture| fixture.name).collect();
+        assert_eq!(names.len(), 10);
         assert_eq!(names, expected);
     }
 

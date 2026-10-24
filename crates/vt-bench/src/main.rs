@@ -180,19 +180,11 @@ fn measure(command: &str, mib: usize, frames: usize) -> Measured {
     let mut measured = Measured::default();
     if all || command == "parser" {
         progress("tier 1 parser");
-        measured.tier1_parser = Some(throughput::measure_tier(
-            mib,
-            |_| true,
-            throughput::parser_pass,
-        ));
+        measured.tier1_parser = Some(throughput::measure_tier(mib, throughput::parser_pass));
     }
     if all || command == "grid" {
         progress("tier 2 grid");
-        measured.tier2_grid = Some(throughput::measure_tier(
-            mib,
-            throughput::tier2_includes,
-            throughput::grid_pass,
-        ));
+        measured.tier2_grid = Some(throughput::measure_tier(mib, throughput::grid_pass));
     }
     if all || command == "render" {
         progress("tier 3 render");

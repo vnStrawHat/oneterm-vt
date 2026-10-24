@@ -16,12 +16,14 @@
 //! [`search`]: literal and regular-expression scrollback search over a copy of the grid,
 //! matches spanning wrapped rows. [`input`] turns key and mouse events into the bytes the
 //! program expects, honouring DECCKM, the kitty keyboard protocol, `modifyOtherKeys` and the
-//! mouse modes.
+//! mouse modes. Sixel images are decoded to RGBA, anchored to the cells they cover and released
+//! with an event when those cells are gone.
 
 #![warn(missing_docs)]
 
 mod cell;
 mod events;
+mod graphics;
 pub mod grid;
 pub mod input;
 pub mod intern;
@@ -37,6 +39,7 @@ pub use events::{
     ByteSpan, ClipboardKind, EventBatch, FeedStats, ParamSpans, Progress, ShellMark, StrSpan,
     VtEvent,
 };
+pub use graphics::{GraphicData, Placement, VIRTUAL_CELL};
 pub use grid::terminal_grid::{ResizeOutcome, ResizePolicy};
 pub use grid::{Pos, RowId, RowRef, SeqNo, Size, Viewport};
 pub use parser::StringTerm;
@@ -103,3 +106,7 @@ mod user_guide_quickstart {}
 #[cfg(doctest)]
 #[doc = include_str!("../../../docs/user/input.md")]
 mod user_guide_input {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/graphics.md")]
+mod user_guide_graphics {}

@@ -507,8 +507,20 @@ fn hyperlink_strings_resolved() {
     assert!(s.state.hyperlink(HyperlinkId(999)).is_none());
 }
 
+// ---- images ----
+
+/// A Sixel image `width` x `height` px made of `bands` one-column bands.
+fn image(width: u32, height: u32, bands: u32) -> Vec<u8> {
+    let data = vec!["~"; bands as usize].join("-");
+    format!("\x1bPq\"1;1;{width};{height}{data}\x1b\\").into_bytes()
+}
+
+fn goto(row: u16, col: u16) -> Vec<u8> {
+    format!("\x1b[{};{}H", row + 1, col + 1).into_bytes()
+}
+
 #[test]
-fn graphics_hook_is_empty() {
+fn text_has_no_images() {
     let mut s = Session::settled();
     s.feed(b"text");
     s.update();
@@ -524,6 +536,147 @@ fn graphics_hook_is_empty() {
     assert!(s.state.placement(GraphicId(1)).is_none());
 }
 
+#[test]
+fn placement_refills() {
+    let mut s = Session::settled();
+    s.feed(&goto(2, 3));
+    s.feed(&image(25, 45, 8));
+    assert_ne!(s.update(), SnapshotUpdate::Unchanged);
+    let placement = *s.state.placements().first().expect("one placement");
+    let top = s.state.rows()[2].id;
+    assert_eq!(
+        (placement.row, placement.col, placement.cols, placement.rows),
+        (top, 3, 3, 3)
+    );
+    assert_eq!(placement.pixel_size, (25, 45));
+    assert_eq!(s.state.placement(placement.id), Some(&placement));
+    for (dy, dx) in (0..3).flat_map(|dy| (0..3).map(move |dx| (dy, dx))) {
+        let cell = s.state.rows()[2 + usize::from(dy)].cells[3 + usize::from(dx)];
+        assert_eq!(cell.graphic, Some(placement.id));
+        let row = s.state.rows()[2 + usize::from(dy)].id;
+        assert_eq!(
+            s.state.graphic_offset(placement.id, row, 3 + dx),
+            Some((dx, dy))
+        );
+    }
+    assert_eq!(s.state.graphic_offset(placement.id, top, 2), None);
+    assert_eq!(s.state.graphic_offset(placement.id, top, 6), None);
+    assert_eq!(s.state.graphic_offset(placement.id, top - 1, 3), None);
+    assert_eq!(s.state.graphic_offset(placement.id, top + 3, 3), None);
+    assert_eq!(s.state.graphic_offset(GraphicId(999), top, 3), None);
+    assert!(
+        s.state.rows()[1]
+            .cells
+            .iter()
+            .all(|cell| cell.graphic.is_none())
+    );
+}
+
+#[test]
+fn dead_anchor_skipped() {
+    let mut s = Session::settled();
+    s.feed(&image(10, 20, 1));
+    s.feed(&goto(9, 0));
+    s.feed(b"\n");
+    s.update();
+    assert_eq!(s.state.placements().len(), 1, "alive in the history");
+    // Dropping the history kills the anchor; the engine releases the image at the next feed.
+    s.term.set_scrollback_limit(0);
+    s.update();
+    assert!(s.state.placements().is_empty());
+    assert_eq!(s.term.placements().len(), 1);
+    s.feed(b"x");
+    assert!(s.term.placements().is_empty());
+    assert!(
+        s.batch
+            .iter()
+            .any(|event| matches!(event, VtEvent::GraphicReleased(_)))
+    );
+}
+
+#[test]
+fn stale_graphic_has_no_placement() {
+    let mut s = Session::settled();
+    s.feed(b"\x1b[2;10r");
+    s.feed(&goto(1, 0));
+    s.feed(&image(10, 60, 1));
+    s.update();
+    let id = s.state.placements()[0].id;
+    // Deleting the anchor row releases the image; the two rows below still name it.
+    s.feed(&goto(1, 0));
+    s.feed(b"\x1b[M");
+    s.update();
+    assert!(s.state.placements().is_empty());
+    assert_eq!(s.state.rows()[1].cells[0].graphic, Some(id));
+    assert!(s.state.placement(id).is_none());
+    let row = s.state.rows()[1].id;
+    assert_eq!(s.state.graphic_offset(id, row, 0), None);
+}
+
+#[test]
+fn placement_only_change_is_partial() {
+    let mut s = Session::settled();
+    s.feed(&b"line\r\n".repeat(30));
+    s.update();
+    s.term.scroll_viewport(-15);
+    s.update();
+    assert_eq!(s.update(), SnapshotUpdate::Unchanged);
+
+    // A new image on the screen, out of view: no viewport row moved, the placements did.
+    s.feed(&goto(5, 0));
+    s.feed(&image(10, 20, 1));
+    let before = s.state.rows_copied();
+    assert_eq!(s.update(), SnapshotUpdate::Partial { scrolled: 0 });
+    assert!(s.state.changed().is_empty());
+    assert_eq!(s.state.rows_copied(), before);
+    assert_eq!(s.state.placements().len(), 1);
+    assert_eq!(s.update(), SnapshotUpdate::Unchanged);
+
+    // Evicting it changes the list again, still with no viewport row involved.
+    s.feed(b"\x1bc");
+    s.term.scroll_viewport(-5);
+    s.update();
+    assert!(s.state.placements().is_empty());
+}
+
+#[test]
+fn suppressed_frame_holds_placement_meta() {
+    let mut s = Session::settled();
+    s.feed(&b"line\r\n".repeat(30));
+    s.update();
+    s.term.scroll_viewport(-15);
+    s.update();
+
+    s.feed(b"\x1b[?2026h");
+    s.feed(&goto(5, 0));
+    s.feed(&image(10, 20, 1));
+    assert_eq!(s.update(), SnapshotUpdate::Unchanged, "the frame is held");
+    assert_eq!(s.state.placements().len(), 1, "but the list is current");
+    s.feed(b"\x1b[?2026l");
+    assert_eq!(s.update(), SnapshotUpdate::Partial { scrolled: 0 });
+    assert!(s.state.changed().is_empty());
+    assert_eq!(s.update(), SnapshotUpdate::Unchanged);
+}
+
+#[test]
+fn placement_refresh_allocates_nothing() {
+    let mut s = Session::settled();
+    for index in 0..3 {
+        s.feed(&goto(index * 3, 0));
+        s.feed(&image(30, 60, 1));
+    }
+    // The lists swap each update, so both reach their high-water mark after two.
+    s.update();
+    s.update();
+    let flat = s.state.buffer_capacities();
+    assert!(flat[2] >= 3 && flat[3] >= 3);
+    for cycle in 0..100 {
+        s.feed(format!("\x1b[10;1Hcycle {cycle}").as_bytes());
+        s.update();
+        assert_eq!(s.state.buffer_capacities(), flat);
+        assert_eq!(s.state.placements().len(), 3);
+    }
+}
 // ---- palette ----
 
 #[test]
@@ -792,7 +945,7 @@ fn mouse_protocol_derivation() {
 
 #[test]
 fn steady_state_grows_no_buffer() {
-    type Capacities = (Vec<[usize; 3]>, [usize; 2]);
+    type Capacities = (Vec<[usize; 3]>, [usize; 4]);
     let capacities = |s: &Session| -> Capacities {
         let rows = s
             .state

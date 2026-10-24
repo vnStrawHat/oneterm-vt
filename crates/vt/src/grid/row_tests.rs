@@ -541,3 +541,27 @@ fn text_end_of_a_wrapped_row_is_every_column() {
     RowMut::new(&mut row, SEQ).set_wrapped(true);
     assert_eq!(RowRef::allocated(&row).text_end(), 8);
 }
+
+#[test]
+fn check_reports_a_swept_extras_id() {
+    use crate::intern::{Extras, GraphicId};
+    use rustc_hash::FxHashSet;
+
+    let mut interner = Interner::default();
+    let id = interner.extras(Extras {
+        graphic: Some(GraphicId(1)),
+        ..Extras::NONE
+    });
+    let cell = narrow('a').with_extras(id);
+    let mut row = row_with(2, "");
+    row.cells[0] = cell;
+    row.header.occ = 1;
+    row.header.flags |= hints_of(cell);
+    assert_eq!(row.check(2, Some(&interner)), Ok(()));
+    // Freeing an id a cell still names is exactly what the integrity walk must catch.
+    interner.extras.sweep_unreferenced(&FxHashSet::default());
+    assert_eq!(
+        row.check(2, Some(&interner)),
+        Err(Violation::UnknownExtras { id: ID, col: 0 })
+    );
+}
