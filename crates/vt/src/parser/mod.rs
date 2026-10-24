@@ -159,7 +159,14 @@ impl Parser {
             let mut iter = rest.iter();
             while self.state != State::Ground {
                 let Some(&byte) = iter.next() else { break };
-                self.step(dispatch, byte);
+                // Parameter bytes are most of a CSI; they skip the full transition table.
+                if matches!(self.state, State::CsiEntry | State::CsiParam)
+                    && matches!(byte, 0x30..=0x3B)
+                {
+                    self.csi_parameter(byte);
+                } else {
+                    self.step(dispatch, byte);
+                }
             }
             rest = iter.as_slice();
         }

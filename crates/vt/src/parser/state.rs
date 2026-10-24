@@ -154,11 +154,7 @@ impl Parser {
             }
             0x30..=0x3B => match phase {
                 Phase::Entry | Phase::Param => {
-                    match byte {
-                        b'0'..=b'9' => self.digit(byte),
-                        b':' => self.separator(ParamSep::Colon),
-                        _ => self.separator(ParamSep::Semicolon),
-                    }
+                    self.parameter_byte(byte);
                     self.state = State::header(family, Phase::Param);
                 }
                 Phase::Intermediate => self.start_ignoring(family),
@@ -183,6 +179,21 @@ impl Parser {
                 }
             }
             _ => {}
+        }
+    }
+
+    /// A digit or separator (`0x30..=0x3B`) in a CSI header that has not seen an intermediate:
+    /// the same transition `header` makes, without its dispatch on family and phase.
+    pub(super) fn csi_parameter(&mut self, byte: u8) {
+        self.parameter_byte(byte);
+        self.state = State::CsiParam;
+    }
+
+    fn parameter_byte(&mut self, byte: u8) {
+        match byte {
+            b'0'..=b'9' => self.digit(byte),
+            b':' => self.separator(ParamSep::Colon),
+            _ => self.separator(ParamSep::Semicolon),
         }
     }
 
