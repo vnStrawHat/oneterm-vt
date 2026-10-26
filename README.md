@@ -10,7 +10,7 @@ You bring the pixels.
 
 ```toml
 [dependencies]
-oneterm-vt = { git = "<your fork url>", tag = "v0.1.0" }
+oneterm-vt = { git = "https://github.com/vnStrawHat/oneterm-vt", tag = "v0.1.0" }
 ```
 
 Guide: [docs/user/](docs/user/README.md). Semver promise: [docs/user/versioning.md](docs/user/versioning.md).
@@ -51,11 +51,11 @@ Next: [docs/user/](docs/user/README.md); AI agents start at [for-agents.md](docs
 | `crates/vt` | the library, package `oneterm-vt` |
 | `crates/vt-bench` | `vt-bench`: benchmark tiers and the perf-history chart (not shipped) |
 | `docs/user/` | embedder guide |
-| `docs/perf/`, `perf/` | how performance is recorded; per-release records and chart |
+| `docs/perf/`, `perf/` | how performance is recorded; per-release records and charts, one set per platform |
 | `docs/roadmap.md`, `docs/specs/` | build plan and per-phase specs |
 | `fuzz/` | cargo-fuzz targets, run before each release (not a workspace member) |
 | `scripts/public-api.sh` | check or update the public-API snapshot |
-| `scripts/release.sh` | bump, gate, benchmark, chart, commit, tag; run only by the Release workflow |
+| `scripts/release.sh` | release steps (bump; test and benchmark per OS; charts, commit, tag); run only by the Release workflow |
 | `.github/workflows/` | CI on 3 OS; the Release workflow (manual) |
 
 ## Developing

@@ -15,8 +15,10 @@ except `lib.rs` doctest wiring; no new public item; no new dependency in the wor
 | create | `docs/user/api-map.md`, `docs/user/for-agents.md` | user-docs.md |
 | create | `docs/specs/0014-release/acceptance.md` | tests.md "acceptance.md" |
 | edit | `crates/vt/src/lib.rs` | doctest modules below |
-| edit | `scripts/release.sh` | 0.x kind mapping, escaped regex dots (13d, done); Actions guard, no traps, header, last line (13f, release.md) |
-| replace | `.github/workflows/release.yml` | workflow.md, verbatim (13f) |
+| edit | `scripts/release.sh` | 0.x kind mapping, escaped regex dots (13d, done); Actions guard, no traps (13f, done); sub-commands `bump`, `bench`, `commit` (13g, release.md) |
+| replace | `.github/workflows/release.yml` | workflow.md, verbatim (13f done; replaced again in 13g) |
+| edit | `crates/vt-bench/src/{perf_history,chart,regression_check,main}.rs` | 13g, platforms.md (items and tests) |
+| edit | `docs/specs/0013-perf/check.md`, `docs/perf/README.md`, `docs/user/{performance,versioning}.md`, `README.md`, `docs/roadmap.md` | 13g: done by the architect; coder checks they match the code |
 | edit | `.github/workflows/ci.yml` | two steps below |
 | edit | `.gitignore` | `/fuzz/corpus/`, `/fuzz/artifacts/`, `/fuzz/coverage/` |
 | edit | `README.md` | status, "Use" URL, `## Quick start`, layout rows, "Developing" line (below) |
@@ -57,13 +59,14 @@ The phase-11 tree check and the docs step must already be there; if not, stop an
 ## Root `README.md`
 
 - Status: "v0.1.0. Built and tested on Linux, Windows and macOS." (no roadmap link needed).
-- "Use": `git = "<repository url>", tag = "v0.1.0"` (open item 1).
+- "Use": `git = "https://github.com/vnStrawHat/oneterm-vt", tag = "v0.1.0"`.
 - `## Quick start` (examples.md), then the guide link with `for-agents.md`.
 - Layout table rows: `fuzz/` "cargo-fuzz targets, run before each release (not a workspace
   member)"; `scripts/public-api.sh` "check or update the public-API snapshot".
 - "Developing": add `scripts/public-api.sh check   # needs rustup; installs its pinned nightly`.
-- Layout row `scripts/release.sh`: "bump, gate, benchmark, chart, commit, tag; run only by the
-  Release workflow". Add a row `.github/workflows/` "CI on 3 OS; the Release workflow (manual)".
+- Layout row `scripts/release.sh`: "release steps (bump; test and benchmark per OS; charts, commit,
+  tag); run only by the Release workflow". Row `docs/perf/`, `perf/`: "per-release records and
+  charts, one set per platform". Row `.github/workflows/` "CI on 3 OS; the Release workflow (manual)".
 
 ## Order of work (gate green after each)
 
@@ -75,6 +78,7 @@ The phase-11 tree check and the docs step must already be there; if not, stop an
 | 13d | `release.sh` mapping, M1 |
 | 13e | `fuzz/`, M4 (Linux/WSL); a finding becomes its own `fix` commit with a regression test |
 | 13f | `release.yml` (workflow.md), `release.sh` edits, README rows, acceptance.md; M1 again; shellcheck |
+| 13g | `vt-bench` per platforms.md with its tests; `release.sh` sub-commands; `release.yml` replaced (workflow.md); M1, M7; shellcheck |
 
 ## Gate
 
@@ -102,4 +106,7 @@ is checked.
 3. Any fuzz finding: `fix(<scope>): <what hostile input did>` before 2 or after it.
 4. `ci(release): cut releases with a manual Release workflow` (13f, with this spec amendment).
    Body: `Spec: docs/specs/0014-release`. Hidden from release notes (`ci`).
-5. `release: v0.1.0`, made by the Release workflow as `github-actions[bot]` (release.md step 8).
+5. `ci(release): bench every release on Linux, Windows and macOS` (13g: `vt-bench`, script,
+   workflow and this amendment together; `vt-bench` is a developer tool, not shipped). Body:
+   `Spec: docs/specs/0014-release`. Hidden from release notes (`ci`).
+6. `release: v0.1.0`, made by the Release workflow as `github-actions[bot]` (release.md step 8).

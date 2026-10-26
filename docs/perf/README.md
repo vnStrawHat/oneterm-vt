@@ -1,31 +1,37 @@
 # Performance history
 
-Every release stores one benchmark run, and a chart compares releases.
+Every release stores one benchmark run per platform, and one chart per platform compares releases.
+Platforms: `linux`, `windows`, `macos` (Rust's `std::env::consts::OS`).
 
 | Path | What |
 |---|---|
-| `perf/history/v<version>.json` | the run captured on the Release workflow's runner just before tagging |
-| `perf/chart.svg` | tier-2 MiB/s per fixture across all releases (`vt-bench chart`) |
+| `perf/history/<platform>/v<version>.json` | the run captured on that platform's Release workflow runner just before tagging |
+| `perf/chart-<platform>.svg` | tier-2 MiB/s per fixture across that platform's releases (`vt-bench chart`) |
 
 Rules:
 
 - Never edit a history file. A wrong record is replaced only in a commit that says why.
-- Records come from the release runner (`ubuntu-latest`); `machine` names it:
-  `GitHub ubuntu-latest, <os> <version>, <n> vCPU <cpu model>, rustc <version>`. The chart warns
-  when strings differ (other hardware or compiler); compare such releases with care.
-- Hosted runners are noisy. The Release workflow runs `grid --check` against the previous record
-  (band `0.5`): a trip-wire for structural regressions, not a quality verdict.
+- Compare records only within one platform. A record's `platform` field must match its folder;
+  `vt-bench chart` refuses a folder with more than one platform, `grid --check` a baseline of
+  another platform.
+- Records come from the release runners (`ubuntu-latest`, `windows-latest`, `macos-latest`);
+  `machine` names each: `GitHub <runner>, <os> <version>, <n> vCPU <cpu model>, rustc <version>`.
+  The chart warns when strings differ (new runner image, hardware or compiler); compare such
+  releases with care.
+- Hosted runners are noisy. The Release workflow runs `grid --check` on each platform against
+  that platform's previous record (band `0.5`): a trip-wire for structural regressions, not a
+  quality verdict. Any platform failing it stops the release before tagging.
 - The quality verdict is the tier-2 target table below, measured by hand on a quiet machine.
   CI on pushes and pull requests never benchmarks.
 
 ## Commands
 
 ```bash
-# capture (the Release workflow does this through release.sh)
-cargo run -p oneterm-vt-bench --release -- all --mib 32 --json --machine "<runner, os, cores, cpu, rustc>" --out perf/history/v0.1.0.json
-# chart
-cargo run -p oneterm-vt-bench --release -- chart --history perf/history --out perf/chart.svg
-# compare with a record (newest perf/history record by default)
+# capture (the Release workflow does this through release.sh bench, on each platform)
+cargo run -p oneterm-vt-bench --release -- all --mib 32 --json --machine "<runner, os, cores, cpu, rustc>" --out perf/history/linux/v0.1.0.json
+# chart, one per platform folder
+cargo run -p oneterm-vt-bench --release -- chart --history perf/history/linux --out perf/chart-linux.svg
+# compare with a record (newest record of this machine's platform by default)
 cargo run -p oneterm-vt-bench --release -- grid --check
 # where does heavy_sgr spend its time? (hotpath-profiling sites; one fixture per report)
 cargo run -p oneterm-vt-bench --release --features hotpath-profiling -- grid --fixture heavy_sgr --mib 32
@@ -40,6 +46,7 @@ cargo run -p oneterm-vt-bench --release --features hotpath-profiling -- render -
   "engine": "oneterm-vt",
   "version": "0.1.0",
   "date": "2026-11-30",
+  "platform": "windows",
   "machine": "i7-12700 12C/20T, Windows 11 26200, rustc 1.96.0",
   "columns": 160,
   "lines": 45,
@@ -59,6 +66,7 @@ cargo run -p oneterm-vt-bench --release --features hotpath-profiling -- render -
 |---|---|
 | `version` | workspace version, `N.N.N`; the chart sorts by it |
 | `date` | UTC `YYYY-MM-DD` of the run |
+| `platform` | `std::env::consts::OS` of the build that ran (`linux`, `windows`, `macos`); required; names the history folder |
 | `machine` | free text from `--machine`; required; the release runner's description |
 | `columns`, `lines` | grid geometry for tiers 1-3 |
 | `mib_per_fixture`, `runs` | input size per fixture; cycles per fixture (median reported) |
@@ -69,7 +77,7 @@ cargo run -p oneterm-vt-bench --release --features hotpath-profiling -- render -
 | `grow_us`, `shrink_us` | tier 4: resize 80x24 to 100x40 and back at a scrollback depth |
 | `heap_bytes*` | tier 5: live heap after filling 10 000 scrollback rows of one kind: `plain`, `unicode`, `styled`, `mixed` |
 
-The chart reads `version`, `machine` and `tiers.tier2_grid` only.
+The chart reads `version`, `platform`, `machine` and `tiers.tier2_grid` only.
 
 ## Fixtures (tiers 1-3)
 

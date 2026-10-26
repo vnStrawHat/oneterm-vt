@@ -12,15 +12,16 @@ scan in a per-byte loop, a lost fast path), not drift. Run by hand on the baseli
 
 | Flag | Default | Rule |
 |---|---|---|
-| `--baseline FILE` | newest record in `perf/history/` | any record readable by `perf_history::parse_release` (a `grid --json` output qualifies) |
+| `--baseline FILE` | newest record in `perf/history/<platform>/` (amended by 0014 platforms.md) | any record readable by `perf_history::parse_release` (a `grid --json` output qualifies) |
 | `--tolerance R` | `0.5` | number with `0 < R <= 1`; else `--tolerance needs a number in (0, 1], got '<v>'` |
 | `--mib N` | the baseline's `mib_per_fixture` (32 if absent/0) | `1..=4096`, same parser as the measure commands |
 
 Any other flag (`--json`, `--out`, `--machine`, `--frames`, `--fixture`) ->
 `'grid --check' takes only --baseline, --tolerance and --mib`.
 
-**Default baseline (D1).** `concat!(env!("CARGO_MANIFEST_DIR"), "/../../perf/history")`, so the
-result does not depend on the working directory; `load_history` already sorts by
+**Default baseline (D1).** `concat!(env!("CARGO_MANIFEST_DIR"), "/../../perf/history")` joined
+with `std::env::consts::OS` (`linux`, `windows`, `macos`), so the result does not depend on the
+working directory and never crosses platforms; `load_history` already sorts by
 `ReleaseVersion`, the newest is its last element (`v0.10.0` beats `v0.9.0`). Why not a separate
 committed baseline file: every release record is already a full tier-2 run on the baseline
 machine, captured by `scripts/release.sh` with the same command, and perf/README's rule (never
@@ -36,8 +37,9 @@ A second file would be a second copy of the same figures that drifts. Between re
 | 2 | `cfg!(debug_assertions)` | `--check needs a release build (cargo run --release)` |
 | 3 | bench feature `vt-paranoid` | `--check refuses under vt-paranoid: the whole-history walk dominates the timing` |
 | 4 | bench feature `hotpath-profiling` | `--check refuses under hotpath-profiling: measurement sites change the timing` |
-| 5 | default dir missing or no `*.json` | `no perf record in perf/history; scripts/release.sh writes the first, or pass --baseline FILE` |
+| 5 | default dir missing or no `*.json` | `no perf record in perf/history/{os}; the Release workflow writes the first, or pass --baseline FILE` |
 | 6 | `--baseline` unreadable / invalid | `{FILE}: cannot read file` (followed by the OS error) / the `parse_release` error (names the file) |
+| 6a | baseline `platform` != `consts::OS` | `{src}: baseline platform {p}, this build runs on {os}` |
 | 7 | baseline `columns`x`lines` non-zero and != 160x45 | `{src}: baseline geometry {c}x{l}, this build measures 160x45` |
 | 8 | fixture sets differ | ``fixture sets differ: not in baseline: `a`, `b`; not measured: `c` `` (empty side printed as `-`) |
 | 9 | baseline MiB/s not finite or <= 0 | ``{src}: baseline MiB/s for `x` is not a positive number`` |
@@ -64,7 +66,7 @@ Exact stdout (`MiB/s` `{:.1}`, ratio `{:.2}`, tolerance `{:.2}`):
 ```text
 # vt-bench grid --check
 
-Baseline: perf/history/v0.1.0.json (v0.1.0, 2026-11-30)
+Baseline: perf/history/linux/v0.1.0.json (v0.1.0, 2026-11-30)
 Baseline machine: i7-12700 12C/20T, Windows 11 26200, rustc 1.96.0
 Run: 160x45, 32 MiB per fixture, median of 5 cycles after 1 warm-up.
 A fixture fails below 0.50 x its baseline MiB/s; exactly 0.50 passes.
@@ -78,7 +80,7 @@ FAIL: 1 of 10 fixtures below 0.50 x baseline: `heavy_sgr`
 ```
 
 Last line on success: `PASS: 10 of 10 fixtures at or above 0.50 x baseline`. The baseline path
-prints as `perf/history/<file name>` for the default and verbatim for `--baseline`. An empty
+prints as `perf/history/<os>/<file name>` for the default and verbatim for `--baseline`. An empty
 `date` prints `(v0.1.0)` without the comma part.
 
 ## Exit codes

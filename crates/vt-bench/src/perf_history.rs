@@ -1,4 +1,4 @@
-//! Reading `perf/history/*.json`: one record per release.
+//! Reading `perf/history/<platform>/*.json`: one record per release.
 
 use std::fmt;
 use std::fs;
@@ -7,6 +7,9 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
+
+/// The platform this binary runs on, as records name it (`linux`, `windows`, `macos`).
+pub(crate) const PLATFORM: &str = std::env::consts::OS;
 
 /// One benchmark run. Field order is the JSON key order, which is the schema order.
 /// `#[serde(default)]` keeps older records readable.
@@ -17,6 +20,7 @@ pub(crate) struct PerfRecord {
     pub(crate) version: String,
     #[serde(default)]
     pub(crate) date: String,
+    pub(crate) platform: String,
     pub(crate) machine: String,
     #[serde(default)]
     pub(crate) columns: u16,
@@ -191,7 +195,7 @@ mod tests {
 
     fn record(version: &str) -> String {
         format!(
-            r#"{{"version":"{version}","machine":"m","tiers":{{"tier2_grid":[{{"fixture":"f","mib_per_second":1.0,"ns_per_byte":1.0,"spread_percent":2.0}}]}}}}"#
+            r#"{{"version":"{version}","platform":"linux","machine":"m","tiers":{{"tier2_grid":[{{"fixture":"f","mib_per_second":1.0,"ns_per_byte":1.0,"spread_percent":2.0}}]}}}}"#
         )
     }
 
@@ -213,6 +217,7 @@ mod tests {
             engine: "oneterm-vt".into(),
             version: "0.1.0".into(),
             date: "2026-10-23".into(),
+            platform: "linux".into(),
             machine: "m".into(),
             columns: 160,
             lines: 45,
@@ -237,6 +242,7 @@ mod tests {
             "engine",
             "version",
             "date",
+            "platform",
             "machine",
             "columns",
             "lines",
@@ -268,6 +274,7 @@ mod tests {
             engine: "oneterm-vt".into(),
             version: "0.1.0".into(),
             date: "2026-10-23".into(),
+            platform: "linux".into(),
             machine: "m".into(),
             columns: 160,
             lines: 45,
@@ -354,7 +361,7 @@ mod tests {
         assert!(format!("{invalid:#}").contains("history/a.json"));
         let missing = parse_release(
             "history/b.json",
-            r#"{"version":"0.1.0","machine":"m","tiers":{}}"#,
+            r#"{"version":"0.1.0","platform":"linux","machine":"m","tiers":{}}"#,
         )
         .err()
         .unwrap();
@@ -363,6 +370,15 @@ mod tests {
             .err()
             .unwrap();
         assert!(format!("{bad_version:#}").contains("history/c.json"));
+    }
+
+    #[test]
+    fn record_without_platform_is_invalid() {
+        let json = record("0.1.0").replace(r#""platform":"linux","#, "");
+        let error = parse_release("history/d.json", &json).err().unwrap();
+        let text = format!("{error:#}");
+        assert!(text.contains("history/d.json"), "{text}");
+        assert!(text.contains("platform"), "{text}");
     }
 
     #[test]

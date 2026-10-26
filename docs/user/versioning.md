@@ -4,7 +4,7 @@ Releases are git tags `vX.Y.Z`; consumers depend by tag. Standard semver, three 
 
 ```toml
 [dependencies]
-oneterm-vt = { git = "<your fork url>", tag = "v0.1.0" }
+oneterm-vt = { git = "https://github.com/vnStrawHat/oneterm-vt", tag = "v0.1.0" }
 ```
 
 | Kind | When |
@@ -54,11 +54,13 @@ surface change since a release.
 
 ## How a release is cut
 
-Only the manual Release workflow (`.github/workflows/release.yml`) releases. It runs
-`scripts/release.sh` on a hosted Linux runner (bump, gate, benchmark record, chart, commit
-`release: vX.Y.Z`, tag), tests that exact commit on Linux, Windows and macOS, then pushes commit
-and tag and creates the GitHub release with the chart and the record attached. A tag is never
-moved; a broken release is followed by a new patch release.
+Only the manual Release workflow (`.github/workflows/release.yml`) releases, through
+`scripts/release.sh`: it bumps the version and runs the quality gate on Linux, then tests and
+benchmarks that commit on Linux, Windows and macOS (one perf record per platform, each checked
+against that platform's previous record), adds the three records and charts to the one commit
+`release: vX.Y.Z`, tags it, pushes commit and tag, and creates the GitHub release with the
+charts and records attached. A tag is never moved; a broken release is followed by a new patch
+release.
 
 ## Release notes
 

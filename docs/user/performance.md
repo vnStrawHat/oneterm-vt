@@ -39,7 +39,8 @@ it is noise.
 | `tui_redraw` | 199.3 | 10% | `sixel` | 42.7 | 14% |
 | `scroll_region` | 90.3 | 10% | `osc_9_7` | 160.3 | 11% |
 
-Each release's own run is `perf/history/v<version>.json`; `perf/chart.svg` compares releases.
+Each release's own runs are `perf/history/<platform>/v<version>.json` (`linux`, `windows`,
+`macos`); `perf/chart-<platform>.svg` compares releases on one platform.
 
 ## Reproduce
 
@@ -58,9 +59,18 @@ cargo run -p oneterm-vt-bench --release -- all --mib 32 --json --machine "<runne
 
 ## History and chart
 
-The Release workflow stores one tier 1-5 run per release, made on its hosted Linux runner, in
-`perf/history/v<version>.json` and redraws `perf/chart.svg` (tier-2 MiB/s per fixture across
-releases). Compare runs from one machine only; the record's `machine` names the runner. The record schema is in [docs/perf/README.md](../perf/README.md).
+The Release workflow stores one tier 1-5 run per release on each of its hosted Linux, Windows
+and macOS runners:
+
+| Platform | Records | Chart (tier-2 MiB/s per fixture across releases) |
+|---|---|---|
+| Linux | `perf/history/linux/v<version>.json` | `perf/chart-linux.svg` |
+| Windows | `perf/history/windows/v<version>.json` | `perf/chart-windows.svg` |
+| macOS | `perf/history/macos/v<version>.json` | `perf/chart-macos.svg` |
+
+Each GitHub release also carries the three charts and records (`v<version>-<platform>.json`).
+Compare runs from one platform and one machine only; the record's `platform` and `machine` name
+them. The record schema is in [docs/perf/README.md](../perf/README.md).
 
 ## The trip-wire
 
@@ -71,17 +81,19 @@ cargo run -p oneterm-vt-bench --release -- grid --check
 Measures tier 2 and compares each fixture with a baseline record. It catches structural
 regressions (a clone per cell, a linear scan in a per-byte loop, a lost fast path), not drift.
 
-- Baseline: the newest `perf/history/v*.json`, or `--baseline FILE` (any `grid --json` output).
+- Baseline: the newest record in `perf/history/<platform>/` for the platform the tool was built
+  for, or `--baseline FILE` (any `grid --json` output of the same platform).
 - `--tolerance R` (default `0.5`): a fixture fails below `R` x its baseline, exactly `R` passes.
   `--mib N` defaults to the baseline's input size.
 - Exit codes: `0` pass, `1` at least one fixture `SLOWER`, `2` no verdict.
 - No verdict (exit 2): bad flag; debug, `vt-paranoid` or `hotpath-profiling` build; no history
-  and no `--baseline`; unreadable baseline; baseline geometry not 160x45; fixture sets differ;
+  and no `--baseline`; unreadable baseline; baseline from another platform; baseline geometry
+  not 160x45; fixture sets differ;
   a baseline figure that is not a positive number.
 - The build refusals read `vt-bench`'s own features; `--features oneterm-vt/vt-paranoid` on the
   command line bypasses them, so do not.
-- The Release workflow runs it against the previous release record before pushing; the wide
-  band absorbs runner noise, so it catches only structural regressions. The numbers table above
+- The Release workflow runs it on each platform against that platform's previous release record
+  before tagging; the wide band absorbs runner noise, so it catches only structural regressions. The numbers table above
   (a quiet machine) is the quality verdict.
 
 ## Profiling

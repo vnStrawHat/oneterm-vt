@@ -1,5 +1,7 @@
 //! Hand-written SVG line chart of tier-2 throughput across releases.
 
+use anyhow::{Result, bail};
+
 use crate::perf_history::Release;
 
 const WIDTH: f64 = 960.0;
@@ -20,8 +22,21 @@ struct Series<'a> {
     points: Vec<(usize, f64, f64)>,
 }
 
-/// Renders the chart. `releases` must already be sorted ascending by version.
-pub(crate) fn render_svg(releases: &[Release]) -> String {
+/// Renders the chart. `releases` must already be sorted ascending by version and come from one
+/// platform: throughput is never compared across platforms.
+pub(crate) fn render_svg(releases: &[Release]) -> Result<String> {
+    let mut platforms: Vec<&str> = releases
+        .iter()
+        .map(|release| release.record.platform.as_str())
+        .collect();
+    platforms.sort_unstable();
+    platforms.dedup();
+    let [platform] = platforms.as_slice() else {
+        bail!(
+            "chart needs records from one platform, found: {}",
+            platforms.join(", ")
+        );
+    };
     let series = collect_series(releases);
     let max = series
         .iter()
@@ -45,7 +60,9 @@ pub(crate) fn render_svg(releases: &[Release]) -> String {
     ));
     svg.push_str(&format!(
         "<text x=\"{MARGIN_LEFT}\" y=\"28\" font-size=\"16\" fill=\"#222222\">{}</text>\n",
-        escape_xml("oneterm-vt tier 2 throughput (MiB/s, higher is better)")
+        escape_xml(&format!(
+            "oneterm-vt tier 2 throughput on {platform} (MiB/s, higher is better)"
+        ))
     ));
 
     // Y axis: a gridline and a label per step, plus the unit.
@@ -136,7 +153,7 @@ pub(crate) fn render_svg(releases: &[Release]) -> String {
         ));
     }
     svg.push_str("</svg>\n");
-    svg
+    Ok(svg)
 }
 
 /// Groups points by fixture, in first-seen order across releases.
@@ -209,7 +226,7 @@ mod tests {
             })
             .collect();
         let json = format!(
-            r#"{{"version":"{version}","machine":"{machine}","tiers":{{"tier2_grid":[{}]}}}}"#,
+            r#"{{"version":"{version}","platform":"linux","machine":"{machine}","tiers":{{"tier2_grid":[{}]}}}}"#,
             samples.join(",")
         );
         parse_release("test", &json).unwrap()
@@ -221,21 +238,22 @@ mod tests {
         let svg = render_svg(&[
             release("0.1.0", "m", &fixtures),
             release("0.2.0", "m", &fixtures),
-        ]);
+        ])
+        .unwrap();
         assert_eq!(svg.matches("<polyline").count(), 2);
         assert_eq!(svg.matches("<circle").count(), 4);
     }
 
     #[test]
     fn one_release_has_points_but_no_lines() {
-        let svg = render_svg(&[release("0.1.0", "m", &[("plain", 70.0), ("sgr", 200.0)])]);
+        let svg = render_svg(&[release("0.1.0", "m", &[("plain", 70.0), ("sgr", 200.0)])]).unwrap();
         assert_eq!(svg.matches("<polyline").count(), 0);
         assert_eq!(svg.matches("<circle").count(), 2);
     }
 
     #[test]
     fn fixture_names_are_escaped() {
-        let svg = render_svg(&[release("0.1.0", "m", &[("a<b&c", 1.0)])]);
+        let svg = render_svg(&[release("0.1.0", "m", &[("a<b&c", 1.0)])]).unwrap();
         assert!(svg.contains("a&lt;b&amp;c"));
         assert!(!svg.contains("a<b&c"));
     }
@@ -246,13 +264,34 @@ mod tests {
         let mixed = render_svg(&[
             release("0.1.0", "one", &fixtures),
             release("0.2.0", "two", &fixtures),
-        ]);
+        ])
+        .unwrap();
         assert!(mixed.contains("warning: 2 machines in this history"));
         let single = render_svg(&[
             release("0.1.0", "one", &fixtures),
             release("0.2.0", "one", &fixtures),
-        ]);
+        ])
+        .unwrap();
         assert!(!single.contains("warning:"));
+    }
+
+    #[test]
+    fn title_names_the_platform() {
+        let svg = render_svg(&[release("0.1.0", "m", &[("plain", 70.0)])]).unwrap();
+        assert!(svg.contains("throughput on linux"));
+    }
+
+    #[test]
+    fn mixed_platforms_are_refused() {
+        let mut foreign = release("0.2.0", "m", &[("plain", 70.0)]);
+        foreign.record.platform = "windows".to_owned();
+        let error = render_svg(&[release("0.1.0", "m", &[("plain", 70.0)]), foreign])
+            .err()
+            .unwrap();
+        assert_eq!(
+            error.to_string(),
+            "chart needs records from one platform, found: linux, windows"
+        );
     }
 
     #[test]

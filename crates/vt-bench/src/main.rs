@@ -35,10 +35,10 @@ Measure:
       [--fixture NAME]                 parser, grid, render only: one fixture, no --json
   fixtures --out DIR [--mib N]     write the ten benchmark streams as DIR/<name>.vt
   grid --check [--baseline FILE] [--tolerance R] [--mib N]
-                                   compare tier 2 with the newest perf/history record
+                                   compare tier 2 with the newest perf/history/<os> record
 
 Report:
-  chart --history DIR --out FILE   SVG of tier-2 MiB/s per release, one line per fixture
+  chart --history DIR --out FILE   SVG of tier-2 MiB/s per release of one platform, one line per fixture
 
   help | --help | -h               print this text
 ";
@@ -122,7 +122,7 @@ fn chart_command(args: &[String]) -> Result<PathBuf> {
     let out = out.context("missing --out FILE")?;
 
     let releases = perf_history::load_history(&history)?;
-    write_file(&out, &chart::render_svg(&releases))?;
+    write_file(&out, &chart::render_svg(&releases)?)?;
     Ok(out)
 }
 
@@ -331,6 +331,7 @@ fn render_json(options: &MeasureOptions, measured: Measured) -> Result<String> {
         engine: "oneterm-vt".to_owned(),
         version: env!("CARGO_PKG_VERSION").to_owned(),
         date: perf_history::utc_date(seconds),
+        platform: perf_history::PLATFORM.to_owned(),
         machine: options.machine.clone().unwrap_or_default(),
         columns: COLUMNS as u16,
         lines: LINES as u16,
@@ -477,6 +478,16 @@ mod tests {
     fn fixtures_rejects_frames() {
         let error = fixtures_command(&strings(&["--out", "x", "--frames", "5"])).unwrap_err();
         assert!(format!("{error:#}").contains("only --out and --mib"));
+    }
+
+    #[test]
+    fn json_record_names_the_platform() {
+        let options = parse_measure_options("all", &[]).unwrap();
+        let json = render_json(&options, Measured::default()).unwrap();
+        assert!(
+            json.contains(&format!("\"platform\": \"{}\"", perf_history::PLATFORM)),
+            "{json}"
+        );
     }
 
     #[test]

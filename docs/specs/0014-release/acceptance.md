@@ -112,17 +112,18 @@ Gate commands that ran: `cargo fmt --all -- --check`; `cargo clippy --workspace 
 - Fuzz: three targets x 10 minutes on Linux/WSL at the release commit (fuzz.md), then fill the M4 table.
 - First native Linux CI run of `scripts/public-api.sh check` (and Windows): if the cross-generated Unix file differs from
   the native one, apply the diff the CI step prints.
-- Repository URL: replace `<your fork url>` in `README.md` ("Use") and `docs/user/versioning.md` (pin example); `git remote add origin`.
 - `git update-index --chmod=+x scripts/public-api.sh` when committing.
-- Run the Release workflow (release.md steps 7-12): dry run first (M6), then the real run; record tag sha, release URL and run ids
-  in the checklist below.
+- 13g (coder): `vt-bench` per platforms.md, `release.sh` sub-commands, `release.yml` per workflow.md; M1 again and M7
+  recorded here.
+- Run the Release workflow (release.md steps 7-12): dry run first (M6: `bump`, `bench` x3, `finalize` green, three trip-wire
+  tables, 8 files in artifact `release`), then the real run; record tag sha, release URL and run ids in the checklist below.
 
 ## Release checklist (release.md steps 1-12)
 
 | Step | Date | Result |
 |---|---|---|
-| 1 phases 0-13 and 13f committed, tree clean | pending | |
-| 2 repository URL, remote, no ruleset blocks `github-actions[bot]` | pending | |
+| 1 phases 0-13, 13f and 13g committed, tree clean | pending | |
+| 2 no ruleset blocks `github-actions[bot]` (`origin` and the URL pin are set) | pending | |
 | 3 push, CI green on 3 OS | pending | |
 | 4 API review | 2026-10-24 | M2 above |
 | 5 fuzz | pending | |
@@ -131,5 +132,5 @@ Gate commands that ran: `cargo fmt --all -- --check`; `cargo clippy --workspace 
 | 8 real run, run id | pending | |
 | 9 `git pull --ff-only`, tag sha | pending | |
 | 10 `gh release view`, URL | pending | |
-| 11 asset `cmp` with `perf/history/v0.1.0.json` | pending | |
+| 11 assets `v0.1.0-<platform>.json` `cmp` with `perf/history/<platform>/v0.1.0.json`, all three | pending | |
 | 12 record | pending | |

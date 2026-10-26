@@ -98,5 +98,6 @@ committed baseline.
 **13. Release v0.1.0**: user docs complete, public-API snapshot gate, fuzz target, README
 examples, then the Release workflow with version `0.1.0`.
 - Accept: committed public-API snapshot matches the item lists above; every `docs/user/*.md`
-  Rust block compiles; fuzz runs 10 min clean; `perf/history/v0.1.0.json` and `perf/chart.svg`
-  committed; tag `v0.1.0` created by the script.
+  Rust block compiles; fuzz runs 10 min clean; `perf/history/<platform>/v0.1.0.json` and
+  `perf/chart-<platform>.svg` for `linux`, `windows`, `macos` committed; tag `v0.1.0` created by
+  the Release workflow.

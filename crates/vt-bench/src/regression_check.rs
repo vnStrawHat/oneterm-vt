@@ -7,10 +7,10 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 
 use crate::fixtures::{self, COLUMNS, FIXTURES, LINES};
-use crate::perf_history::{self, Release, Throughput};
+use crate::perf_history::{self, PLATFORM, Release, Throughput};
 use crate::throughput::{self, RUNS};
 
-/// Where `scripts/release.sh` writes the per-release records.
+/// Parent of the per-platform record folders.
 const HISTORY_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../perf/history");
 const DEFAULT_TOLERANCE: f64 = 0.5;
 const TAKES_ONLY: &str = "'grid --check' takes only --baseline, --tolerance and --mib";
@@ -86,7 +86,8 @@ struct CheckRow {
 
 /// Runs `grid --check`. `Err` means no verdict (exit 2).
 pub(crate) fn check_command(args: &[String]) -> Result<CheckReport> {
-    let plan = prepare_check(args, BuildFlavour::current(), Path::new(HISTORY_DIR))?;
+    let history = Path::new(HISTORY_DIR).join(PLATFORM);
+    let plan = prepare_check(args, BuildFlavour::current(), &history)?;
     crate::progress("tier 2 grid");
     let selected = fixtures::select(None)?;
     let now = throughput::measure_tier(plan.mib, &selected, throughput::grid_pass);
@@ -167,16 +168,27 @@ fn newest_record(dir: &Path) -> Result<(String, Release)> {
     let newest = perf_history::load_history(dir)
         .ok()
         .and_then(|mut releases| releases.pop())
-        .context(
-            "no perf record in perf/history; scripts/release.sh writes the first, or pass --baseline FILE",
-        )?;
+        .with_context(|| {
+            format!(
+                "no perf record in perf/history/{PLATFORM}; the Release workflow writes the first, or pass --baseline FILE"
+            )
+        })?;
     // scripts/release.sh names every record v<version>.json.
-    Ok((format!("perf/history/v{}.json", newest.version), newest))
+    Ok((
+        format!("perf/history/{PLATFORM}/v{}.json", newest.version),
+        newest,
+    ))
 }
 
-/// Refusals 7-9: geometry, fixture sets, usable figures.
+/// Refusals 6a-9: platform, geometry, fixture sets, usable figures.
 fn check_baseline(source: &str, baseline: &Release) -> Result<()> {
     let record = &baseline.record;
+    if record.platform != PLATFORM {
+        bail!(
+            "{source}: baseline platform {}, this build runs on {PLATFORM}",
+            record.platform
+        );
+    }
     let (columns, lines) = (usize::from(record.columns), usize::from(record.lines));
     if (columns, lines) != (0, 0) && (columns, lines) != (COLUMNS, LINES) {
         bail!(
@@ -336,6 +348,7 @@ mod tests {
                 engine: "oneterm-vt".to_owned(),
                 version: version.to_owned(),
                 date: "2026-11-30".to_owned(),
+                platform: PLATFORM.to_owned(),
                 machine: "box".to_owned(),
                 columns,
                 lines,
@@ -513,6 +526,24 @@ mod tests {
     }
 
     #[test]
+    fn foreign_platform_baseline_refuses() {
+        let mut baseline = release("0.1.0", 160, 45, 32, all_rows(1.0));
+        baseline.record.platform = "elsewhere".to_owned();
+        let expected =
+            format!("b.json: baseline platform elsewhere, this build runs on {PLATFORM}");
+        assert_eq!(error_text(check_baseline("b.json", &baseline)), expected);
+
+        let dir = TempDir::new("foreign");
+        let path = dir.write_record("b.json", &baseline);
+        let args = strings(&["--check", "--baseline", path.to_str().unwrap()]);
+        let expected = format!(
+            "{}: baseline platform elsewhere, this build runs on {PLATFORM}",
+            path.display()
+        );
+        assert_eq!(error_text(prepare_check(&args, CLEAN, &dir.0)), expected);
+    }
+
+    #[test]
     fn geometry_mismatch_refuses() {
         let baseline = release("0.1.0", 80, 24, 32, all_rows(1.0));
         assert_eq!(
@@ -535,7 +566,7 @@ mod tests {
             );
         }
         let (source, newest) = newest_record(&dir.0).unwrap();
-        assert_eq!(source, "perf/history/v0.10.0.json");
+        assert_eq!(source, format!("perf/history/{PLATFORM}/v0.10.0.json"));
         assert_eq!(newest.record.version, "0.10.0");
     }
 
@@ -547,7 +578,9 @@ mod tests {
             let message = error_text(prepare_check(&strings(&["--check"]), CLEAN, &history));
             assert_eq!(
                 message,
-                "no perf record in perf/history; scripts/release.sh writes the first, or pass --baseline FILE"
+                format!(
+                    "no perf record in perf/history/{PLATFORM}; the Release workflow writes the first, or pass --baseline FILE"
+                )
             );
         }
     }
@@ -605,7 +638,7 @@ mod tests {
         let mut baseline = release("0.1.0", 160, 45, 32, Vec::new());
         baseline.record.machine = "i7-12700 12C/20T, Windows 11 26200, rustc 1.96.0".to_owned();
         let plan = CheckPlan {
-            source: "perf/history/v0.1.0.json".to_owned(),
+            source: "perf/history/linux/v0.1.0.json".to_owned(),
             baseline,
             tolerance: 0.5,
             mib: 32,
@@ -623,7 +656,7 @@ mod tests {
         let header = "\
 # vt-bench grid --check
 
-Baseline: perf/history/v0.1.0.json (v0.1.0, 2026-11-30)
+Baseline: perf/history/linux/v0.1.0.json (v0.1.0, 2026-11-30)
 Baseline machine: i7-12700 12C/20T, Windows 11 26200, rustc 1.96.0
 Run: 160x45, 32 MiB per fixture, median of 5 cycles after 1 warm-up.
 A fixture fails below 0.50 x its baseline MiB/s; exactly 0.50 passes.

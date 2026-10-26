@@ -54,7 +54,7 @@ writes `Reply` bytes back, calls `snapshot_update` and reads one row as text; it
 
 ## `versioning.md` update (stays under 120 lines)
 
-- Pin example: `oneterm-vt = { git = "<repository url>", tag = "v0.1.0" }` (open item 1).
+- Pin example: `oneterm-vt = { git = "https://github.com/vnStrawHat/oneterm-vt", tag = "v0.1.0" }`.
 - "Before 1.0": add "a minor or patch change goes `0.x.y` to `0.x.(y+1)`; `scripts/release.sh`
   applies this mapping".
 - MSRV: "1.96.0 (`rust-version`); raising it is a major change."
@@ -64,8 +64,9 @@ writes `Reply` bytes back, calls `snapshot_update` and reads one row as text; it
 
 ## `performance.md`
 
-One line under the numbers table: "Each release's own run is `perf/history/v<version>.json`;
-`perf/chart.svg` compares releases." The table stays the phase-12 run (Decision 8).
+One line under the numbers table: "Each release's own runs are
+`perf/history/<platform>/v<version>.json` (`linux`, `windows`, `macos`); `perf/chart-<platform>.svg`
+compares releases on one platform." The table stays the phase-12 run (Decision 8).
 
 ## `api-map.md` (row 13)
 
