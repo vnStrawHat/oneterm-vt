@@ -44,6 +44,24 @@ assert_eq!(text.trim_end(), "hello world");
 
 Next: [docs/user/](docs/user/README.md); AI agents start at [for-agents.md](docs/user/for-agents.md).
 
+## Performance
+
+The Release workflow regenerates these charts at every release: tier 1 (parser) and tier 2 (grid)
+throughput per platform. Details: [docs/user/performance.md](docs/user/performance.md). The
+tier 1 panel appears from the first release after v0.1.1.
+
+### Linux
+
+![Linux: parser and grid throughput per release](perf/chart-linux.svg)
+
+### Windows
+
+![Windows: parser and grid throughput per release](perf/chart-windows.svg)
+
+### macOS
+
+![macOS: parser and grid throughput per release](perf/chart-macos.svg)
+
 ## Layout
 
 | Path | What |

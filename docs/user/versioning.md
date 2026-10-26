@@ -58,8 +58,8 @@ Only the manual Release workflow (`.github/workflows/release.yml`) releases, thr
 `scripts/release.sh`: it bumps the version and runs the quality gate on Linux, then tests and
 benchmarks that commit on Linux, Windows and macOS (one perf record per platform, each checked
 against that platform's previous record), adds the three records and charts to the one commit
-`release: vX.Y.Z`, tags it, pushes commit and tag, and creates the GitHub release with the
-charts and records attached. A tag is never moved; a broken release is followed by a new patch
+`release: vX.Y.Z`, tags it, pushes commit and tag, and creates the GitHub release with its notes; the
+records and charts are in the repository at the tag. A tag is never moved; a broken release is followed by a new patch
 release.
 
 ## Release notes

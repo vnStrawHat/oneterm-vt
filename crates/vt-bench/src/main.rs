@@ -32,13 +32,16 @@ vt-bench <command> [flags]
 Measure:
   all | parser | grid | render | resize | rss
       [--mib N] [--frames N] [--json] [--out FILE] [--machine TEXT]
+      --json prints the record; with --out the record goes to FILE and stdout gets the
+      markdown report of the same run
       [--fixture NAME]                 parser, grid, render only: one fixture, no --json
   fixtures --out DIR [--mib N]     write the ten benchmark streams as DIR/<name>.vt
   grid --check [--baseline FILE] [--tolerance R] [--mib N]
                                    compare tier 2 with the newest perf/history/<os> record
 
 Report:
-  chart --history DIR --out FILE   SVG of tier-2 MiB/s per release of one platform, one line per fixture
+  chart --history DIR --out FILE   SVG of tier-1 and tier-2 MiB/s per release of one platform,
+                                   one panel per tier, one line per fixture
 
   help | --help | -h               print this text
 ";
@@ -267,17 +270,27 @@ fn measure_command(command: &str, args: &[String]) -> Result<String> {
         options.frames.unwrap_or(DEFAULT_FRAMES),
         &fixtures,
     );
-    let report = if options.json {
-        render_json(&options, measured)?
-    } else {
-        render_report(&options, &measured)
+    deliver(&options, measured)
+}
+
+/// Turns one measurement into the text for stdout and, with `--out`, the file.
+/// `--json --out FILE` puts the record in FILE and the markdown report on stdout, so a job
+/// summary shows what the record holds without measuring twice.
+fn deliver(options: &MeasureOptions, measured: Measured) -> Result<String> {
+    let Some(path) = &options.out else {
+        return if options.json {
+            render_json(options, measured)
+        } else {
+            Ok(render_report(options, &measured))
+        };
     };
-    match options.out {
-        Some(path) => {
-            write_file(&path, &report)?;
-            Ok(format!("wrote {}\n", path.display()))
-        }
-        None => Ok(report),
+    if options.json {
+        let report = render_report(options, &measured);
+        write_file(path, &render_json(options, measured)?)?;
+        Ok(report)
+    } else {
+        write_file(path, &render_report(options, &measured))?;
+        Ok(format!("wrote {}\n", path.display()))
     }
 }
 
@@ -488,6 +501,42 @@ mod tests {
             json.contains(&format!("\"platform\": \"{}\"", perf_history::PLATFORM)),
             "{json}"
         );
+    }
+
+    #[test]
+    fn json_with_out_writes_the_record_and_prints_the_report() {
+        let file =
+            std::env::temp_dir().join(format!("vt-bench-deliver-{}.json", std::process::id()));
+        let args = strings(&[
+            "--json",
+            "--machine",
+            "box",
+            "--out",
+            file.to_str().unwrap(),
+        ]);
+        let options = parse_measure_options("all", &args).unwrap();
+        let measured = Measured {
+            tier1_parser: Some(Vec::new()),
+            ..Measured::default()
+        };
+        let stdout = deliver(&options, measured).unwrap();
+        let record = fs::read_to_string(&file).unwrap();
+        fs::remove_file(&file).unwrap();
+        assert!(stdout.starts_with("# vt-bench: oneterm-vt "), "{stdout}");
+        assert!(
+            stdout.contains("| Fixture | MiB/s | ns/B | spread |"),
+            "{stdout}"
+        );
+        assert!(record.contains("\"platform\""), "{record}");
+        assert!(!stdout.contains("\"platform\""), "{stdout}");
+    }
+
+    #[test]
+    fn json_without_out_prints_the_record() {
+        let options =
+            parse_measure_options("all", &strings(&["--json", "--machine", "m"])).unwrap();
+        let stdout = deliver(&options, Measured::default()).unwrap();
+        assert!(stdout.starts_with('{'), "{stdout}");
     }
 
     #[test]

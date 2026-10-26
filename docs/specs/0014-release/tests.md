@@ -86,10 +86,10 @@ size, artifacts (must be none). A finding follows fuzz.md "A finding".
 
 **M6 Release workflow dry run (owner, release.md step 7).** `dry_run` (default `true`) runs
 `bump`, `bench` x3 and `finalize` and skips `publish`. Check: each `bench (<platform>)` summary
-has its trip-wire table ending `PASS: 10 of 10 ...` with baseline `perf/history/<platform>/v0.1.0.json`
+has the full tier 1-5 report (markdown tables), then its trip-wire table ending `PASS: 10 of 10 ...` with baseline `perf/history/<platform>/v0.1.0.json`
 (first release: compared with itself); the `finalize` summary has the notes; artifact `release`
-holds 8 files: `release.bundle`, `notes.md`, `chart-{linux,windows,macos}.svg`,
-`v0.1.0-{linux,windows,macos}.json`, each record's `platform` matching its name; the three
+holds 2 files, `release.bundle` and `notes.md`; the records are in the `record-*` artifacts, each
+`platform` matching its name; the three
 `machine` strings name their runner; `git ls-remote --tags origin` shows no new tag and `main` on
 the remote is unchanged. Nothing reached the remote, so the real run reuses the same version.
 `act` is not used: it cannot run the Windows and macOS jobs.

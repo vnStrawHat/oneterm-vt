@@ -56,20 +56,21 @@ cargo run -p oneterm-vt-bench --release -- all --mib 32 --json --machine "<runne
 - Never pipe a generator into the tool; fixtures are generated in memory, outside the timer.
 - `--json` refuses a debug build, `vt-paranoid` and `hotpath-profiling`: a skewed build must
   never become a history record.
+- With `--json --out FILE`, stdout gets the same run as markdown tables.
 
 ## History and chart
 
 The Release workflow stores one tier 1-5 run per release on each of its hosted Linux, Windows
 and macOS runners:
 
-| Platform | Records | Chart (tier-2 MiB/s per fixture across releases) |
+| Platform | Records | Chart (tier-1 and tier-2 MiB/s per fixture across releases) |
 |---|---|---|
 | Linux | `perf/history/linux/v<version>.json` | `perf/chart-linux.svg` |
 | Windows | `perf/history/windows/v<version>.json` | `perf/chart-windows.svg` |
 | macOS | `perf/history/macos/v<version>.json` | `perf/chart-macos.svg` |
 
-Each GitHub release also carries the three charts and records (`v<version>-<platform>.json`).
-Compare runs from one platform and one machine only; the record's `platform` and `machine` name
+The GitHub release carries only GitHub's source archives; read records and charts in the
+repository at the tag. Each chart has two panels, tier 1 (parser) above tier 2 (grid). Compare runs from one platform and one machine only; the record's `platform` and `machine` name
 them. The record schema is in [docs/perf/README.md](../perf/README.md).
 
 ## The trip-wire
@@ -93,8 +94,9 @@ regressions (a clone per cell, a linear scan in a per-byte loop, a lost fast pat
 - The build refusals read `vt-bench`'s own features; `--features oneterm-vt/vt-paranoid` on the
   command line bypasses them, so do not.
 - The Release workflow runs it on each platform against that platform's previous release record
-  before tagging; the wide band absorbs runner noise, so it catches only structural regressions. The numbers table above
-  (a quiet machine) is the quality verdict.
+  before tagging; the wide band catches only structural regressions. The table above is the verdict.
+- Each platform's job summary shows the full run (tiers 1-5, markdown tables) followed by the
+  trip-wire table. The trip-wire stays on tier 2 only: tier-1 spreads are too noisy for a band.
 
 ## Profiling
 

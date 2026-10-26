@@ -18,7 +18,7 @@ except `lib.rs` doctest wiring; no new public item; no new dependency in the wor
 | edit | `scripts/release.sh` | 0.x kind mapping, escaped regex dots (13d, done); Actions guard, no traps (13f, done); sub-commands `bump`, `bench`, `commit` (13g, release.md) |
 | replace | `.github/workflows/release.yml` | workflow.md, verbatim (13f done; replaced again in 13g) |
 | edit | `crates/vt-bench/src/{perf_history,chart,regression_check,main}.rs` | 13g, platforms.md (items and tests) |
-| edit | `docs/specs/0013-perf/check.md`, `docs/perf/README.md`, `docs/user/{performance,versioning}.md`, `README.md`, `docs/roadmap.md` | 13g: done by the architect; coder checks they match the code |
+| edit | `docs/specs/0013-perf/check.md`, `docs/perf/README.md`, `docs/user/{performance,versioning}.md`, `README.md` (a Performance section embeds the three charts), `docs/roadmap.md` | 13g: done by the architect; coder checks they match the code |
 | edit | `.github/workflows/ci.yml` | two steps below |
 | edit | `.gitignore` | `/fuzz/corpus/`, `/fuzz/artifacts/`, `/fuzz/coverage/` |
 | edit | `README.md` | status, "Use" URL, `## Quick start`, layout rows, "Developing" line (below) |

@@ -33,7 +33,7 @@ comparing perf records across platforms.
 - [ ] Snapshot reviewed against the roadmap lists (M2); headless example green in CI on 3 OS
 - [ ] Three fuzz targets x 10 min clean (fuzz.md), recorded in `acceptance.md`
 - [ ] 13g: `vt-bench` per platforms.md with its tests; `release.sh` sub-commands per release.md; `release.yml` matches workflow.md; shellcheck clean; M1, M7
-- [ ] M6 dry run green with nothing pushed; then checklist (release.md) done: tag `v0.1.0`, release with notes and six assets
+- [ ] M6 dry run green with nothing pushed; then checklist (release.md) done: tag `v0.1.0`, release with notes and only the source archives GitHub attaches
 
 ## Decisions
 
@@ -63,9 +63,12 @@ comparing perf records across platforms.
 | D7 | release.sh guard on `GITHUB_ACTIONS`; traps removed | docs-only rule; keep traps | the owner's rule becomes hard to break; the runner is discarded, nothing to undo |
 | D8 | old `verify` job dropped | keep it | `finalize` writes records, charts and tag together |
 | D9 | no second 3-OS test of the amended commit | test x3 again after `finalize` | the amend adds only `perf/` (`release.sh commit` refuses anything else); no build script, `include_*!` or test reads `perf/` (`grid --check` reads it at run time only) |
-| D10 | record field `platform` plus a folder per platform | folder only | a misfiled record or a lone release asset still names its platform; `vt-bench` refuses foreign baselines and mixed charts (platforms.md) |
-| D11 | `perf/chart-<platform>.svg`, flat | `perf/<platform>/chart.svg` | `gh release create` names assets by file base name (GitHub CLI manual); flat names upload unrenamed |
+| D10 | record field `platform` plus a folder per platform | folder only | a misfiled or copied-out record still names its platform; `vt-bench` refuses foreign baselines and mixed charts (platforms.md) |
+| D11 | `perf/chart-<platform>.svg`, flat | `perf/<platform>/chart.svg` | one flat name per platform reads well in the root README, which embeds the three charts |
 | D12 | trip-wire runs before the record exists, default baseline | `find` + `sort -V` for the previous file | `vt-bench` already sorts by version (0013 check.md D1); GNU and BSD `sort` differ across the three runners |
+| D13 | the release carries no assets of ours; records and charts are read at the tag in the repository | upload charts and records as assets | owner request 2026-10-26; the release commit already holds them, so assets would duplicate files |
+| D14 | `bench` prints the `all` report (markdown) to stdout when `--json` has `--out`; `tee -a` puts it in the job summary | measure twice, or print a second table by hand | one measurement, two views; tier 1 was invisible in the summary |
+| D15 | `chart` draws tier 1 above tier 2 in one SVG; the trip-wire stays tier 2 | tier 1 in a second file; a tier-1 band | one file per platform keeps the README short; 0013 D3: tier-1 spreads are too noisy for a band |
 
 ## Open items
 

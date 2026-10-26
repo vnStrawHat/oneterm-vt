@@ -6,7 +6,9 @@ Platforms: `linux`, `windows`, `macos` (Rust's `std::env::consts::OS`).
 | Path | What |
 |---|---|
 | `perf/history/<platform>/v<version>.json` | the run captured on that platform's Release workflow runner just before tagging |
-| `perf/chart-<platform>.svg` | tier-2 MiB/s per fixture across that platform's releases (`vt-bench chart`) |
+| `perf/chart-<platform>.svg` | two panels, tier-1 (parser) above tier-2 (grid) MiB/s per fixture across that platform's releases (`vt-bench chart`) |
+
+The GitHub release carries no copies: read both at the release tag. The root README embeds the charts.
 
 Rules:
 
@@ -27,7 +29,8 @@ Rules:
 ## Commands
 
 ```bash
-# capture (the Release workflow does this through release.sh bench, on each platform)
+# capture (the Release workflow does this through release.sh bench, on each platform);
+# with --out, stdout gets the markdown report of the run (its job summary)
 cargo run -p oneterm-vt-bench --release -- all --mib 32 --json --machine "<runner, os, cores, cpu, rustc>" --out perf/history/linux/v0.1.0.json
 # chart, one per platform folder
 cargo run -p oneterm-vt-bench --release -- chart --history perf/history/linux --out perf/chart-linux.svg
@@ -77,7 +80,7 @@ cargo run -p oneterm-vt-bench --release --features hotpath-profiling -- render -
 | `grow_us`, `shrink_us` | tier 4: resize 80x24 to 100x40 and back at a scrollback depth |
 | `heap_bytes*` | tier 5: live heap after filling 10 000 scrollback rows of one kind: `plain`, `unicode`, `styled`, `mixed` |
 
-The chart reads `version`, `platform`, `machine` and `tiers.tier2_grid` only.
+The chart reads `version`, `platform`, `machine`, `tiers.tier1_parser` (optional) and `tiers.tier2_grid` only.
 
 ## Fixtures (tiers 1-3)
 

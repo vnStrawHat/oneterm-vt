@@ -42,8 +42,11 @@ cargo test --workspace
 if [ -d "perf/history/$P" ]; then trip_wire; record; else record; trip_wire; fi
 # trip_wire: cargo run -p oneterm-vt-bench --release -- grid --check | tee -a "$GITHUB_STEP_SUMMARY"
 # record:    mkdir -p "perf/history/$P" && cargo run -p oneterm-vt-bench --release -- all --mib 32 --json \
-#                --machine "$VT_BENCH_MACHINE" --out "perf/history/$P/v$V.json"
+#                --machine "$VT_BENCH_MACHINE" --out "perf/history/$P/v$V.json" | tee -a "$GITHUB_STEP_SUMMARY"
 ```
+
+With `--json` and `--out` the record goes to the file and stdout carries the markdown report of
+the same run (tiers 1-5), so the job summary shows the full measurement, then the trip-wire table.
 
 The first record of a platform is compared with itself (Decision D4): it proves the record parses
 and the check runs on that OS. Shared helpers: `fail`, `usage`, `workspace_version` (the
@@ -63,8 +66,8 @@ lower-case with `tr '[:upper:]' '[:lower:]'`, no `${x,,}`, no `mapfile`. No trap
 | 7 | Dry run: Actions tab, Release, "Run workflow" from `main`, version `0.1.0`, `dry_run` ticked (or `gh workflow run release.yml -f version=0.1.0 -f dry_run=true`) | tests.md M6 |
 | 8 | Real run: same inputs, `dry_run` unticked | all jobs green, `publish` included |
 | 9 | `git pull --ff-only` | local `main` at `release: v0.1.0` by `github-actions[bot]`, tag `v0.1.0` on it; `git show --stat HEAD` lists 3 records and 3 charts |
-| 10 | `gh release view v0.1.0` | title `v0.1.0`; notes grouped Features / Bug fixes / Performance, one line per phase commit, no `docs`/`ci`/`release` lines; assets `chart-{linux,windows,macos}.svg`, `v0.1.0-{linux,windows,macos}.json` |
-| 11 | `gh release download v0.1.0 -p '*.json' -D .tmp/release-check`; `cmp` each `v0.1.0-P.json` with `perf/history/P/v0.1.0.json` | all three identical |
+| 10 | `gh release view v0.1.0` | title `v0.1.0`; notes grouped Features / Bug fixes / Performance, one line per phase commit, no `docs`/`ci`/`release` lines; no assets besides GitHub's source archives |
+| 11 | `git show v0.1.0:perf/history/P/v0.1.0.json` and `git show v0.1.0:perf/chart-P.svg` for each `P`; the README charts render on GitHub | all six exist; both panels show |
 | 12 | Record tag sha, release URL and run ids in `acceptance.md` | done |
 
 Steps 3-6 cover what the workflow does not: clippy, docs and the snapshot on 3 OS (CI), hostile
@@ -79,7 +82,6 @@ input (fuzz), the target verdict on a quiet machine.
   forward and release `0.1.1` with kind `patch`.
 - Red `publish` with no code at fault: "Re-run failed jobs". The artifact belongs to the run, a
   push of refs that already match is a no-op, then `gh release create` runs only if `gh release view "$TAG"` finds no release.
-  If the release already exists, upload a missing asset with `gh release upload "$TAG" <file>` instead of re-creating.
 
 ## Post-release
 

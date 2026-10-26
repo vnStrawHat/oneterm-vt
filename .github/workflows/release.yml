@@ -125,10 +125,6 @@ jobs:
           mkdir -p "$out"
           git bundle create "$out/release.bundle" "refs/tags/$TAG"
           cp .tmp/release-notes.md "$out/notes.md"
-          for platform in linux windows macos; do
-            cp "perf/chart-$platform.svg" "$out/"
-            cp "perf/history/$platform/$TAG.json" "$out/$TAG-$platform.json"
-          done
           cat "$out/notes.md" >>"$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with: { name: release, path: "${{ runner.temp }}/release", if-no-files-found: error, retention-days: 7, overwrite: true }
@@ -152,4 +148,3 @@ jobs:
         run: >
           gh release view "$TAG" >/dev/null 2>&1 ||
           gh release create "$TAG" --verify-tag --title "$TAG" --notes-file .tmp/release/notes.md
-          .tmp/release/chart-*.svg ".tmp/release/$TAG"-*.json

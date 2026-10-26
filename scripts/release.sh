@@ -87,8 +87,9 @@ trip_wire() {
 
 record() {
     mkdir -p "perf/history/$1"
+    # With --json and --out, stdout carries the markdown report of the same measurement.
     cargo run -p oneterm-vt-bench --release -- all --mib 32 --json \
-        --machine "$VT_BENCH_MACHINE" --out "perf/history/$1/v$2.json"
+        --machine "$VT_BENCH_MACHINE" --out "perf/history/$1/v$2.json" | tee -a "$GITHUB_STEP_SUMMARY"
 }
 
 cmd_bench() {

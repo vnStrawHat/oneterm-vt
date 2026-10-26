@@ -115,8 +115,8 @@ Gate commands that ran: `cargo fmt --all -- --check`; `cargo clippy --workspace 
 - `git update-index --chmod=+x scripts/public-api.sh` when committing.
 - 13g (coder): `vt-bench` per platforms.md, `release.sh` sub-commands, `release.yml` per workflow.md; M1 again and M7
   recorded here.
-- Run the Release workflow (release.md steps 7-12): dry run first (M6: `bump`, `bench` x3, `finalize` green, three trip-wire
-  tables, 8 files in artifact `release`), then the real run; record tag sha, release URL and run ids in the checklist below.
+- Run the Release workflow (release.md steps 7-12): dry run first (M6: `bump`, `bench` x3, `finalize` green, three full reports with trip-wire
+  tables, 2 files in artifact `release`), then the real run; record tag sha, release URL and run ids in the checklist below.
 
 ## Release checklist (release.md steps 1-12)
 
@@ -132,5 +132,5 @@ Gate commands that ran: `cargo fmt --all -- --check`; `cargo clippy --workspace 
 | 8 real run, run id | pending | |
 | 9 `git pull --ff-only`, tag sha | pending | |
 | 10 `gh release view`, URL | pending | |
-| 11 assets `v0.1.0-<platform>.json` `cmp` with `perf/history/<platform>/v0.1.0.json`, all three | pending | |
+| 11 release has no assets of ours; `git show v0.1.0:perf/history/<platform>/v0.1.0.json` and `perf/chart-<platform>.svg` exist for all three | pending | |
 | 12 record | pending | |

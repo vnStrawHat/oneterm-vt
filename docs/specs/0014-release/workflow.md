@@ -5,9 +5,9 @@ Longer than 120 lines on purpose: it holds the YAML for verbatim copy.
 Job graph (13g):
 
 - `bump` (ubuntu): `release.sh bump` = guards, version, gate, commit `release: vX` (Cargo files only); bundle
-- `bench` x3 (linux, windows, macos): that commit; `release.sh bench` = test, trip-wire, record; upload the record
-- `finalize` (ubuntu): three records in, `release.sh commit` = three charts, amend the commit, tag; notes; bundle
-- `publish` (ubuntu, skipped on `dry_run`): push commit and tag atomically, GitHub release with 6 assets
+- `bench` x3 (linux, windows, macos): that commit; `release.sh bench` = test, trip-wire, record (its summary: the full tier 1-5 report, then the trip-wire table); upload the record
+- `finalize` (ubuntu): three records in, `release.sh commit` = three charts, amend the commit, tag; notes; bundle (the `release` artifact holds the tag bundle and the notes only)
+- `publish` (ubuntu, skipped on `dry_run`): push commit and tag atomically, GitHub release with no assets of ours (GitHub adds the source archives)
 
 ```yaml
 name: Release
@@ -137,10 +137,6 @@ jobs:
           mkdir -p "$out"
           git bundle create "$out/release.bundle" "refs/tags/$TAG"
           cp .tmp/release-notes.md "$out/notes.md"
-          for platform in linux windows macos; do
-            cp "perf/chart-$platform.svg" "$out/"
-            cp "perf/history/$platform/$TAG.json" "$out/$TAG-$platform.json"
-          done
           cat "$out/notes.md" >>"$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with: { name: release, path: "${{ runner.temp }}/release", if-no-files-found: error, retention-days: 7, overwrite: true }
@@ -164,7 +160,6 @@ jobs:
         run: >
           gh release view "$TAG" >/dev/null 2>&1 ||
           gh release create "$TAG" --verify-tag --title "$TAG" --notes-file .tmp/release/notes.md
-          .tmp/release/chart-*.svg ".tmp/release/$TAG"-*.json
 ```
 
 Notes for the coder: `run` steps use `shell: bash`, which GitHub runs as `bash -eo pipefail`

@@ -1,15 +1,20 @@
-//! Hand-written SVG line chart of tier-2 throughput across releases.
+//! Hand-written SVG line chart of tier-1 and tier-2 throughput across releases.
 
 use anyhow::{Result, bail};
 
-use crate::perf_history::Release;
+use crate::perf_history::{Release, Throughput};
 
 const WIDTH: f64 = 960.0;
-const HEIGHT: f64 = 540.0;
+const PANEL_HEIGHT: f64 = 330.0;
+/// Room below the last panel for the mixed-machine warning.
+const FOOTER_HEIGHT: f64 = 30.0;
+const HEIGHT: f64 = 2.0 * PANEL_HEIGHT + FOOTER_HEIGHT;
 const MARGIN_LEFT: f64 = 70.0;
 const MARGIN_RIGHT: f64 = 190.0;
+/// From the top of a panel to its plot area (the panel title and the unit label sit above).
 const MARGIN_TOP: f64 = 50.0;
-const MARGIN_BOTTOM: f64 = 60.0;
+/// From the bottom of a panel up to the plot area (the release labels sit below).
+const MARGIN_BOTTOM: f64 = 40.0;
 
 const PALETTE: [&str; 10] = [
     "#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#ff7f0e", "#17becf", "#8c564b", "#e377c2",
@@ -22,8 +27,27 @@ struct Series<'a> {
     points: Vec<(usize, f64, f64)>,
 }
 
-/// Renders the chart. `releases` must already be sorted ascending by version and come from one
-/// platform: throughput is never compared across platforms.
+/// One panel of the chart: a throughput tier.
+struct Tier {
+    /// Names the tier in the panel title.
+    label: &'static str,
+    samples: fn(&Release) -> &[Throughput],
+}
+
+const TIERS: [Tier; 2] = [
+    Tier {
+        label: "tier 1 parser",
+        samples: |release| &release.record.tiers.tier1_parser,
+    },
+    Tier {
+        label: "tier 2 grid",
+        samples: |release| &release.record.tiers.tier2_grid,
+    },
+];
+
+/// Renders the chart: tier 1 above tier 2, one panel each. `releases` must already be sorted
+/// ascending by version and come from one platform: throughput is never compared across
+/// platforms. A release without data for a tier has no point in that panel.
 pub(crate) fn render_svg(releases: &[Release]) -> Result<String> {
     let mut platforms: Vec<&str> = releases
         .iter()
@@ -37,18 +61,6 @@ pub(crate) fn render_svg(releases: &[Release]) -> Result<String> {
             platforms.join(", ")
         );
     };
-    let series = collect_series(releases);
-    let max = series
-        .iter()
-        .flat_map(|series| series.points.iter().map(|point| point.1))
-        .fold(0.0_f64, f64::max);
-    let (top, step) = nice_ceiling(max);
-
-    let plot_width = WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
-    let plot_height = HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
-    let x_of =
-        |index: usize| MARGIN_LEFT + (index as f64 + 0.5) * plot_width / releases.len() as f64;
-    let y_of = |value: f64| MARGIN_TOP + plot_height * (1.0 - value / top);
 
     let mut svg = String::new();
     svg.push_str(&format!(
@@ -58,17 +70,65 @@ pub(crate) fn render_svg(releases: &[Release]) -> Result<String> {
     svg.push_str(&format!(
         "<rect width=\"{WIDTH}\" height=\"{HEIGHT}\" fill=\"#ffffff\"/>\n"
     ));
+    for (index, tier) in TIERS.iter().enumerate() {
+        draw_panel(
+            &mut svg,
+            releases,
+            platform,
+            tier,
+            PANEL_HEIGHT * index as f64,
+        );
+    }
+
+    let mut machines: Vec<&str> = releases
+        .iter()
+        .map(|release| release.record.machine.as_str())
+        .collect();
+    machines.sort_unstable();
+    machines.dedup();
+    if machines.len() > 1 {
+        svg.push_str(&format!(
+            "<text x=\"{MARGIN_LEFT}\" y=\"{:.1}\" fill=\"#b00020\">{}</text>\n",
+            HEIGHT - 12.0,
+            escape_xml(&format!(
+                "warning: {} machines in this history; compare runs from one machine only",
+                machines.len()
+            ))
+        ));
+    }
+    svg.push_str("</svg>\n");
+    Ok(svg)
+}
+
+/// Draws one tier's panel with its top edge at `top_y`.
+fn draw_panel(svg: &mut String, releases: &[Release], platform: &str, tier: &Tier, top_y: f64) {
+    let series = collect_series(releases, tier.samples);
+    let max = series
+        .iter()
+        .flat_map(|series| series.points.iter().map(|point| point.1))
+        .fold(0.0_f64, f64::max);
+    let (top, step) = nice_ceiling(max);
+
+    let plot_width = WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
+    let plot_top = top_y + MARGIN_TOP;
+    let plot_height = PANEL_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
+    let x_of =
+        |index: usize| MARGIN_LEFT + (index as f64 + 0.5) * plot_width / releases.len() as f64;
+    let y_of = |value: f64| plot_top + plot_height * (1.0 - value / top);
+
     svg.push_str(&format!(
-        "<text x=\"{MARGIN_LEFT}\" y=\"28\" font-size=\"16\" fill=\"#222222\">{}</text>\n",
+        "<text x=\"{MARGIN_LEFT}\" y=\"{:.1}\" font-size=\"16\" fill=\"#222222\">{}</text>\n",
+        top_y + 28.0,
         escape_xml(&format!(
-            "oneterm-vt tier 2 throughput on {platform} (MiB/s, higher is better)"
+            "oneterm-vt {} throughput on {platform} (MiB/s, higher is better)",
+            tier.label
         ))
     ));
 
     // Y axis: a gridline and a label per step, plus the unit.
     svg.push_str(&format!(
         "<text x=\"{MARGIN_LEFT}\" y=\"{:.1}\" text-anchor=\"end\" fill=\"#444444\">MiB/s</text>\n",
-        MARGIN_TOP - 10.0
+        plot_top - 10.0
     ));
     let step_count = (top / step).round() as usize;
     for index in 0..=step_count {
@@ -90,7 +150,7 @@ pub(crate) fn render_svg(releases: &[Release]) -> Result<String> {
         svg.push_str(&format!(
             "<text x=\"{:.1}\" y=\"{:.1}\" text-anchor=\"middle\" fill=\"#444444\">v{}</text>\n",
             x_of(index),
-            HEIGHT - MARGIN_BOTTOM + 20.0,
+            plot_top + plot_height + 20.0,
             release.version
         ));
     }
@@ -122,7 +182,7 @@ pub(crate) fn render_svg(releases: &[Release]) -> Result<String> {
 
     // Legend in the right margin.
     for (index, series) in series.iter().enumerate() {
-        let y = MARGIN_TOP + 21.0 * index as f64;
+        let y = plot_top + 21.0 * index as f64;
         let x = WIDTH - MARGIN_RIGHT + 20.0;
         svg.push_str(&format!(
             "<rect x=\"{x:.1}\" y=\"{y:.1}\" width=\"12\" height=\"12\" fill=\"{}\"/>\n",
@@ -135,32 +195,13 @@ pub(crate) fn render_svg(releases: &[Release]) -> Result<String> {
             escape_xml(series.name)
         ));
     }
-
-    let mut machines: Vec<&str> = releases
-        .iter()
-        .map(|release| release.record.machine.as_str())
-        .collect();
-    machines.sort_unstable();
-    machines.dedup();
-    if machines.len() > 1 {
-        svg.push_str(&format!(
-            "<text x=\"{MARGIN_LEFT}\" y=\"{:.1}\" fill=\"#b00020\">{}</text>\n",
-            HEIGHT - 12.0,
-            escape_xml(&format!(
-                "warning: {} machines in this history; compare runs from one machine only",
-                machines.len()
-            ))
-        ));
-    }
-    svg.push_str("</svg>\n");
-    Ok(svg)
 }
 
-/// Groups points by fixture, in first-seen order across releases.
-fn collect_series(releases: &[Release]) -> Vec<Series<'_>> {
+/// Groups one tier's points by fixture, in first-seen order across releases.
+fn collect_series(releases: &[Release], samples: fn(&Release) -> &[Throughput]) -> Vec<Series<'_>> {
     let mut all: Vec<Series<'_>> = Vec::new();
     for (index, release) in releases.iter().enumerate() {
-        for sample in &release.record.tiers.tier2_grid {
+        for sample in samples(release) {
             let point = (index, sample.mib_per_second, sample.spread_percent);
             match all.iter_mut().find(|series| series.name == sample.fixture) {
                 Some(series) => series.points.push(point),
@@ -215,8 +256,7 @@ mod tests {
         assert!((top - 0.3).abs() < 1e-9, "top was {top}");
     }
 
-    /// `fixtures` is `(name, MiB/s)` pairs.
-    fn release(version: &str, machine: &str, fixtures: &[(&str, f64)]) -> Release {
+    fn samples_json(fixtures: &[(&str, f64)]) -> String {
         let samples: Vec<String> = fixtures
             .iter()
             .map(|(name, mib)| {
@@ -225,11 +265,26 @@ mod tests {
                 )
             })
             .collect();
+        samples.join(",")
+    }
+
+    /// `fixtures` is `(name, MiB/s)` pairs for tier 2; `parser` the same for tier 1.
+    fn release_with_parser(
+        version: &str,
+        machine: &str,
+        parser: &[(&str, f64)],
+        fixtures: &[(&str, f64)],
+    ) -> Release {
         let json = format!(
-            r#"{{"version":"{version}","platform":"linux","machine":"{machine}","tiers":{{"tier2_grid":[{}]}}}}"#,
-            samples.join(",")
+            r#"{{"version":"{version}","platform":"linux","machine":"{machine}","tiers":{{"tier1_parser":[{}],"tier2_grid":[{}]}}}}"#,
+            samples_json(parser),
+            samples_json(fixtures)
         );
         parse_release("test", &json).unwrap()
+    }
+
+    fn release(version: &str, machine: &str, fixtures: &[(&str, f64)]) -> Release {
+        release_with_parser(version, machine, &[], fixtures)
     }
 
     #[test]
@@ -279,6 +334,47 @@ mod tests {
     fn title_names_the_platform() {
         let svg = render_svg(&[release("0.1.0", "m", &[("plain", 70.0)])]).unwrap();
         assert!(svg.contains("throughput on linux"));
+    }
+
+    #[test]
+    fn both_tiers_get_a_titled_panel() {
+        let svg = render_svg(&[release_with_parser(
+            "0.1.0",
+            "m",
+            &[("plain", 900.0)],
+            &[("plain", 70.0)],
+        )])
+        .unwrap();
+        let tier1 = svg
+            .find("oneterm-vt tier 1 parser throughput on linux (MiB/s, higher is better)")
+            .unwrap();
+        let tier2 = svg
+            .find("oneterm-vt tier 2 grid throughput on linux (MiB/s, higher is better)")
+            .unwrap();
+        assert!(tier1 < tier2, "tier 1 sits above tier 2");
+        assert_eq!(
+            svg.matches("MiB/s</text>").count(),
+            2,
+            "one unit label per panel"
+        );
+        assert_eq!(svg.matches("<circle").count(), 2);
+        assert!(svg.contains("plain v0.1.0: 900.0 MiB/s"));
+        assert!(svg.contains("plain v0.1.0: 70.0 MiB/s"));
+    }
+
+    #[test]
+    fn release_without_parser_data_has_no_point_in_tier_1() {
+        let fixtures = [("plain", 70.0)];
+        let svg = render_svg(&[
+            release("0.1.0", "m", &fixtures),
+            release_with_parser("0.2.0", "m", &[("plain", 900.0)], &fixtures),
+        ])
+        .unwrap();
+        // Two tier-2 points, one tier-1 point; the lone tier-1 point has no line.
+        assert_eq!(svg.matches("<circle").count(), 3);
+        assert_eq!(svg.matches("<polyline").count(), 1);
+        assert!(svg.contains("plain v0.2.0: 900.0 MiB/s"));
+        assert!(!svg.contains("plain v0.1.0: 900.0"));
     }
 
     #[test]
