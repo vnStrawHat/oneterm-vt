@@ -3,9 +3,10 @@ header = "# Release notes\n"
 body = """
 {% for group, commits in commits | group_by(attribute="group") %}\
 ### {{ group | striptags | trim | upper_first }}
-{% for commit in commits %}\
+{% for commit in commits %}
 - {% if commit.scope %}`{{ commit.scope }}`: {% endif %}{{ commit.message | split(pat="\n") | first | upper_first }}\
 {% endfor %}
+
 {% endfor %}
 """
 trim = true
