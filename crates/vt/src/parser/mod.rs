@@ -17,9 +17,10 @@ mod state;
 mod parser_tests;
 
 pub use osc::{MAX_OSC_PARAMS, OSC_INLINE, OSC_LARGE, OscParams, StringTerm};
-pub use params::{Intermediates, MAX_INTERMEDIATES, MAX_PARAMS, ParamGroups, ParamSep, Params};
+pub use params::{MAX_INTERMEDIATES, MAX_PARAMS, ParamGroups, ParamSep, Params};
 
 use osc::OscBuffer;
+use params::Intermediates;
 use state::State;
 
 /// Most payload bytes a DCS or APC string passes to the sink; the next byte aborts the string.
@@ -46,12 +47,12 @@ pub trait Dispatch {
     fn execute(&mut self, byte: u8);
 
     /// The final byte of an escape sequence. `ignore` is set when a third intermediate arrived.
-    fn esc(&mut self, _intermediates: &Intermediates, _ignore: bool, _byte: u8) {}
+    fn esc(&mut self, _intermediates: &[u8], _ignore: bool, _byte: u8) {}
 
     /// The final byte of a control sequence. `params` holds at least one value and
     /// `ignore == params.ignored()`: a limit was hit or the header was malformed, and the sink
     /// should drop the sequence. A private marker, if any, is the first intermediate.
-    fn csi(&mut self, _params: &Params, _intermediates: &Intermediates, _ignore: bool, _byte: u8) {}
+    fn csi(&mut self, _params: &Params, _intermediates: &[u8], _ignore: bool, _byte: u8) {}
 
     /// An OSC ended by `BEL` or `ESC`. `params` holds at least one entry. `code` is the first
     /// entry read as a decimal `u32`, or `None` if it is empty, not all digits, or too large.
@@ -75,14 +76,7 @@ pub trait Dispatch {
 
     /// The final byte of a DCS header; the payload follows through `dcs_put`. Same parameter
     /// guarantees as [`csi`](Self::csi). An `ignore` hook still streams its payload.
-    fn dcs_hook(
-        &mut self,
-        _params: &Params,
-        _intermediates: &Intermediates,
-        _ignore: bool,
-        _byte: u8,
-    ) {
-    }
+    fn dcs_hook(&mut self, _params: &Params, _intermediates: &[u8], _ignore: bool, _byte: u8) {}
 
     /// One DCS payload byte: `0x00..=0x17`, `0x19`, `0x1C..=0x7E`. At most [`DCS_MAX_BYTES`]
     /// per hook.
@@ -221,7 +215,7 @@ impl Parser {
         self.push_pending_value();
         dispatch.csi(
             &self.params,
-            &self.intermediates,
+            self.intermediates.as_slice(),
             self.params.ignored(),
             byte,
         );
@@ -232,7 +226,7 @@ impl Parser {
         self.push_pending_value();
         dispatch.dcs_hook(
             &self.params,
-            &self.intermediates,
+            self.intermediates.as_slice(),
             self.params.ignored(),
             byte,
         );

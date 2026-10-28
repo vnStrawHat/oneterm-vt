@@ -24,7 +24,7 @@ working `chart`), CI on 3 OS, release flow, LICENSE/NOTICE, docs skeleton. Perf:
 **1. Parser**: VT500-style state machine; params with `:` sub-params; intermediates; OSC buffer
 (inline, then heap up to a cap); DCS passthrough with a byte cap; UTF-8 decode with replacement;
 `memchr` scan for the ground-state fast path.
-- Public: `parser::{Parser, Dispatch, Params, ParamGroups, ParamSep, Intermediates, OscParams,
+- Public: `parser::{Parser, Dispatch, Params, ParamGroups, ParamSep, OscParams,
   StringTerm, MAX_PARAMS, MAX_INTERMEDIATES, MAX_OSC_PARAMS, OSC_INLINE, OSC_LARGE, DCS_MAX_BYTES}`.
 - Accept: proptest "any chunking of the input gives the same dispatch log"; memory stays under
   the documented caps for oversized params/OSC/DCS; 1M random bytes never panic.

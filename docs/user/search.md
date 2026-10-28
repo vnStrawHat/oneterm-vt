@@ -29,6 +29,38 @@ assert_eq!((found[0].start_col, found[0].end_col), (6, 11));
   negative is history. `display_row(screen_top, offset)` adds the viewport offset
   (`screen().scroll_offset() as usize`); both saturate; dropping rows outside `0..rows` is yours.
 
+To paint a spanning match, split it into one column range per row:
+
+```rust
+use std::ops::Range;
+use std::time::Instant;
+use oneterm_vt::search::{GridText, SearchMatch, SearchOptions, SearchPattern, search_grid_text};
+use oneterm_vt::{Config, EventBatch, RowId, Size, Terminal};
+
+/// One `(row, columns)` pair per row the match covers.
+fn per_row(found: &SearchMatch, cols: usize) -> Vec<(RowId, Range<usize>)> {
+    let mut spans = Vec::new();
+    let mut row = found.row;
+    while row <= found.end_row {
+        let start = if row == found.row { found.start_col } else { 0 };
+        let end = if row == found.end_row { found.end_col } else { cols };
+        spans.push((row, start..end));
+        row = row + 1;
+    }
+    spans
+}
+
+let mut term = Terminal::new(Size { rows: 3, cols: 10 }, Config::default());
+term.feed(b"0123456789abc", &mut EventBatch::new(), Instant::now());
+
+let text = GridText::from_terminal(&term);
+let found = search_grid_text(&text, SearchPattern::Literal("89ab"), SearchOptions::default());
+let spans = per_row(&found[0], 10);
+assert_eq!(spans.len(), 2);
+assert_eq!(spans[0].1, 8..10); // first row: from start_col to the row end
+assert_eq!(spans[1].1, 0..2); // last row: up to end_col
+```
+
 ## Wrapped lines
 
 Rows joined by a soft wrap form one logical line, so a word the wrap split is found. A hard line

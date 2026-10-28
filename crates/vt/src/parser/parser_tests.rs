@@ -67,19 +67,19 @@ impl Dispatch for Recorder {
         self.actions.push(Action::Execute(byte));
     }
 
-    fn esc(&mut self, intermediates: &Intermediates, ignore: bool, byte: u8) {
+    fn esc(&mut self, intermediates: &[u8], ignore: bool, byte: u8) {
         self.actions.push(Action::Esc {
-            intermediates: intermediates.as_slice().to_vec(),
+            intermediates: intermediates.to_vec(),
             ignore,
             byte,
         });
     }
 
-    fn csi(&mut self, params: &Params, intermediates: &Intermediates, ignore: bool, byte: u8) {
+    fn csi(&mut self, params: &Params, intermediates: &[u8], ignore: bool, byte: u8) {
         assert_eq!(ignore, params.ignored());
         self.actions.push(Action::Csi {
             groups: groups_of(params),
-            intermediates: intermediates.as_slice().to_vec(),
+            intermediates: intermediates.to_vec(),
             ignore,
             byte,
         });
@@ -105,11 +105,11 @@ impl Dispatch for Recorder {
         self.claims.contains(&code)
     }
 
-    fn dcs_hook(&mut self, params: &Params, intermediates: &Intermediates, ignore: bool, byte: u8) {
+    fn dcs_hook(&mut self, params: &Params, intermediates: &[u8], ignore: bool, byte: u8) {
         assert_eq!(ignore, params.ignored());
         self.actions.push(Action::Hook {
             groups: groups_of(params),
-            intermediates: intermediates.as_slice().to_vec(),
+            intermediates: intermediates.to_vec(),
             ignore,
             byte,
         });
@@ -513,7 +513,7 @@ struct ParamsCapture(Option<Params>);
 impl Dispatch for ParamsCapture {
     fn print_str(&mut self, _text: &str) {}
     fn execute(&mut self, _byte: u8) {}
-    fn csi(&mut self, params: &Params, _: &Intermediates, _: bool, _: u8) {
+    fn csi(&mut self, params: &Params, _: &[u8], _: bool, _: u8) {
         self.0 = Some(params.clone());
     }
 }

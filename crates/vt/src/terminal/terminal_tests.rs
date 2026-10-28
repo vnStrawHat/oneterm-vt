@@ -3,8 +3,9 @@
 use std::time::Instant;
 
 use super::*;
-use crate::cell::{Attrs, Color, NamedColor, Rgb};
+use crate::cell::{Attrs, CellContent, Color, NamedColor, Rgb};
 use crate::events::VtEvent;
+use crate::snapshot::SnapshotContent;
 
 /// A terminal with its batch, fed byte strings.
 pub(super) struct Session {
@@ -1850,4 +1851,149 @@ fn encode_key_event_reports_a_release() {
         s.term.encode_key_event(&event).as_deref(),
         Some(&b"\x1b[97;1:3u"[..])
     );
+}
+
+fn glyph(c: char) -> Cell {
+    Cell::EMPTY.with_content(CellContent::Scalar(c))
+}
+
+/// Ten numbered lines on a 3-row terminal, so most of them are history.
+fn numbered_lines() -> Session {
+    let mut s = Session::new(10, 3);
+    s.feed(b"line-0\r\nline-1\r\nline-2\r\nline-3\r\nline-4\r\nline-5\r\nline-6\r\nline-7\r\nline-8\r\nline-9");
+    s
+}
+
+#[test]
+fn grid_mut_write_is_read_back_by_screen() {
+    let mut s = Session::new(10, 3);
+    let id = s.term.screen().screen_top() + 1;
+    s.term
+        .grid_mut()
+        .screen_mut()
+        .row_mut(id)
+        .unwrap()
+        .set(2, glyph('x'));
+    assert_eq!(s.term.screen().row(id).cell(2), glyph('x'));
+}
+
+#[test]
+fn grid_mut_write_needs_a_new_batch_for_the_snapshot() {
+    let mut s = Session::new(10, 3);
+    let (mut state, now) = (SnapshotState::new(), Instant::now());
+    s.term.snapshot_update(&mut state, now);
+    let id = s.term.screen().screen_top();
+    let shows =
+        |state: &SnapshotState| state.rows()[0].cells[2].content == SnapshotContent::Scalar('x');
+
+    s.term
+        .grid_mut()
+        .screen_mut()
+        .row_mut(id)
+        .unwrap()
+        .set(2, glyph('x'));
+    s.term.snapshot_update(&mut state, now);
+    assert!(
+        !shows(&state),
+        "a write in the already-seen batch is skipped"
+    );
+
+    s.term.grid_mut().begin_batch();
+    s.term
+        .grid_mut()
+        .screen_mut()
+        .row_mut(id)
+        .unwrap()
+        .set(2, glyph('x'));
+    s.term.snapshot_update(&mut state, now);
+    assert!(shows(&state));
+}
+
+#[test]
+fn interner_mut_ids_resolve_in_the_snapshot() {
+    use crate::intern::Extras;
+
+    let mut s = Session::new(10, 3);
+    let (mut state, now) = (SnapshotState::new(), Instant::now());
+    s.term.snapshot_update(&mut state, now);
+    let bold = Style {
+        attrs: Attrs::BOLD,
+        ..Style::DEFAULT
+    };
+    let interner = s.term.interner_mut();
+    let style = interner.style(bold);
+    let grapheme = interner.grapheme("e\u{301}");
+    let link = interner.hyperlinks.intern(None, "https://example.com");
+    let extras = interner.extras(Extras {
+        hyperlink: link,
+        graphic: None,
+    });
+    let cell = Cell::EMPTY
+        .with_content(CellContent::Grapheme(grapheme))
+        .with_style(style)
+        .with_extras(extras);
+    let id = s.term.screen().screen_top();
+    s.term.grid_mut().begin_batch();
+    s.term
+        .grid_mut()
+        .screen_mut()
+        .row_mut(id)
+        .unwrap()
+        .set(0, cell);
+    s.term.snapshot_update(&mut state, now);
+
+    let row = &state.rows()[0];
+    let shown = &row.cells[0];
+    let SnapshotContent::Cluster { start, len } = shown.content else {
+        panic!("expected a cluster, got {:?}", shown.content);
+    };
+    assert_eq!(row.cluster(start, len), ['e', '\u{301}']);
+    assert_eq!(*row.style_of(shown), bold);
+    let uri = &state.hyperlink(shown.hyperlink.unwrap()).unwrap().uri;
+    assert_eq!(&**uri, "https://example.com");
+}
+
+#[test]
+fn row_mut_outside_the_live_range_is_none() {
+    let mut s = Session::new(10, 3);
+    let newest = s.term.screen().newest();
+    assert!(s.term.grid_mut().screen_mut().row_mut(newest + 1).is_none());
+}
+
+/// The text of the viewport's first row.
+fn top_text(s: &Session) -> String {
+    s.term.row_text(s.term.viewport().top)
+}
+
+#[test]
+fn hand_scrolled_viewport_survives_a_reflow_after_sync_anchors() {
+    let (mut by_hand, mut by_call) = (numbered_lines(), numbered_lines());
+    by_hand.term.grid_mut().screen_mut().scroll_viewport(-3);
+    by_hand.term.grid_mut().sync_anchors();
+    by_call.term.scroll_viewport(-3);
+    let before = top_text(&by_hand);
+    assert_eq!(before, top_text(&by_call));
+
+    let narrow = Size { rows: 3, cols: 5 };
+    by_hand.term.resize(narrow, ResizePolicy::default());
+    by_call.term.resize(narrow, ResizePolicy::default());
+    assert_eq!(by_hand.term.viewport(), by_call.term.viewport());
+    // "line-N" now spans two rows: the viewport top is that same line's first fragment.
+    let top = by_hand.term.viewport().top;
+    assert_eq!(by_hand.term.row_text(top), "line-");
+    assert_eq!(
+        by_hand.term.row_text(top + 1).trim_end(),
+        &before.trim_end()[5..]
+    );
+}
+
+#[test]
+fn scroll_to_bottom_through_grid_mut_matches_scroll_viewport_max() {
+    let (mut by_hand, mut by_call) = (numbered_lines(), numbered_lines());
+    by_hand.term.scroll_viewport(-4);
+    by_call.term.scroll_viewport(-4);
+    by_hand.term.grid_mut().screen_mut().scroll_to_bottom();
+    by_hand.term.grid_mut().sync_anchors();
+    by_call.term.scroll_viewport(i32::MAX);
+    assert_eq!(by_hand.term.viewport(), by_call.term.viewport());
 }

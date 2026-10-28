@@ -14,7 +14,9 @@ use super::dispatch::Handler;
 pub(super) const COLOR_COUNT: usize = 271;
 
 /// A colour a program can set, query or reset.
-#[non_exhaustive]
+///
+/// Exhaustive on purpose: an embedder answers a colour query from its theme and must name a
+/// default for every key; a new key is a major change.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ColorKey {
     /// An entry of the 256-colour palette (OSC 4, reset by OSC 104).

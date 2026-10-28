@@ -7,7 +7,7 @@ use crate::cell::{Cell, CellContent};
 use crate::events::{EventBatch, VtEvent};
 use crate::graphics::sixel::SixelDecoder;
 use crate::grid::{Charset, ScrollReport};
-use crate::parser::{Dispatch, Intermediates, OscParams, Params, StringTerm};
+use crate::parser::{Dispatch, OscParams, Params, StringTerm};
 use crate::selection::Invalidation;
 
 use super::State;
@@ -77,12 +77,12 @@ impl Handler<'_> {
         }
     }
 
-    fn esc_dispatch(&mut self, intermediates: &Intermediates, ignore: bool, byte: u8) {
+    fn esc_dispatch(&mut self, intermediates: &[u8], ignore: bool, byte: u8) {
         if ignore {
             self.unhandled();
             return;
         }
-        match (intermediates.as_slice(), byte) {
+        match (intermediates, byte) {
             ([slot @ (b'(' | b')' | b'*' | b'+')], set) => {
                 let slot = match slot {
                     b'(' => 0,
@@ -149,12 +149,12 @@ impl Handler<'_> {
         }
     }
 
-    fn dcs_open(&mut self, intermediates: &Intermediates, ignore: bool, byte: u8) {
+    fn dcs_open(&mut self, intermediates: &[u8], ignore: bool, byte: u8) {
         if ignore {
             self.unhandled();
             return;
         }
-        let query = match (intermediates.as_slice(), byte) {
+        let query = match (intermediates, byte) {
             ([b'$'], b'q') => DcsQuery::Decrqss,
             ([b'+'], b'q') => DcsQuery::Xtgettcap,
             // Sixel: `q` alone. The DCS parameters (aspect, background, grid) are ignored.
@@ -212,12 +212,12 @@ impl Dispatch for Handler<'_> {
         self.control(byte);
     }
 
-    fn esc(&mut self, intermediates: &Intermediates, ignore: bool, byte: u8) {
+    fn esc(&mut self, intermediates: &[u8], ignore: bool, byte: u8) {
         self.begin_control();
         self.esc_dispatch(intermediates, ignore, byte);
     }
 
-    fn csi(&mut self, params: &Params, intermediates: &Intermediates, ignore: bool, byte: u8) {
+    fn csi(&mut self, params: &Params, intermediates: &[u8], ignore: bool, byte: u8) {
         self.begin_control();
         self.csi_dispatch(params, intermediates, ignore, byte);
     }
@@ -238,13 +238,7 @@ impl Dispatch for Handler<'_> {
         routes.allows_large(code) && routes.get(code) != super::OscRoute::Drop
     }
 
-    fn dcs_hook(
-        &mut self,
-        _params: &Params,
-        intermediates: &Intermediates,
-        ignore: bool,
-        byte: u8,
-    ) {
+    fn dcs_hook(&mut self, _params: &Params, intermediates: &[u8], ignore: bool, byte: u8) {
         self.begin_control();
         self.dcs_open(intermediates, ignore, byte);
     }

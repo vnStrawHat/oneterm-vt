@@ -1,6 +1,6 @@
 # API map
 
-Every public type and trait of `oneterm-vt` 0.1.0, grouped by what you do with it. Paths are
+Every public type and trait of `oneterm-vt`, grouped by what you do with it. Paths are
 below `oneterm_vt::`. A row may fold the small types around one idea (a type and its id, an enum
 and its payload). The last row of a group lists its functions and constants.
 
@@ -8,7 +8,7 @@ and its payload). The last row of a group lists its functions and constants.
 
 | Item | What it is for | Chapter |
 |---|---|---|
-| `Terminal` | the engine: `feed` bytes, `resize`, `snapshot_update`, `encode_key` | [quickstart](quickstart.md) |
+| `Terminal` | the engine: `feed` bytes, `resize`, `snapshot_update`, `encode_key`; `grid_mut` and `interner_mut` for hand-written cells | [quickstart](quickstart.md) |
 | `Config` | how a `Terminal` is built: scrollback, product name, OSC routes | [quickstart](quickstart.md) |
 | `OscRoute`, `OscRoutes` | per OSC number: handle it, forward it to you, or drop it | [events](events.md) |
 | `Mode`, `ModeState` | a terminal mode, and how a program set it (DECRQM answers) | [conformance](conformance.md) |
@@ -89,19 +89,19 @@ and its payload). The last row of a group lists its functions and constants.
 | `parser::Parser` | byte-stream parser, usable without a grid | [parser](parser.md) |
 | `parser::Dispatch` | the sink that receives printed text, controls and sequences | [parser](parser.md) |
 | `parser::Params`, `parser::ParamGroups`, `parser::ParamSep` | CSI parameters, their groups and sub-parameter separators | [parser](parser.md) |
-| `parser::Intermediates`, `parser::OscParams` | intermediate bytes; the parameters of one OSC | [parser](parser.md) |
+| `parser::OscParams` | the parameters of one OSC | [parser](parser.md) |
 | constants | `MAX_PARAMS`, `MAX_INTERMEDIATES`, `MAX_OSC_PARAMS`, `OSC_INLINE`, `OSC_LARGE`, `DCS_MAX_BYTES` | [limits](limits.md) |
 
 ## `intern`
 
 | Item | What it is for | Chapter |
 |---|---|---|
-| `intern::Interner` | the tables a cell ids point into | [cells-and-styles](cells-and-styles.md) |
+| `intern::Interner` (also `Interner`) | the tables a cell ids point into | [cells-and-styles](cells-and-styles.md) |
 | `intern::InternTable` | a capped, deduplicating table | [cells-and-styles](cells-and-styles.md) |
-| `intern::StyleId`, `intern::ExtrasId`, `intern::Extras` | a cell style id and its link or image extras | [cells-and-styles](cells-and-styles.md) |
+| `intern::StyleId`, `intern::ExtrasId` (also `ExtrasId`), `intern::Extras` (also `Extras`) | a cell style id and its link or image extras | [cells-and-styles](cells-and-styles.md) |
 | `intern::GraphemeArena`, `intern::GraphemeId`, `intern::GraphemeRemap` | storage and ids of multi-scalar clusters | [cells-and-styles](cells-and-styles.md) |
-| `intern::Hyperlink`, `intern::HyperlinkId`, `intern::HyperlinkTable` | OSC 8 links | [cells-and-styles](cells-and-styles.md) |
-| `intern::GraphicId` | identity of an image, named by `GraphicReleased` | [graphics](graphics.md) |
+| `intern::Hyperlink` (also `Hyperlink`), `intern::HyperlinkId` (also `HyperlinkId`), `intern::HyperlinkTable` | OSC 8 links | [cells-and-styles](cells-and-styles.md) |
+| `intern::GraphicId` (also `GraphicId`) | identity of an image, named by `GraphicReleased` | [graphics](graphics.md) |
 | constants | `GRAPHEME_SWEEP_CHARS`, `GRAPHEME_SWEEP_ENTRIES` | [cells-and-styles](cells-and-styles.md) |
 
 ## `grid`

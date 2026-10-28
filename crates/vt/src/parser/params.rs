@@ -139,7 +139,7 @@ impl<'a> Iterator for ParamGroups<'a> {
 
 /// Intermediate bytes (`0x20..=0x2F`, plus a private marker `0x3C..=0x3F` first) of a sequence.
 #[derive(Clone, Copy, Debug)]
-pub struct Intermediates {
+pub(crate) struct Intermediates {
     bytes: [u8; MAX_INTERMEDIATES],
     len: u8,
 }
@@ -167,7 +167,7 @@ impl Intermediates {
     }
 
     /// The bytes in arrival order.
-    pub fn as_slice(&self) -> &[u8] {
+    pub(crate) fn as_slice(&self) -> &[u8] {
         self.bytes.get(..usize::from(self.len)).unwrap_or_default()
     }
 }

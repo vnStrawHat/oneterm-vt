@@ -12,6 +12,8 @@
 //! - [`parser`]: a byte-stream parser that reports control sequences to a [`parser::Dispatch`] sink.
 //! - [`Cell`], [`Style`], the [`intern`] tables a cell points into, and the [`scalar_width`] /
 //!   [`cluster_width`] column rules.
+//!   The intern ids and values an embedder keeps or builds by hand ([`Interner`], [`ExtrasId`],
+//!   [`Extras`], [`HyperlinkId`], [`Hyperlink`], [`GraphicId`]) are also at the crate root.
 //! - [`grid`]: rows in a ring-buffer scrollback, primary and alternate screens, and anchors that
 //!   follow content, with column reflow and row resize; [`Selection`]s follow that content.
 //! - [`search`]: literal and regular-expression scrollback search over a copy of the grid,
@@ -50,6 +52,7 @@ pub use events::{
 pub use graphics::{GraphicData, Placement, VIRTUAL_CELL};
 pub use grid::terminal_grid::{ResizeOutcome, ResizePolicy};
 pub use grid::{Pos, RowId, RowRef, SeqNo, Size, Viewport};
+pub use intern::{Extras, ExtrasId, GraphicId, Hyperlink, HyperlinkId, Interner};
 pub use parser::StringTerm;
 pub use selection::{Invalidation, Selection, SelectionKind, SelectionRange, Side};
 pub use snapshot::{

@@ -126,7 +126,7 @@ impl Parser {
                 self.state = State::ApcString;
             }
             0x30..=0x7E => {
-                dispatch.esc(&self.intermediates, self.params.ignored(), byte);
+                dispatch.esc(self.intermediates.as_slice(), self.params.ignored(), byte);
                 self.state = State::Ground;
             }
             _ => {}

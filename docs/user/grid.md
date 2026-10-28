@@ -92,6 +92,53 @@ assert!(grid.heap_bytes() < 1_000_000); // an empty scrollback costs only its ri
   than `oldest()` are gone; asking for one gives blanks.
 - Sizes are clamped to 1..=1024 rows and 1..=2048 columns, scrollback to `SCROLLBACK_MAX`.
 
+## Writing cells into a terminal
+
+A test fixture, a replay tool or a viewport controller can write rows of a live `Terminal`
+through `grid_mut()` and `interner_mut()`. Writes bypass the parser, so the selection, image
+placements and colour overrides are not told.
+
+- Call `grid_mut().begin_batch()` first: a `SnapshotState` that already saw the current batch
+  skips the row otherwise.
+- Mint style, cluster and link ids with `interner_mut()` and write the cell in the same step,
+  before the next `feed` (a feed sweeps ids no row uses).
+- `row_mut(id).set(col, cell)` keeps wide pairs whole: a `Wide` cell writes its own spacer, so
+  never write a spacer by hand. `set_wrapped(true)` joins the row to the next.
+- Moving the viewport by hand is `scroll_viewport(d)` or `scroll_to_bottom()` on `screen_mut()`,
+  then `grid_mut().sync_anchors()`; `Terminal::scroll_viewport` does both.
+
+```rust
+use std::time::Instant;
+use oneterm_vt::{
+    Cell, CellContent, CellWidth, Config, Extras, Size, SnapshotContent, SnapshotState, Terminal,
+};
+
+let mut term = Terminal::new(Size { rows: 3, cols: 8 }, Config::default());
+let (mut state, now) = (SnapshotState::new(), Instant::now());
+term.snapshot_update(&mut state, now);
+
+let interner = term.interner_mut();
+let link = interner.hyperlinks.intern(None, "https://example.com");
+let extras = interner.extras(Extras { hyperlink: link, graphic: None });
+let wide = Cell::EMPTY
+    .with_content(CellContent::Scalar('\u{4e2d}'))
+    .with_width(CellWidth::Wide);
+let linked = Cell::EMPTY.with_content(CellContent::Scalar('a')).with_extras(extras);
+
+let id = term.screen().screen_top();
+term.grid_mut().begin_batch();
+let mut row = term.grid_mut().screen_mut().row_mut(id).expect("the screen row is live");
+row.set(0, wide); // also writes the spacer in column 1
+row.set(2, linked);
+term.snapshot_update(&mut state, now);
+
+let row = &state.rows()[0];
+assert_eq!(row.cells[0].content, SnapshotContent::Scalar('\u{4e2d}'));
+assert!(row.cells[1].width.is_spacer());
+let link = row.cells[2].hyperlink.expect("the cell carries its link");
+assert_eq!(&*state.hyperlink(link).expect("copied with the row").uri, "https://example.com");
+```
+
 ## Reading checklist
 
 - Resolve `style_id()`, `extras_id()` and grapheme ids through the terminal's `Interner`.

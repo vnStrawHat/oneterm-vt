@@ -3,7 +3,7 @@
 
 use crate::events::VtEvent;
 use crate::grid::{DisplayClear, LineClear, TabStops};
-use crate::parser::{Intermediates, ParamGroups, Params};
+use crate::parser::{ParamGroups, Params};
 use crate::selection::Invalidation;
 
 use super::dispatch::Handler;
@@ -45,7 +45,7 @@ impl Handler<'_> {
     pub(super) fn csi_dispatch(
         &mut self,
         params: &Params,
-        intermediates: &Intermediates,
+        intermediates: &[u8],
         ignore: bool,
         byte: u8,
     ) {
@@ -55,7 +55,7 @@ impl Handler<'_> {
         }
         let mut args = Args::new(params);
         let args = &mut args;
-        match (intermediates.as_slice(), byte) {
+        match (intermediates, byte) {
             ([], b'@') => {
                 let n = args.next_or(1);
                 self.state.grid.screen_mut().insert_blanks(n);

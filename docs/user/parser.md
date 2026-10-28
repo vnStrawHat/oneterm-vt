@@ -40,7 +40,7 @@ assert_eq!(sink.text, "red plain\n");
 `Params::groups()` yields one slice per `;` parameter; `:` sub-parameters stay in the group.
 
 ```rust
-use oneterm_vt::parser::{Dispatch, Intermediates, Params, Parser};
+use oneterm_vt::parser::{Dispatch, Params, Parser};
 
 #[derive(Default)]
 struct Sgr {
@@ -50,7 +50,7 @@ struct Sgr {
 impl Dispatch for Sgr {
     fn print_str(&mut self, _text: &str) {}
     fn execute(&mut self, _byte: u8) {}
-    fn csi(&mut self, params: &Params, _: &Intermediates, ignore: bool, byte: u8) {
+    fn csi(&mut self, params: &Params, _: &[u8], ignore: bool, byte: u8) {
         if !ignore && byte == b'm' {
             self.groups = params.groups().map(<[u16]>::to_vec).collect();
         }

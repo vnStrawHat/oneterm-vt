@@ -1216,21 +1216,6 @@ impl core::marker::Unpin for oneterm_vt::StringTerm
 impl core::marker::UnsafeUnpin for oneterm_vt::StringTerm
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::StringTerm
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::StringTerm
-pub struct oneterm_vt::parser::Intermediates
-impl oneterm_vt::parser::Intermediates
-pub fn oneterm_vt::parser::Intermediates::as_slice(&self) -> &[u8]
-impl core::clone::Clone for oneterm_vt::parser::Intermediates
-pub fn oneterm_vt::parser::Intermediates::clone(&self) -> oneterm_vt::parser::Intermediates
-impl core::fmt::Debug for oneterm_vt::parser::Intermediates
-pub fn oneterm_vt::parser::Intermediates::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for oneterm_vt::parser::Intermediates
-impl core::marker::Freeze for oneterm_vt::parser::Intermediates
-impl core::marker::Send for oneterm_vt::parser::Intermediates
-impl core::marker::Sync for oneterm_vt::parser::Intermediates
-impl core::marker::Unpin for oneterm_vt::parser::Intermediates
-impl core::marker::UnsafeUnpin for oneterm_vt::parser::Intermediates
-impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::parser::Intermediates
-impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::parser::Intermediates
 pub struct oneterm_vt::parser::OscParams<'a>
 impl<'a> oneterm_vt::parser::OscParams<'a>
 pub fn oneterm_vt::parser::OscParams<'a>::get(&self, usize) -> core::option::Option<&'a [u8]>
@@ -1308,11 +1293,11 @@ pub trait oneterm_vt::parser::Dispatch
 pub fn oneterm_vt::parser::Dispatch::apc_end(&mut self, bool)
 pub fn oneterm_vt::parser::Dispatch::apc_put(&mut self, u8)
 pub fn oneterm_vt::parser::Dispatch::apc_start(&mut self, u8)
-pub fn oneterm_vt::parser::Dispatch::csi(&mut self, &oneterm_vt::parser::Params, &oneterm_vt::parser::Intermediates, bool, u8)
-pub fn oneterm_vt::parser::Dispatch::dcs_hook(&mut self, &oneterm_vt::parser::Params, &oneterm_vt::parser::Intermediates, bool, u8)
+pub fn oneterm_vt::parser::Dispatch::csi(&mut self, &oneterm_vt::parser::Params, &[u8], bool, u8)
+pub fn oneterm_vt::parser::Dispatch::dcs_hook(&mut self, &oneterm_vt::parser::Params, &[u8], bool, u8)
 pub fn oneterm_vt::parser::Dispatch::dcs_put(&mut self, u8)
 pub fn oneterm_vt::parser::Dispatch::dcs_unhook(&mut self, bool)
-pub fn oneterm_vt::parser::Dispatch::esc(&mut self, &oneterm_vt::parser::Intermediates, bool, u8)
+pub fn oneterm_vt::parser::Dispatch::esc(&mut self, &[u8], bool, u8)
 pub fn oneterm_vt::parser::Dispatch::execute(&mut self, u8)
 pub fn oneterm_vt::parser::Dispatch::osc(&mut self, core::option::Option<u32>, &oneterm_vt::parser::OscParams<'_>, oneterm_vt::StringTerm, bool)
 pub fn oneterm_vt::parser::Dispatch::osc_allows_large(&self, u32) -> bool
@@ -1666,7 +1651,7 @@ impl core::marker::Unpin for oneterm_vt::Color
 impl core::marker::UnsafeUnpin for oneterm_vt::Color
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::Color
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::Color
-#[non_exhaustive] pub enum oneterm_vt::ColorKey
+pub enum oneterm_vt::ColorKey
 pub oneterm_vt::ColorKey::Background
 pub oneterm_vt::ColorKey::Cursor
 pub oneterm_vt::ColorKey::Foreground
@@ -2446,6 +2431,58 @@ impl core::marker::Unpin for oneterm_vt::EventBatch
 impl core::marker::UnsafeUnpin for oneterm_vt::EventBatch
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::EventBatch
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::EventBatch
+pub struct oneterm_vt::Extras
+pub oneterm_vt::Extras::graphic: core::option::Option<oneterm_vt::intern::GraphicId>
+pub oneterm_vt::Extras::hyperlink: core::option::Option<oneterm_vt::intern::HyperlinkId>
+impl oneterm_vt::intern::Extras
+pub const oneterm_vt::intern::Extras::NONE: oneterm_vt::intern::Extras
+impl core::clone::Clone for oneterm_vt::intern::Extras
+pub fn oneterm_vt::intern::Extras::clone(&self) -> oneterm_vt::intern::Extras
+impl core::cmp::Eq for oneterm_vt::intern::Extras
+impl core::cmp::PartialEq for oneterm_vt::intern::Extras
+pub fn oneterm_vt::intern::Extras::eq(&self, &oneterm_vt::intern::Extras) -> bool
+impl core::default::Default for oneterm_vt::intern::Extras
+pub fn oneterm_vt::intern::Extras::default() -> oneterm_vt::intern::Extras
+impl core::fmt::Debug for oneterm_vt::intern::Extras
+pub fn oneterm_vt::intern::Extras::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for oneterm_vt::intern::Extras
+pub fn oneterm_vt::intern::Extras::hash<__H: core::hash::Hasher>(&self, &mut __H)
+impl core::marker::Copy for oneterm_vt::intern::Extras
+impl core::marker::StructuralPartialEq for oneterm_vt::intern::Extras
+impl core::marker::Freeze for oneterm_vt::intern::Extras
+impl core::marker::Send for oneterm_vt::intern::Extras
+impl core::marker::Sync for oneterm_vt::intern::Extras
+impl core::marker::Unpin for oneterm_vt::intern::Extras
+impl core::marker::UnsafeUnpin for oneterm_vt::intern::Extras
+impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::intern::Extras
+impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::intern::Extras
+pub struct oneterm_vt::ExtrasId(pub u16)
+impl oneterm_vt::intern::ExtrasId
+pub const oneterm_vt::intern::ExtrasId::NONE: oneterm_vt::intern::ExtrasId
+impl core::clone::Clone for oneterm_vt::intern::ExtrasId
+pub fn oneterm_vt::intern::ExtrasId::clone(&self) -> oneterm_vt::intern::ExtrasId
+impl core::cmp::Eq for oneterm_vt::intern::ExtrasId
+impl core::cmp::Ord for oneterm_vt::intern::ExtrasId
+pub fn oneterm_vt::intern::ExtrasId::cmp(&self, &oneterm_vt::intern::ExtrasId) -> core::cmp::Ordering
+impl core::cmp::PartialEq for oneterm_vt::intern::ExtrasId
+pub fn oneterm_vt::intern::ExtrasId::eq(&self, &oneterm_vt::intern::ExtrasId) -> bool
+impl core::cmp::PartialOrd for oneterm_vt::intern::ExtrasId
+pub fn oneterm_vt::intern::ExtrasId::partial_cmp(&self, &oneterm_vt::intern::ExtrasId) -> core::option::Option<core::cmp::Ordering>
+impl core::default::Default for oneterm_vt::intern::ExtrasId
+pub fn oneterm_vt::intern::ExtrasId::default() -> oneterm_vt::intern::ExtrasId
+impl core::fmt::Debug for oneterm_vt::intern::ExtrasId
+pub fn oneterm_vt::intern::ExtrasId::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for oneterm_vt::intern::ExtrasId
+pub fn oneterm_vt::intern::ExtrasId::hash<__H: core::hash::Hasher>(&self, &mut __H)
+impl core::marker::Copy for oneterm_vt::intern::ExtrasId
+impl core::marker::StructuralPartialEq for oneterm_vt::intern::ExtrasId
+impl core::marker::Freeze for oneterm_vt::intern::ExtrasId
+impl core::marker::Send for oneterm_vt::intern::ExtrasId
+impl core::marker::Sync for oneterm_vt::intern::ExtrasId
+impl core::marker::Unpin for oneterm_vt::intern::ExtrasId
+impl core::marker::UnsafeUnpin for oneterm_vt::intern::ExtrasId
+impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::intern::ExtrasId
+impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::intern::ExtrasId
 #[non_exhaustive] pub struct oneterm_vt::FeedStats
 pub oneterm_vt::FeedStats::aborted_dcs: u32
 pub oneterm_vt::FeedStats::bytes: usize
@@ -2500,6 +2537,97 @@ impl core::marker::Unpin for oneterm_vt::GraphicData
 impl core::marker::UnsafeUnpin for oneterm_vt::GraphicData
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::GraphicData
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::GraphicData
+pub struct oneterm_vt::GraphicId(pub u64)
+impl core::clone::Clone for oneterm_vt::intern::GraphicId
+pub fn oneterm_vt::intern::GraphicId::clone(&self) -> oneterm_vt::intern::GraphicId
+impl core::cmp::Eq for oneterm_vt::intern::GraphicId
+impl core::cmp::Ord for oneterm_vt::intern::GraphicId
+pub fn oneterm_vt::intern::GraphicId::cmp(&self, &oneterm_vt::intern::GraphicId) -> core::cmp::Ordering
+impl core::cmp::PartialEq for oneterm_vt::intern::GraphicId
+pub fn oneterm_vt::intern::GraphicId::eq(&self, &oneterm_vt::intern::GraphicId) -> bool
+impl core::cmp::PartialOrd for oneterm_vt::intern::GraphicId
+pub fn oneterm_vt::intern::GraphicId::partial_cmp(&self, &oneterm_vt::intern::GraphicId) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for oneterm_vt::intern::GraphicId
+pub fn oneterm_vt::intern::GraphicId::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for oneterm_vt::intern::GraphicId
+pub fn oneterm_vt::intern::GraphicId::hash<__H: core::hash::Hasher>(&self, &mut __H)
+impl core::marker::Copy for oneterm_vt::intern::GraphicId
+impl core::marker::StructuralPartialEq for oneterm_vt::intern::GraphicId
+impl core::marker::Freeze for oneterm_vt::intern::GraphicId
+impl core::marker::Send for oneterm_vt::intern::GraphicId
+impl core::marker::Sync for oneterm_vt::intern::GraphicId
+impl core::marker::Unpin for oneterm_vt::intern::GraphicId
+impl core::marker::UnsafeUnpin for oneterm_vt::intern::GraphicId
+impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::intern::GraphicId
+impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::intern::GraphicId
+pub struct oneterm_vt::Hyperlink
+pub oneterm_vt::Hyperlink::id: alloc::boxed::Box<str>
+pub oneterm_vt::Hyperlink::implicit: bool
+pub oneterm_vt::Hyperlink::uri: alloc::boxed::Box<str>
+impl core::clone::Clone for oneterm_vt::intern::Hyperlink
+pub fn oneterm_vt::intern::Hyperlink::clone(&self) -> oneterm_vt::intern::Hyperlink
+impl core::cmp::Eq for oneterm_vt::intern::Hyperlink
+impl core::cmp::PartialEq for oneterm_vt::intern::Hyperlink
+pub fn oneterm_vt::intern::Hyperlink::eq(&self, &oneterm_vt::intern::Hyperlink) -> bool
+impl core::fmt::Debug for oneterm_vt::intern::Hyperlink
+pub fn oneterm_vt::intern::Hyperlink::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for oneterm_vt::intern::Hyperlink
+pub fn oneterm_vt::intern::Hyperlink::hash<__H: core::hash::Hasher>(&self, &mut __H)
+impl core::marker::StructuralPartialEq for oneterm_vt::intern::Hyperlink
+impl core::marker::Freeze for oneterm_vt::intern::Hyperlink
+impl core::marker::Send for oneterm_vt::intern::Hyperlink
+impl core::marker::Sync for oneterm_vt::intern::Hyperlink
+impl core::marker::Unpin for oneterm_vt::intern::Hyperlink
+impl core::marker::UnsafeUnpin for oneterm_vt::intern::Hyperlink
+impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::intern::Hyperlink
+impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::intern::Hyperlink
+pub struct oneterm_vt::HyperlinkId(pub u32)
+impl core::clone::Clone for oneterm_vt::intern::HyperlinkId
+pub fn oneterm_vt::intern::HyperlinkId::clone(&self) -> oneterm_vt::intern::HyperlinkId
+impl core::cmp::Eq for oneterm_vt::intern::HyperlinkId
+impl core::cmp::Ord for oneterm_vt::intern::HyperlinkId
+pub fn oneterm_vt::intern::HyperlinkId::cmp(&self, &oneterm_vt::intern::HyperlinkId) -> core::cmp::Ordering
+impl core::cmp::PartialEq for oneterm_vt::intern::HyperlinkId
+pub fn oneterm_vt::intern::HyperlinkId::eq(&self, &oneterm_vt::intern::HyperlinkId) -> bool
+impl core::cmp::PartialOrd for oneterm_vt::intern::HyperlinkId
+pub fn oneterm_vt::intern::HyperlinkId::partial_cmp(&self, &oneterm_vt::intern::HyperlinkId) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for oneterm_vt::intern::HyperlinkId
+pub fn oneterm_vt::intern::HyperlinkId::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for oneterm_vt::intern::HyperlinkId
+pub fn oneterm_vt::intern::HyperlinkId::hash<__H: core::hash::Hasher>(&self, &mut __H)
+impl core::marker::Copy for oneterm_vt::intern::HyperlinkId
+impl core::marker::StructuralPartialEq for oneterm_vt::intern::HyperlinkId
+impl core::marker::Freeze for oneterm_vt::intern::HyperlinkId
+impl core::marker::Send for oneterm_vt::intern::HyperlinkId
+impl core::marker::Sync for oneterm_vt::intern::HyperlinkId
+impl core::marker::Unpin for oneterm_vt::intern::HyperlinkId
+impl core::marker::UnsafeUnpin for oneterm_vt::intern::HyperlinkId
+impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::intern::HyperlinkId
+impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::intern::HyperlinkId
+pub struct oneterm_vt::Interner
+pub oneterm_vt::Interner::extras: oneterm_vt::intern::InternTable<oneterm_vt::intern::Extras>
+pub oneterm_vt::Interner::graphemes: oneterm_vt::intern::GraphemeArena
+pub oneterm_vt::Interner::hyperlinks: oneterm_vt::intern::HyperlinkTable
+pub oneterm_vt::Interner::styles: oneterm_vt::intern::InternTable<oneterm_vt::Style>
+impl oneterm_vt::intern::Interner
+pub fn oneterm_vt::intern::Interner::extras(&mut self, oneterm_vt::intern::Extras) -> oneterm_vt::intern::ExtrasId
+pub fn oneterm_vt::intern::Interner::grapheme(&mut self, &str) -> oneterm_vt::intern::GraphemeId
+pub fn oneterm_vt::intern::Interner::needs_grapheme_sweep(&self) -> bool
+pub fn oneterm_vt::intern::Interner::resolve_extras(&self, oneterm_vt::intern::ExtrasId) -> &oneterm_vt::intern::Extras
+pub fn oneterm_vt::intern::Interner::resolve_grapheme(&self, oneterm_vt::intern::GraphemeId) -> &str
+pub fn oneterm_vt::intern::Interner::resolve_style(&self, oneterm_vt::intern::StyleId) -> &oneterm_vt::Style
+pub fn oneterm_vt::intern::Interner::style(&mut self, oneterm_vt::Style) -> oneterm_vt::intern::StyleId
+impl core::default::Default for oneterm_vt::intern::Interner
+pub fn oneterm_vt::intern::Interner::default() -> oneterm_vt::intern::Interner
+impl core::fmt::Debug for oneterm_vt::intern::Interner
+pub fn oneterm_vt::intern::Interner::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for oneterm_vt::intern::Interner
+impl core::marker::Send for oneterm_vt::intern::Interner
+impl core::marker::Sync for oneterm_vt::intern::Interner
+impl core::marker::Unpin for oneterm_vt::intern::Interner
+impl core::marker::UnsafeUnpin for oneterm_vt::intern::Interner
+impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::intern::Interner
+impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::intern::Interner
 pub struct oneterm_vt::KeyboardFlags(_)
 impl oneterm_vt::KeyboardFlags
 pub const oneterm_vt::KeyboardFlags::DISAMBIGUATE_ESC_CODES: Self
@@ -3201,9 +3329,11 @@ pub fn oneterm_vt::Terminal::encode_key(&self, &oneterm_vt::input::KeySpec, onet
 pub fn oneterm_vt::Terminal::encode_key_event(&self, &oneterm_vt::input::KeyEvent) -> core::option::Option<alloc::vec::Vec<u8>>
 pub fn oneterm_vt::Terminal::feed(&mut self, &[u8], &mut oneterm_vt::EventBatch, std::time::Instant) -> oneterm_vt::FeedStats
 pub fn oneterm_vt::Terminal::grid(&self) -> &oneterm_vt::grid::TerminalGrid
+pub fn oneterm_vt::Terminal::grid_mut(&mut self) -> &mut oneterm_vt::grid::TerminalGrid
 pub fn oneterm_vt::Terminal::has_selection(&self) -> bool
 pub fn oneterm_vt::Terminal::hit_test(&self, f32, f32) -> (oneterm_vt::grid::Pos, oneterm_vt::Side)
 pub fn oneterm_vt::Terminal::interner(&self) -> &oneterm_vt::intern::Interner
+pub fn oneterm_vt::Terminal::interner_mut(&mut self) -> &mut oneterm_vt::intern::Interner
 pub fn oneterm_vt::Terminal::keyboard_flags(&self) -> oneterm_vt::KeyboardFlags
 pub fn oneterm_vt::Terminal::lines_produced(&self) -> u64
 pub fn oneterm_vt::Terminal::mode(&self, oneterm_vt::Mode) -> bool

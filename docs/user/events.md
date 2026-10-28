@@ -59,7 +59,8 @@ redraw, not damage.
 ## Answering a colour query
 
 The engine keeps only the override layer a program set (`Terminal::color`); the theme underneath is
-yours. Resolve the colour, then let `ColorKey::color_reply` build the bytes: they are API.
+yours. `ColorKey` is exhaustive: match it without a wildcard, so a new key breaks your build instead of
+falling to "no reply". Resolve the colour, then let `ColorKey::color_reply` build the bytes: they are API.
 
 ```rust
 use std::time::Instant;

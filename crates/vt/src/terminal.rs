@@ -413,6 +413,8 @@ impl Terminal {
 
     /// Scrolls the viewport of the active screen by `delta` rows: negative towards history,
     /// positive towards output, clamped. `scroll_viewport(i32::MAX)` shows the bottom again.
+    /// Equivalent to `grid_mut().screen_mut().scroll_viewport(delta)` followed by
+    /// `grid_mut().sync_anchors()`.
     pub fn scroll_viewport(&mut self, delta: i32) {
         self.state.grid.screen_mut().scroll_viewport(delta);
         self.state.grid.sync_anchors();
@@ -423,6 +425,28 @@ impl Terminal {
         &self.state.grid
     }
 
+    /// Both screens, mutably: write rows, move the viewport, open a batch.
+    ///
+    /// - Writes here bypass the parser: the selection, image placements, [`ColorOverrides`], the
+    ///   title and the generation counter are not told. Fixtures, replay tools and viewport
+    ///   control are the uses.
+    /// - `Screen::row_mut` stamps the row with the current batch. A [`SnapshotState`] that already
+    ///   saw that batch skips it: call `grid_mut().begin_batch()` before writing so the next
+    ///   update copies the row.
+    /// - Moving the viewport by hand is `screen_mut().scroll_viewport(d)` (or
+    ///   `scroll_to_bottom()`) followed by `sync_anchors()`, so a resize before the next `feed`
+    ///   keeps the new viewport top. [`scroll_viewport`](Self::scroll_viewport) does both.
+    /// - Resize and reset go through [`resize`](Self::resize) and a `RIS` feed, not through
+    ///   `TerminalGrid::resize` / `reset` here: those skip selection pruning, the placement
+    ///   sweep, the pending-cluster drop and the generation bump.
+    /// - A `GraphicId` in a hand-built `Extras` must come from the engine (see
+    ///   [`VtEvent::GraphicReleased`](crate::VtEvent::GraphicReleased) and the snapshot
+    ///   placements); an id made up by the caller never resolves.
+    /// - Nothing panics: `row_mut` returns `None` outside the live range, counts clamp.
+    pub fn grid_mut(&mut self) -> &mut TerminalGrid {
+        &mut self.state.grid
+    }
+
     /// The active screen.
     pub fn screen(&self) -> &Screen {
         self.state.grid.screen()
@@ -431,6 +455,18 @@ impl Terminal {
     /// The tables cells point into.
     pub fn interner(&self) -> &Interner {
         &self.state.interner
+    }
+
+    /// The intern tables, mutably: mint the ids a hand-written cell carries.
+    ///
+    /// - Ids minted here stay valid while a cell in the grid carries them: `feed` sweeps
+    ///   graphemes and extras no row uses (a live grapheme id may be renumbered, its cells
+    ///   rewritten). Mint and write in one step, before the next `feed`.
+    /// - A full table answers with its fallback id (`StyleId::DEFAULT`, `ExtrasId::NONE`,
+    ///   grapheme id 0; `hyperlinks.intern` answers `None`) and counts it in the table's own
+    ///   `exhausted()` / `truncated()`, not in [`FeedStats`].
+    pub fn interner_mut(&mut self) -> &mut Interner {
+        &mut self.state.interner
     }
 
     /// The config, with the product name as cleaned by [`new`](Self::new).

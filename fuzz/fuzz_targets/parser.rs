@@ -9,7 +9,7 @@ use std::hint::black_box;
 
 use libfuzzer_sys::fuzz_target;
 use oneterm_vt::StringTerm;
-use oneterm_vt::parser::{Dispatch, Intermediates, OscParams, Params, Parser};
+use oneterm_vt::parser::{Dispatch, OscParams, Params, Parser};
 
 /// Reads every value the parser hands over, so a bad slice or index panics here.
 struct TouchingSink;
@@ -41,13 +41,13 @@ impl Dispatch for TouchingSink {
         black_box(byte);
     }
 
-    fn esc(&mut self, intermediates: &Intermediates, ignore: bool, byte: u8) {
-        black_box((intermediates.as_slice(), ignore, byte));
+    fn esc(&mut self, intermediates: &[u8], ignore: bool, byte: u8) {
+        black_box((intermediates, ignore, byte));
     }
 
-    fn csi(&mut self, params: &Params, intermediates: &Intermediates, ignore: bool, byte: u8) {
+    fn csi(&mut self, params: &Params, intermediates: &[u8], ignore: bool, byte: u8) {
         Self::touch_params(params);
-        black_box((intermediates.as_slice(), ignore, byte));
+        black_box((intermediates, ignore, byte));
     }
 
     fn osc(
@@ -68,9 +68,9 @@ impl Dispatch for TouchingSink {
         black_box(code).is_multiple_of(2)
     }
 
-    fn dcs_hook(&mut self, params: &Params, intermediates: &Intermediates, ignore: bool, byte: u8) {
+    fn dcs_hook(&mut self, params: &Params, intermediates: &[u8], ignore: bool, byte: u8) {
         Self::touch_params(params);
-        black_box((intermediates.as_slice(), ignore, byte));
+        black_box((intermediates, ignore, byte));
     }
 
     fn dcs_put(&mut self, byte: u8) {

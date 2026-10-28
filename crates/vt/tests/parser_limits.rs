@@ -1,8 +1,8 @@
 //! Memory and size caps, checked through the public API only.
 
 use oneterm_vt::parser::{
-    DCS_MAX_BYTES, Dispatch, Intermediates, MAX_INTERMEDIATES, MAX_PARAMS, OSC_INLINE, OSC_LARGE,
-    OscParams, Params, Parser, StringTerm,
+    DCS_MAX_BYTES, Dispatch, MAX_INTERMEDIATES, MAX_PARAMS, OSC_INLINE, OSC_LARGE, OscParams,
+    Params, Parser, StringTerm,
 };
 
 const MIB: usize = 1024 * 1024;
@@ -24,14 +24,14 @@ impl Dispatch for Limits {
     fn print_str(&mut self, _text: &str) {}
     fn execute(&mut self, _byte: u8) {}
 
-    fn csi(&mut self, params: &Params, intermediates: &Intermediates, ignore: bool, _byte: u8) {
+    fn csi(&mut self, params: &Params, intermediates: &[u8], ignore: bool, _byte: u8) {
         // The params table is the long one in the first sequence, the intermediates in the second.
         if params.len() > self.csi_params_len.unwrap_or(0) {
             self.csi_params_len = Some(params.len());
             self.csi_ignored = ignore;
         }
-        if intermediates.as_slice().len() > self.csi_intermediates_len.unwrap_or(0) {
-            self.csi_intermediates_len = Some(intermediates.as_slice().len());
+        if intermediates.len() > self.csi_intermediates_len.unwrap_or(0) {
+            self.csi_intermediates_len = Some(intermediates.len());
             assert!(ignore);
         }
     }

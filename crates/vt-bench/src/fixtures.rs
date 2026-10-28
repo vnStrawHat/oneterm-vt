@@ -216,7 +216,7 @@ pub(crate) fn write_fixtures(dir: &Path, mib: usize) -> Result<Vec<String>> {
 
 #[cfg(test)]
 mod tests {
-    use oneterm_vt::parser::{Dispatch, Intermediates, OscParams, Params, Parser, StringTerm};
+    use oneterm_vt::parser::{Dispatch, OscParams, Params, Parser, StringTerm};
 
     use super::*;
 
@@ -364,7 +364,7 @@ mod tests {
         fn execute(&mut self, byte: u8) {
             self.linefeeds += usize::from(byte == b'\n');
         }
-        fn csi(&mut self, _: &Params, _: &Intermediates, ignore: bool, _: u8) {
+        fn csi(&mut self, _: &Params, _: &[u8], ignore: bool, _: u8) {
             self.csis += 1;
             self.flagged += usize::from(ignore);
         }
@@ -372,7 +372,7 @@ mod tests {
             self.oscs += 1;
             self.flagged += usize::from(truncated);
         }
-        fn dcs_hook(&mut self, _: &Params, _: &Intermediates, ignore: bool, _: u8) {
+        fn dcs_hook(&mut self, _: &Params, _: &[u8], ignore: bool, _: u8) {
             self.hooks += 1;
             self.flagged += usize::from(ignore);
         }
