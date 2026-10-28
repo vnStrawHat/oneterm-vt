@@ -25,7 +25,12 @@
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
-      "Bash(git worktree list:*)"
+      "Bash(git worktree list:*)",
+      "Bash(rtk *)"
     ]
-  }
+  },
+  "env": {
+    "CLAUDE_CODE_USE_POWERSHELL_TOOL": 0
+  },
+  "enabledPlugins": { "ponytail@ponytail": true }
 }
