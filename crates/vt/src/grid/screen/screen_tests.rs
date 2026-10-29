@@ -1529,3 +1529,111 @@ fn wide_glyph_overwrites_pairs_in_run() {
     );
     f.check();
 }
+
+// ---- region rotation ----
+
+/// A 6x6 grid without history whose region rows 1..6 sit in ring slots that wrap the end of the
+/// ring, with the screen rows labelled `r0`..`r5`.
+fn region_across_the_ring_end() -> Fixture {
+    let mut f = fixture_with(6, 6, 0);
+    let ring = screen(&f).slots.len() as u64;
+    while (screen(&f).screen_top() + 1).0 % ring != ring - 2 {
+        f.newline();
+    }
+    f.label_rows();
+    f
+}
+
+#[test]
+fn region_scroll_across_the_ring_end() {
+    let mut f = region_across_the_ring_end();
+    let lo = screen(&f).screen_top() + 1;
+    assert!(
+        screen(&f).slot_index(lo) + 5 > screen(&f).slots.len(),
+        "the window wraps"
+    );
+    let region = ScrollRegion { top: 1, bottom: 6 };
+    let mut model: Vec<String> = (0..6).map(|index| format!("r{index}")).collect();
+    for (up, n) in [
+        (true, 1),
+        (false, 1),
+        (true, 3),
+        (false, 3),
+        (true, 5),
+        (false, 9),
+    ] {
+        let rows = &mut model[1..];
+        let count = usize::from(n).min(rows.len());
+        if up {
+            scroll_up(&mut f, region, n);
+            rows.rotate_left(count);
+            let len = rows.len();
+            rows[len - count..].fill(String::new());
+        } else {
+            scroll_down(&mut f, region, n);
+            rows.rotate_right(count);
+            rows[..count].fill(String::new());
+        }
+        assert_eq!(f.screen_text(), model.join("|"), "up {up}, n {n}");
+    }
+}
+
+#[test]
+fn slice_rotation_stamps_every_moved_row() {
+    for wraps in [false, true] {
+        let mut f = if wraps {
+            region_across_the_ring_end()
+        } else {
+            let mut f = fixture_with(6, 6, 0);
+            f.label_rows();
+            f
+        };
+        let batch = f.grid.begin_batch();
+        scroll_up(&mut f, ScrollRegion { top: 1, bottom: 6 }, 2);
+        for index in 1..6 {
+            let row = screen(&f).row(screen(&f).row_of_index(index));
+            assert_eq!(row.seq(), batch, "row {index}, wraps {wraps}");
+            assert!(row.flags().contains(RowFlags::DIRTY), "row {index}");
+        }
+        let untouched = screen(&f).row(screen(&f).row_of_index(0));
+        assert!(untouched.seq() < batch);
+    }
+}
+
+#[test]
+fn slice_rotation_builds_rows_never_written() {
+    let mut f = fixture_with(6, 6, 0);
+    f.goto(3, 0);
+    f.print("last");
+    // Rows 1..5 were never written; the rotation must still stamp them.
+    let batch = f.grid.begin_batch();
+    scroll_down(&mut f, ScrollRegion { top: 1, bottom: 6 }, 2);
+    assert_eq!(f.screen_text(), "|||||last");
+    for index in 1..6 {
+        let row = screen(&f).row(screen(&f).row_of_index(index));
+        assert_eq!(row.seq(), batch, "row {index}");
+    }
+}
+
+#[test]
+fn slice_rotation_never_revives_a_stale_row() {
+    let mut f = fixture_with(6, 6, 0);
+    f.label_rows();
+    // A row of another id sitting in the slot of screen row 3, as `row` and `materialise`
+    // would treat it: not that row.
+    let ring = screen(&f).slots.len() as u64;
+    let id = screen(&f).row_of_index(3);
+    let mut stale = crate::grid::row::Row::new(
+        id + ring,
+        6,
+        crate::grid::row::SeqNo(1),
+        Cell::EMPTY.with_content(CellContent::Scalar('S')),
+    );
+    stale.rehome(id + ring, crate::grid::row::SeqNo(1));
+    let index = screen(&f).slot_index(id);
+    f.grid.screen_mut().slots[index] = Some(stale);
+    f.grid.scroll_up(ScrollRegion { top: 1, bottom: 6 }, 1);
+    f.check();
+    // Rows 1..6 moved up by one; the stale row's slot reads as a blank row, not as 'S'.
+    assert_eq!(f.screen_text(), "r0|r2||r4|r5|");
+}

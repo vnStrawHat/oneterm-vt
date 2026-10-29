@@ -692,9 +692,69 @@ impl Screen {
     }
 
     /// Moves the content of the `len` rows from `lo` by `n` ids and blanks the `n` vacated
-    /// rows. Rows are swapped between slots, so nothing is allocated unless a slot in the
-    /// range was never written.
+    /// rows. Rows move between slots, so nothing is allocated unless a slot in the range was
+    /// never written.
+    ///
+    /// A window that does not wrap the ring end rotates as one slice; one that does (at most
+    /// once per ring cycle) falls back to [`rotate_by_swaps`](Self::rotate_by_swaps).
     fn rotate(&mut self, lo: RowId, len: u64, shift: Shift, n: u64) {
+        let start = self.slot_index(lo);
+        let Ok(count) = usize::try_from(len) else {
+            return self.rotate_by_swaps(lo, len, shift, n);
+        };
+        let end = start.saturating_add(count);
+        if end > self.slots.len() {
+            return self.rotate_by_swaps(lo, len, shift, n);
+        }
+        let (seq, erase, cols) = (self.seq, self.cursor.erase, self.cols);
+        let Screen { slots, spare, .. } = self;
+        let Some(window) = slots.get_mut(start..end) else {
+            return;
+        };
+        let shifted = usize::try_from(n).map_or(count, |n| n.min(count));
+        let vacated = match shift {
+            Shift::Up => {
+                window.rotate_left(shifted);
+                count - shifted..count
+            }
+            Shift::Down => {
+                window.rotate_right(shifted);
+                0..shifted
+            }
+        };
+        // One pass: every row of the window moved or was vacated, so each is restamped. A slot
+        // never written, or holding a row of another id (as `materialise` and `row` see it), is
+        // built here (blank, or `erase` when vacated) from the spare allocation.
+        // `from` walks the pre-rotation position of the row now in slot `k`.
+        let mut from = match shift {
+            Shift::Up => shifted % count.max(1),
+            Shift::Down if shifted == 0 => 0,
+            Shift::Down => count - shifted,
+        };
+        for (k, (id, slot)) in (lo.0..).zip(window.iter_mut()).enumerate() {
+            let is_vacated = vacated.contains(&k);
+            let expected = RowId(lo.0 + from as u64);
+            from += 1;
+            if from == count {
+                from = 0;
+            }
+            match slot {
+                Some(row) if row.id() == expected => {
+                    row.rehome(RowId(id), seq);
+                    if is_vacated {
+                        row.reset(erase, seq);
+                    }
+                }
+                _ => {
+                    let template = if is_vacated { erase } else { Cell::EMPTY };
+                    *slot = Some(Row::recycle(spare.take(), RowId(id), cols, seq, template));
+                }
+            }
+        }
+    }
+
+    /// The swap-by-swap form of [`rotate`](Self::rotate), for a window that wraps the ring end.
+    fn rotate_by_swaps(&mut self, lo: RowId, len: u64, shift: Shift, n: u64) {
         for k in 0..len {
             self.materialise(lo + k);
         }
