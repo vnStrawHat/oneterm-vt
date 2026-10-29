@@ -442,3 +442,101 @@ fn room_counts_free_and_unused() {
     table.sweep_unreferenced(&keep);
     assert_eq!(table.room(), 65_525 + 4);
 }
+
+// ---- half-cap sweep and joined interning ----
+
+#[test]
+fn sweep_keeps_half_newest_first() {
+    let mut arena = GraphemeArena::with_limits(5, 1 << 20);
+    let [a, b, c, d] = [0, 1, 2, 3].map(|n| unique_cluster(n, 2));
+    let ids = [&a, &b, &c, &d].map(|cluster| arena.intern(cluster));
+    // Newest first: d, c, b, a. Half of 5 entries is 2 clusters.
+    let remap = arena.sweep([ids[3], ids[2], ids[1], ids[0]]);
+    assert_eq!(remap.kept(), 2);
+    assert_eq!(arena.resolve(remap.get(ids[3])), d);
+    assert_eq!(arena.resolve(remap.get(ids[2])), c);
+    for (old, cluster) in [(ids[1], &b), (ids[0], &a)] {
+        assert_eq!(remap.get(old), GraphemeId(0));
+        let first = cluster.chars().next().unwrap();
+        assert_eq!(remap.content(old), CellContent::Scalar(first));
+    }
+    assert_eq!(
+        remap.content(ids[3]),
+        CellContent::Grapheme(remap.get(ids[3]))
+    );
+    assert_eq!(arena.entries(), 3);
+}
+
+#[test]
+fn sweep_stops_keeping_after_the_first_cluster_that_does_not_fit() {
+    // 2 clusters fit by count; the scalar half (8) fits one 4-scalar cluster and not a second
+    // 6-scalar one, and a later short cluster is dropped too.
+    let mut arena = GraphemeArena::with_limits(100, 17);
+    let (long, mid, short) = (
+        unique_cluster(0, 6),
+        unique_cluster(1, 4),
+        unique_cluster(2, 2),
+    );
+    let ids = [&long, &mid, &short].map(|cluster| arena.intern(cluster));
+    let remap = arena.sweep([ids[1], ids[0], ids[2]]);
+    assert_eq!(remap.kept(), 1);
+    assert_eq!(arena.resolve(remap.get(ids[1])), mid);
+    assert_eq!(remap.get(ids[2]), GraphemeId(0));
+    assert!(matches!(remap.content(ids[2]), CellContent::Scalar(_)));
+}
+
+#[test]
+fn sweeps_stay_amortised_when_live_exceeds_half() {
+    let mut arena = GraphemeArena::with_limits(1_000, 1 << 20);
+    let ids: Vec<GraphemeId> = (0..999)
+        .map(|n| arena.intern(&unique_cluster(n, 2)))
+        .collect();
+    let remap = arena.sweep(ids);
+    assert_eq!(remap.kept(), 500);
+    assert!(!arena.needs_sweep());
+    // The trigger is the cap: about `kept` new entries arrive before the next sweep.
+    for n in 1_000..1_400 {
+        arena.intern(&unique_cluster(n, 2));
+    }
+    assert!(!arena.needs_sweep());
+    for n in 1_400..1_499 {
+        arena.intern(&unique_cluster(n, 2));
+    }
+    assert!(arena.needs_sweep());
+}
+
+#[test]
+fn an_unlisted_id_still_maps_to_id_zero() {
+    let mut arena = GraphemeArena::default();
+    let id = arena.intern(&unique_cluster(0, 2));
+    let remap = arena.sweep([]);
+    assert_eq!(remap.get(id), GraphemeId(0));
+    assert_eq!(remap.content(id), CellContent::Grapheme(GraphemeId(0)));
+    assert_eq!(remap.kept(), 0);
+}
+
+#[test]
+fn intern_joined_equals_intern_of_the_concatenation() {
+    let mut arena = GraphemeArena::default();
+    let whole = arena.intern("a\u{300}\u{301}");
+    assert_eq!(
+        arena.intern_joined(CellContent::Scalar('a'), "\u{300}\u{301}"),
+        whole
+    );
+    let base = arena.intern("a\u{300}");
+    assert_eq!(
+        arena.intern_joined(CellContent::Grapheme(base), "\u{301}"),
+        whole
+    );
+    // Blank base: the key starts with a space, as the scalar path always did.
+    assert_eq!(
+        arena.intern_joined(CellContent::Scalar(' '), "\u{301}"),
+        arena.intern(" \u{301}")
+    );
+    // Truncation at 16 scalars counts once, for the joined key.
+    let before = arena.truncated();
+    let tail = "\u{301}".repeat(30);
+    let cut = arena.intern_joined(CellContent::Scalar('b'), &tail);
+    assert_eq!(arena.truncated(), before + 1);
+    assert_eq!(arena.resolve(cut).chars().count(), 16);
+}

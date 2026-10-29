@@ -30,7 +30,7 @@ use std::hash::Hash;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::cell::Style;
+use crate::cell::{CellContent, Style};
 
 /// Entries in an [`InternTable`], id 0 included.
 const TABLE_CAPACITY: usize = 1 << 16;
@@ -52,6 +52,12 @@ const HYPERLINK_MAX_BYTES: usize = 4 << 20;
 pub const GRAPHEME_SWEEP_ENTRIES: usize = 65_536;
 /// Arena scalar count at which [`GraphemeArena::needs_sweep`] first turns true.
 pub const GRAPHEME_SWEEP_CHARS: usize = 1 << 18;
+
+/// Marks a `GraphemeRemap` entry whose cluster the sweep dropped; the low bits hold its first
+/// scalar.
+const DROPPED_BIT: u32 = 1 << 31;
+/// The `GraphemeRemap` entry of an id the sweep was not told about.
+const UNLISTED: u32 = 0;
 
 /// Index of a [`Style`] in the style table. `StyleId::DEFAULT` is [`Style::DEFAULT`].
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
@@ -254,6 +260,8 @@ pub struct GraphemeArena {
     max_chars: usize,
     truncated: u32,
     exhausted: u32,
+    /// Key buffer of [`intern_joined`](Self::intern_joined), kept for its capacity.
+    scratch: String,
 }
 
 impl Default for GraphemeArena {
@@ -264,10 +272,8 @@ impl Default for GraphemeArena {
 }
 
 /// The sweep trigger: twice the live set after the last sweep, within `[base, cap]`.
-/// Doubling keeps sweeps amortised O(1) when most clusters stay live.
-// ponytail: once the live set is >= max_entries/2 the trigger equals the hard cap, so a print
-// run can exhaust the arena between sweeps (counted, not corruption). Upgrade: check
-// `needs_sweep` per sequence or clamp the trigger at `cap - headroom` (phase 6 decides).
+/// Doubling keeps sweeps amortised O(1) when most clusters stay live: a sweep keeps at most
+/// half of the cap, so the trigger always leaves room for about as many new entries as it kept.
 fn sweep_trigger(base: usize, kept: usize, cap: usize) -> usize {
     base.max(kept.saturating_mul(2)).min(cap)
 }
@@ -287,6 +293,7 @@ impl GraphemeArena {
             max_chars,
             truncated: 0,
             exhausted: 0,
+            scratch: String::new(),
         }
     }
 
@@ -329,6 +336,22 @@ impl GraphemeArena {
         GraphemeId(id)
     }
 
+    /// Returns the id of the cluster `base` followed by `tail`, built in a buffer the arena
+    /// keeps, so a call allocates only for a cluster that is new. Truncation at 16 scalars
+    /// applies to the whole key, as for [`intern`](Self::intern).
+    pub(crate) fn intern_joined(&mut self, base: CellContent, tail: &str) -> GraphemeId {
+        let mut key = std::mem::take(&mut self.scratch);
+        key.clear();
+        match base {
+            CellContent::Scalar(scalar) => key.push(scalar),
+            CellContent::Grapheme(id) => key.push_str(self.resolve(id)),
+        }
+        key.push_str(tail);
+        let id = self.intern(&key);
+        self.scratch = key;
+        id
+    }
+
     /// Returns the cluster behind `id`: `" "` for id 0, `""` for an unknown id.
     pub fn resolve(&self, id: GraphemeId) -> &str {
         let Some(span) = self.spans.get(id.0 as usize) else {
@@ -351,27 +374,49 @@ impl GraphemeArena {
 
     /// Rebuilds the arena from the ids in `live` and returns the old-to-new id mapping.
     ///
+    /// Clusters are kept in the order `live` lists them, up to half of each cap (entries and
+    /// scalars): from the first cluster that would pass either half on, every further id is
+    /// dropped, so a caller lists the ids it wants kept first (newest rows first). A dropped id
+    /// maps to `GraphemeId(0)` in [`GraphemeRemap::get`]; the terminal keeps the first scalar
+    /// of the cluster in its cells. Keeping at most half leaves room for as
+    /// many new clusters as were kept before the next sweep is due.
+    ///
     /// Every id still stored anywhere (both screens, saved state) must be in `live`; an id
     /// left out maps to `GraphemeId(0)`. Id 0 and unknown ids are ignored. Counters carry over.
     /// Call it only between sequences, then rewrite every stored id through the remap.
     pub fn sweep(&mut self, live: impl IntoIterator<Item = GraphemeId>) -> GraphemeRemap {
         let mut fresh = GraphemeArena::with_limits(self.max_entries, self.max_chars);
-        let mut moved = FxHashMap::default();
+        let (keep_clusters, keep_chars) = (self.max_entries / 2, self.max_chars / 2);
+        let mut map = vec![UNLISTED; self.spans.len()];
+        let mut kept = 0;
+        let mut full = false;
         for old in live {
-            if old.0 == 0 || moved.contains_key(&old.0) || old.0 as usize >= self.spans.len() {
+            let Some(slot) = map.get_mut(old.0 as usize) else {
+                continue;
+            };
+            if old.0 == 0 || *slot != UNLISTED {
                 continue;
             }
-            let new = fresh.intern(self.resolve(old));
-            if new.0 != 0 {
-                moved.insert(old.0, new.0);
+            let cluster = self.resolve(old);
+            let scalars = cluster.chars().count();
+            full = full || kept >= keep_clusters || fresh.chars + scalars > keep_chars;
+            if full {
+                let first = cluster.chars().next().unwrap_or(' ');
+                *slot = DROPPED_BIT | u32::from(first);
+                continue;
             }
+            *slot = fresh.intern(cluster).0;
+            kept += 1;
         }
         fresh.truncated = self.truncated;
         fresh.exhausted = self.exhausted;
+        fresh.scratch = std::mem::take(&mut self.scratch);
         fresh.kept_entries = fresh.spans.len();
         fresh.kept_chars = fresh.chars;
+        // The arena grows by about as many entries as it kept before the next sweep.
+        fresh.index.reserve(fresh.index.len());
         *self = fresh;
-        GraphemeRemap(moved)
+        GraphemeRemap(map)
     }
 
     /// Returns how many clusters were cut to 16 scalars.
@@ -397,17 +442,38 @@ impl GraphemeArena {
 
 /// The old-to-new id mapping produced by [`GraphemeArena::sweep`].
 #[derive(Debug, Default)]
-pub struct GraphemeRemap(FxHashMap<u32, u32>);
+pub struct GraphemeRemap(
+    /// Indexed by old id: the new id, `DROPPED_BIT | first scalar` for a cluster the sweep did
+    /// not keep, or `UNLISTED` (id 0) for an id `live` never named. New ids stay below 2^18 and
+    /// scalars below 2^21, so neither meets the top bit.
+    Vec<u32>,
+);
 
 impl GraphemeRemap {
     /// Returns the new id for `old`; an id that was not kept gives `GraphemeId(0)`.
     pub fn get(&self, old: GraphemeId) -> GraphemeId {
-        GraphemeId(self.0.get(&old.0).copied().unwrap_or(0))
+        match self.0.get(old.0 as usize) {
+            Some(&entry) if entry & DROPPED_BIT == 0 => GraphemeId(entry),
+            _ => GraphemeId(0),
+        }
+    }
+
+    /// What a cell holding `old` shows after the sweep: the new cluster id, or the first scalar
+    /// of a cluster the sweep dropped, so the cell keeps its base glyph. An id that `live` never
+    /// named gives `GraphemeId(0)`, as [`get`](Self::get) does.
+    pub(crate) fn content(&self, old: GraphemeId) -> CellContent {
+        match self.0.get(old.0 as usize) {
+            Some(&entry) if entry & DROPPED_BIT != 0 => {
+                CellContent::Scalar(char::from_u32(entry & !DROPPED_BIT).unwrap_or(' '))
+            }
+            _ => CellContent::Grapheme(self.get(old)),
+        }
     }
 
     /// Returns how many ids were kept.
     pub fn kept(&self) -> usize {
-        self.0.len()
+        let live = |&&entry: &&u32| entry != UNLISTED && entry & DROPPED_BIT == 0;
+        self.0.iter().skip(1).filter(live).count()
     }
 }
 

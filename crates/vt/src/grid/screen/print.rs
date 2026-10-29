@@ -196,7 +196,7 @@ impl Screen {
             return None;
         }
         if width == 0 {
-            self.attach(c, interner);
+            self.attach_marks(c.encode_utf8(&mut [0; 4]), interner);
             return None;
         }
         let mut report = None;
@@ -295,8 +295,10 @@ impl Screen {
         }
     }
 
-    /// Joins a zero-width `c` onto the glyph before the cursor.
-    fn attach(&mut self, c: char, interner: &mut Interner) {
+    /// Joins the zero-width `marks` onto the glyph before the cursor with one intern. When the
+    /// arena refuses the cluster the cell keeps what it showed (the marks are dropped, and the
+    /// arena counts it).
+    pub(crate) fn attach_marks(&mut self, marks: &str, interner: &mut Interner) {
         let Pos { row, col } = self.cursor.pos;
         let mut target = if self.cursor.pending_wrap {
             col
@@ -308,15 +310,11 @@ impl Screen {
             target -= 1;
             cell = self.row(row).cell(target);
         }
-        let mut cluster = String::new();
-        match cell.content() {
-            CellContent::Scalar(base) => cluster.push(base),
-            CellContent::Grapheme(id) => cluster.push_str(interner.resolve_grapheme(id)),
-        }
-        cluster.push(c);
-        let joined = cell.with_content(CellContent::Grapheme(interner.grapheme(&cluster)));
-        if let Some(mut target_row) = self.row_mut(row) {
-            target_row.set(target, joined);
+        let id = interner.graphemes.intern_joined(cell.content(), marks);
+        if id.0 != 0
+            && let Some(mut target_row) = self.row_mut(row)
+        {
+            target_row.set(target, cell.with_content(CellContent::Grapheme(id)));
         }
         self.debug_check();
     }

@@ -22,6 +22,7 @@ fn piece() -> impl Strategy<Value = Vec<u8>> {
             bytes("abcdefghijklmnopqrstuvwxyz0123456789ABCD"), bytes("\x1b(0q\x1b(B"),
             bytes("\x7f"), bytes("\u{85}"),
             bytes("\x1b[2;4r"), bytes("\x1b[?1049h"), bytes("\x1b[?1049l"),
+            bytes("\u{300}\u{301}\u{302}"),
         ]),
         1 => any::<u8>().prop_map(|byte| vec![byte]),
     ]

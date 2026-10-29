@@ -1051,11 +1051,12 @@ impl Screen {
         self.debug_check();
     }
 
-    /// The cluster ids held by the live rows flagged `HAS_GRAPHEME`, with repeats.
+    /// The cluster ids held by the live rows flagged `HAS_GRAPHEME`, with repeats, newest row
+    /// first: the order a sweep keeps clusters in.
     pub(crate) fn grapheme_ids(&self) -> impl Iterator<Item = GraphemeId> + '_ {
-        self.slots
-            .iter()
-            .flatten()
+        let span = self.newest.distance(self.oldest);
+        (0..=span)
+            .filter_map(move |back| self.stored(self.newest - back))
             .filter(|row| row.header().flags.contains(RowFlags::HAS_GRAPHEME))
             .flat_map(|row| {
                 row.cells().iter().filter_map(|cell| match cell.content() {

@@ -123,8 +123,7 @@ impl Handler<'_> {
             (!mapped.is_control() && width >= 1).then_some((mapped, width))
         };
         let last = text.chars().next_back();
-        // After a width-0 scalar the next is likely another mark, so the run is not tried again
-        // until a scalar with a width goes through the general path.
+        let is_mark = |c: char| !c.is_control() && scalar_width(map_charset(charset, c)) == 0;
         let mut try_run = true;
         while !text.is_empty() {
             if try_run {
@@ -134,6 +133,17 @@ impl Handler<'_> {
             let Some(c) = text.chars().next() else {
                 break;
             };
+            if is_mark(c) {
+                // A run of marks joins the glyph before it with one intern, not one per mark.
+                let len = text.find(|c: char| !is_mark(c)).unwrap_or(text.len());
+                let (marks, rest) = text.split_at(len);
+                self.state
+                    .grid
+                    .attach_marks(marks, &mut self.state.interner);
+                text = rest;
+                try_run = true;
+                continue;
+            }
             try_run = self.print_mapped(c, charset, mode) != 0;
             text = &text[c.len_utf8()..];
         }

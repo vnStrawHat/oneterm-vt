@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use super::*;
-use crate::cell::{Attrs, CellContent, Color, NamedColor, Rgb};
+use crate::cell::{Attrs, CellContent, CellWidth, Color, NamedColor, Rgb};
 use crate::events::VtEvent;
 use crate::snapshot::SnapshotContent;
 
@@ -2072,4 +2072,135 @@ fn line_drawing_set_skips_the_ascii_path() {
     let mut s = Session::new(10, 2);
     s.feed(b"\x1b(0qqq");
     assert_eq!(s.row(0).trim_end(), "───");
+}
+
+// ---- grapheme runs and sweeps ----
+
+/// Entries in the grapheme arena, id 0 included.
+fn grapheme_entries(s: &Session) -> usize {
+    s.term.interner().graphemes.entries()
+}
+
+#[test]
+fn a_mark_run_interns_once() {
+    let mut s = Session::new(10, 2);
+    let before = grapheme_entries(&s);
+    s.feed("a\u{300}\u{301}\u{302}".as_bytes());
+    assert_eq!(grapheme_entries(&s), before + 1);
+    let CellContent::Grapheme(id) = s
+        .term
+        .screen()
+        .row(s.term.screen().row_of_index(0))
+        .cell(0)
+        .content()
+    else {
+        panic!("expected a cluster");
+    };
+    assert_eq!(
+        s.term.interner().resolve_grapheme(id),
+        "a\u{300}\u{301}\u{302}"
+    );
+}
+
+#[test]
+fn marks_split_across_feeds_give_the_same_cell() {
+    let cluster = |chunks: &[&str]| {
+        let mut s = Session::new(10, 2);
+        for chunk in chunks {
+            s.feed(chunk.as_bytes());
+        }
+        let cell = s.term.screen().row(s.term.screen().row_of_index(0)).cell(0);
+        match cell.content() {
+            CellContent::Grapheme(id) => s.term.interner().resolve_grapheme(id).to_string(),
+            CellContent::Scalar(c) => c.to_string(),
+        }
+    };
+    let whole = cluster(&["a\u{300}\u{301}\u{302}"]);
+    assert_eq!(whole, "a\u{300}\u{301}\u{302}");
+    assert_eq!(cluster(&["a", "\u{300}", "\u{301}", "\u{302}"]), whole);
+    assert_eq!(cluster(&["a\u{300}", "\u{301}\u{302}"]), whole);
+}
+
+#[test]
+fn a_run_of_marks_after_a_wide_glyph_joins_the_wide_cell() {
+    let mut s = Session::new(10, 2);
+    s.feed("\u{4E2D}\u{300}\u{301}".as_bytes());
+    let cell = s.term.screen().row(s.term.screen().row_of_index(0)).cell(0);
+    assert_eq!(cell.width(), CellWidth::Wide);
+    let CellContent::Grapheme(id) = cell.content() else {
+        panic!("expected a cluster");
+    };
+    assert_eq!(
+        s.term.interner().resolve_grapheme(id),
+        "\u{4E2D}\u{300}\u{301}"
+    );
+}
+
+#[test]
+fn a_sweep_keeps_the_newest_clusters_and_the_base_glyph_of_the_rest() {
+    let mut s = Session::sized(
+        160,
+        45,
+        Config {
+            scrollback_limit: 10_000,
+            ..Config::default()
+        },
+    );
+    // 140,000 unique live clusters: more than half of the 262,144-entry arena.
+    let stream: String = (0..140_000u32)
+        .map(|i| {
+            let base = char::from_u32(0x4E00 + i % 20_000).unwrap_or('x');
+            let mark = char::from_u32(0x300 + i / 20_000).unwrap_or('\u{301}');
+            format!("{base}{mark}")
+        })
+        .collect();
+    s.feed(stream.as_bytes());
+    let screen = s.term.screen();
+    let oldest = screen.row(screen.oldest()).cell(0);
+    assert_eq!(oldest.content(), CellContent::Scalar('\u{4E00}'));
+    assert_eq!(oldest.width(), CellWidth::Wide);
+    let newest = screen.row(screen.newest()).cell(0);
+    assert!(matches!(newest.content(), CellContent::Grapheme(id) if id.0 != 0));
+    assert!(grapheme_entries(&s) <= (1 << 17) + 1);
+}
+/// `count` unique two-scalar clusters (a CJK base and a combining mark), from number `offset`.
+fn unique_clusters(count: u32, offset: u32) -> String {
+    (0..count)
+        .map(|i| {
+            let n = i + offset;
+            let base = char::from_u32(0x4E00 + n % 20_000).unwrap_or('x');
+            let mark = char::from_u32(0x300 + n / 20_000).unwrap_or('\u{301}');
+            format!("{base}{mark}")
+        })
+        .collect()
+}
+
+#[test]
+fn sweep_while_alt_active_drops_oldest_primary_keeps_alt() {
+    let mut s = Session::new(160, 45);
+    // Marks U+0320 / U+0321 are outside the generated ones (U+0300 + n / 20,000, n < 330,000),
+    // so the two screens' known clusters collide with no generated cluster nor with each other.
+    let known_primary = "\u{4E00}\u{321}".repeat(10);
+    let known_alt = "\u{4E00}\u{320}".repeat(10);
+    s.feed(format!("{known_primary}\r\n").as_bytes());
+    let known_row = s.term.screen().screen_top();
+    for (count, offset) in [(60_000, 0), (60_000, 60_000), (10_000, 120_000)] {
+        s.feed(unique_clusters(count, offset).as_bytes());
+    }
+    let before = grapheme_entries(&s);
+    // The alternate screen's row 0 stays put: the region starts below it and the cursor with it.
+    s.feed(format!("\x1b[?1049h\x1b[1;1H{known_alt}\x1b[2;45r\x1b[2;1H").as_bytes());
+    let alt_row = s.term.screen().screen_top();
+    assert!(s.term.row_text(alt_row).starts_with(&known_alt));
+    // Enough new clusters in one feed to push the live set past half the arena: a sweep runs
+    // with the alternate screen active and keeps its clusters first.
+    s.feed(unique_clusters(120_000, 200_000).as_bytes());
+    let after = grapheme_entries(&s);
+    assert!(after < before + 120_000, "a sweep ran: {before} -> {after}");
+    assert!(after <= (1 << 17) + 1, "kept at most half: {after}");
+    assert!(s.term.row_text(alt_row).starts_with(&known_alt));
+    s.feed(b"\x1b[?1049l");
+    let history = s.term.row_text(known_row);
+    assert_eq!(history.matches('\u{4E00}').count(), 10, "{history:?}");
+    assert_eq!(history.matches('\u{321}').count(), 0, "{history:?}");
 }

@@ -82,6 +82,10 @@ Unique clusters are the one growth with no natural reuse, so the arena is collec
 sequences, when `needs_grapheme_sweep()` is true, call `graphemes.sweep(live)` with every
 grapheme id still stored, then rewrite each stored id through the returned `GraphemeRemap`.
 
+A sweep keeps at most half of each cap (131,072 clusters, 524,288 scalars) in the order `live`
+lists them, so list the newest first; the terminal does. An id that was not kept maps to
+`GraphemeId(0)`; in the terminal's own grid its cells keep the first scalar of the cluster.
+
 ```rust
 use oneterm_vt::intern::{GraphemeId, Interner};
 

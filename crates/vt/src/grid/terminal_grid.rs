@@ -279,6 +279,10 @@ impl TerminalGrid {
         self.active().0.print_run(text, mode, charset, glyph)
     }
 
+    pub(crate) fn attach_marks(&mut self, marks: &str, interner: &mut Interner) {
+        self.active().0.attach_marks(marks, interner);
+    }
+
     pub(crate) fn put_tab(&mut self, count: u16, mode: PrintMode) -> Option<ScrollReport> {
         let (screen, anchors) = self.active();
         screen.put_tab(count, mode, anchors)
@@ -334,14 +338,16 @@ impl TerminalGrid {
     }
 
     /// Rebuilds the grapheme arena from the clusters the live rows of both screens still hold
-    /// and rewrites those rows' ids. Call it between sequences, when
+    /// and rewrites those rows' ids. The active screen's newest rows are kept first; clusters
+    /// past half the arena become their first scalar. Call it between sequences, when
     /// [`Interner::needs_grapheme_sweep`] says so. Rewritten rows carry the current batch stamp.
     pub(crate) fn sweep_graphemes(&mut self, arena: &mut GraphemeArena) {
-        let remap = arena.sweep(
-            [&self.primary, &self.alt]
-                .into_iter()
-                .flat_map(Screen::grapheme_ids),
-        );
+        let (active, other) = if self.alt_active {
+            (&self.alt, &self.primary)
+        } else {
+            (&self.primary, &self.alt)
+        };
+        let remap = arena.sweep(active.grapheme_ids().chain(other.grapheme_ids()));
         self.primary.remap_graphemes(&remap);
         self.alt.remap_graphemes(&remap);
         self.debug_check();

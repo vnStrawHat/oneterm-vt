@@ -648,14 +648,14 @@ impl<'a> RowMut<'a> {
     }
 
     /// Rewrites the cluster ids of this row through `remap`, keeping widths and every other
-    /// field. Returns whether any cell changed.
+    /// field; a dropped cluster becomes its first scalar. Returns whether any cell changed.
     pub(crate) fn remap_graphemes(&mut self, remap: &GraphemeRemap) -> bool {
         let mut changed = false;
         for cell in &mut self.row.cells {
             if let CellContent::Grapheme(old) = cell.content() {
-                let new = remap.get(old);
-                if new != old {
-                    *cell = cell.with_content(CellContent::Grapheme(new));
+                let new = remap.content(old);
+                if new != CellContent::Grapheme(old) {
+                    *cell = cell.with_content(new);
                     changed = true;
                 }
             }

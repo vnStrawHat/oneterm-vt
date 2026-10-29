@@ -120,12 +120,13 @@ fn grapheme_table_exhausted() {
             format!("{base}{mark}")
         })
         .collect();
-    let mut exhausted = 0u32;
-    for chunk in stream.as_bytes().chunks(64 * 1024) {
-        exhausted =
-            exhausted.saturating_add(feed(&mut term, &mut batch, chunk).grapheme_table_exhausted);
-    }
+    // One feed: the arena is only swept between feeds, so it fills within this one.
+    let exhausted = feed(&mut term, &mut batch, stream.as_bytes()).grapheme_table_exhausted;
     assert!(exhausted > 0);
+    // A refused cluster leaves its base glyph in the cell, not a blank.
+    let last_base = char::from_u32(0x4E00 + 269_999 % 20_000).unwrap_or('x');
+    let cursor_row = term.screen().cursor().pos.row;
+    assert!(term.row_text(cursor_row).contains(last_base));
     assert!(term.interner().graphemes.entries() <= 1 << 18);
     assert_eq!(
         feed(&mut term, &mut batch, b"a").grapheme_table_exhausted,

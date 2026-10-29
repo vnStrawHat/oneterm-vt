@@ -461,7 +461,8 @@ impl Terminal {
     ///
     /// - Ids minted here stay valid while a cell in the grid carries them: `feed` sweeps
     ///   graphemes, styles and extras no row uses (a live grapheme id may be renumbered, its cells
-    ///   rewritten). Mint and write in one step, before the next `feed`.
+    ///   rewritten, or dropped to its first scalar past half the arena). Mint and write in one
+    ///   step, before the next `feed`.
     /// - A full table answers with its fallback id (`StyleId::DEFAULT`, `ExtrasId::NONE`,
     ///   grapheme id 0; `hyperlinks.intern` answers `None`) and counts it in the table's own
     ///   `exhausted()` / `truncated()`, not in [`FeedStats`].

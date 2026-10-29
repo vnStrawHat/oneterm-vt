@@ -184,7 +184,7 @@ pub struct FeedStats {
     pub style_table_exhausted: u32,
     /// Clusters cut at 16 scalars.
     pub grapheme_truncated: u32,
-    /// Clusters stored as a blank because the grapheme arena was full.
+    /// Clusters kept without their new marks because the grapheme arena was full.
     pub grapheme_table_exhausted: u32,
     /// Clusters over 32 scalars under `?2027`, whose continuation across chunks cannot be
     /// joined; counted once per placed cluster.
