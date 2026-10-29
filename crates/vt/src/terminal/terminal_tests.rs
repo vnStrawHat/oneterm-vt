@@ -2204,3 +2204,54 @@ fn sweep_while_alt_active_drops_oldest_primary_keeps_alt() {
     assert_eq!(history.matches('\u{4E00}').count(), 10, "{history:?}");
     assert_eq!(history.matches('\u{321}').count(), 0, "{history:?}");
 }
+
+// ---- ASCII words under ?2027 ----
+
+#[test]
+fn ascii_run_under_2027_extends_its_last_letter() {
+    for chunks in [
+        &["\x1b[?2027habce\u{301}"][..],
+        &["\x1b[?2027habce", "\u{301}"],
+    ] {
+        let mut s = Session::new(10, 2);
+        for chunk in chunks {
+            s.feed(chunk.as_bytes());
+        }
+        let row = s.term.screen().row(s.term.screen().row_of_index(0));
+        let CellContent::Grapheme(id) = row.cell(3).content() else {
+            panic!("expected a cluster in {chunks:?}");
+        };
+        assert_eq!(s.term.interner().resolve_grapheme(id), "e\u{301}");
+        assert_eq!(row.cell(3).width(), CellWidth::Narrow);
+        assert_eq!(s.row(0).trim_end(), "abce\u{301}");
+        assert_eq!(s.cursor(), (0, 4));
+    }
+}
+
+#[test]
+fn single_shift_applies_to_the_first_cluster_only() {
+    let mut s = Session::new(10, 2);
+    // G2 is the line-drawing set; the single shift reaches it for one cluster.
+    s.feed(b"\x1b[?2027h\x1b*0\x1bNqqq");
+    assert_eq!(s.row(0).trim_end(), "\u{2500}qq");
+}
+
+#[test]
+fn rep_after_an_ascii_run_under_2027() {
+    let mut s = Session::new(10, 2);
+    s.feed(b"\x1b[?2027habc\x1b[2b");
+    assert_eq!(s.row(0).trim_end(), "abccc");
+}
+
+#[test]
+fn an_ascii_word_under_2027_wraps_and_overwrites_like_the_scalar_path() {
+    let word = "abcdefghij0123456789";
+    let mut clusters = Session::new(7, 3);
+    clusters.feed(format!("\x1b[?2027h{word}").as_bytes());
+    let mut scalars = Session::new(7, 3);
+    scalars.feed(word.as_bytes());
+    for index in 0..3 {
+        assert_eq!(clusters.row(index), scalars.row(index));
+    }
+    assert_eq!(clusters.cursor(), scalars.cursor());
+}

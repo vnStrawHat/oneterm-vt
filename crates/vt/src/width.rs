@@ -30,9 +30,12 @@ pub fn scalar_width(c: char) -> u8 {
 /// ZWJ sequences, skin-tone sequences, flags and `base + VS16` are 2; `VS15` on an emoji
 /// base is 1. Text after the first cluster is ignored.
 pub fn cluster_width(text: &str) -> u8 {
-    let Some(cluster) = text.graphemes(true).next() else {
-        return 0;
-    };
+    text.graphemes(true).next().map_or(0, cluster_str_width)
+}
+
+/// The width of `cluster`, which the caller has already cut out as one grapheme cluster: 0 for
+/// a cluster that starts with a control, else its string width clamped to 2 columns.
+pub(crate) fn cluster_str_width(cluster: &str) -> u8 {
     if cluster.chars().next().is_some_and(char::is_control) {
         return 0;
     }

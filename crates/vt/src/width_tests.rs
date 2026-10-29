@@ -101,3 +101,13 @@ fn every_scalar_value() {
         }
     }
 }
+
+#[test]
+fn cluster_str_width_matches_cluster_width() {
+    for &(row, text, _, cluster) in CASES {
+        // `cluster_width` measures the first cluster of its text; `cluster_str_width` takes it cut.
+        let first = text.graphemes(true).next().unwrap_or("");
+        assert_eq!(cluster_str_width(first), cluster, "row {row}: {text:?}");
+        assert_eq!(cluster_str_width(first), cluster_width(text), "row {row}");
+    }
+}

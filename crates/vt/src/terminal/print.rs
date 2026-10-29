@@ -3,7 +3,7 @@
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::grid::{Charset, PrintMode, RowId};
-use crate::width::{cluster_width, scalar_width};
+use crate::width::{cluster_str_width, scalar_width};
 
 use super::dispatch::Handler;
 use super::modes::Mode;
@@ -63,6 +63,16 @@ pub(super) fn map_charset(charset: Charset, c: char) -> char {
     }
 }
 
+/// What a print run needs of a scalar under `charset`: the mapped scalar and its width, or
+/// `None` for a width-0 scalar or a control.
+fn mapped_glyph(charset: Charset) -> impl Fn(char) -> Option<(char, u8)> {
+    move |c| {
+        let mapped = map_charset(charset, c);
+        let width = scalar_width(mapped);
+        (!mapped.is_control() && width >= 1).then_some((mapped, width))
+    }
+}
+
 impl Handler<'_> {
     /// A run of printable text from the parser.
     pub(super) fn print_text(&mut self, text: &str) {
@@ -117,17 +127,13 @@ impl Handler<'_> {
         }
         // Nothing in a run changes the designations, so the set is looked up once.
         let charset = self.state.charset(self.state.shifts.active);
-        let glyph = |c: char| {
-            let mapped = map_charset(charset, c);
-            let width = scalar_width(mapped);
-            (!mapped.is_control() && width >= 1).then_some((mapped, width))
-        };
+        let glyph = mapped_glyph(charset);
         let last = text.chars().next_back();
         let is_mark = |c: char| !c.is_control() && scalar_width(map_charset(charset, c)) == 0;
         let mut try_run = true;
         while !text.is_empty() {
             if try_run {
-                let run = self.state.grid.print_run(text, mode, charset, glyph);
+                let run = self.state.grid.print_run(text, mode, charset, &glyph);
                 text = &text[run..];
             }
             let Some(c) = text.chars().next() else {
@@ -186,33 +192,81 @@ impl Handler<'_> {
             }
             skip = first.len().max(head);
         }
-        for cluster in joined.get(skip..).unwrap_or_default().graphemes(true) {
+        let mut rest = joined.get(skip..).unwrap_or_default();
+        while !rest.is_empty() {
+            // Two printable ASCII scalars never share a cluster, so all but the last of a leading
+            // ASCII word go through the print run. The last may still be extended by what follows
+            // (here or in the next chunk), so it takes the cluster path.
+            if self.state.shifts.single.is_none() {
+                let ascii = rest
+                    .bytes()
+                    .take_while(|byte| (0x20..=0x7E).contains(byte))
+                    .count();
+                if ascii >= 2 {
+                    let (word, tail) = rest.split_at(ascii - 1);
+                    self.print_ascii_word(word, mode);
+                    rest = tail;
+                    continue;
+                }
+            }
+            let Some(cluster) = rest.graphemes(true).next() else {
+                break;
+            };
             let set = self.take_set();
             self.place_cluster(cluster, set, mode);
+            rest = rest.get(cluster.len()..).unwrap_or_default();
         }
         self.state.scratch = joined;
     }
 
+    /// Prints printable ASCII `word` as one cluster per letter, in bulk where the print run can.
+    /// Where it cannot (insert mode, a pending wrap, a wide-pair half at the start) one letter
+    /// takes the cluster path.
+    fn print_ascii_word(&mut self, word: &str, mode: PrintMode) {
+        let set = self.state.shifts.active;
+        let charset = self.state.charset(set);
+        let glyph = mapped_glyph(charset);
+        let mut rest = word;
+        while !rest.is_empty() {
+            let run = self.state.grid.print_run(rest, mode, charset, &glyph);
+            if run > 0 {
+                rest = rest.get(run..).unwrap_or_default();
+                continue;
+            }
+            let (letter, tail) = rest.split_at(1);
+            self.place_cluster(letter, set, mode);
+            rest = tail;
+        }
+    }
+
     /// Prints one cluster: its first scalar with the cluster's width, the rest attached.
     fn place_cluster(&mut self, cluster: &str, set: u8, mode: PrintMode) {
-        let width = cluster_width(cluster);
+        let width = cluster_str_width(cluster);
         let charset = self.state.charset(set);
-        let mut scalars = 0usize;
-        for (index, c) in cluster.chars().enumerate() {
-            let (mapped, width) = if index == 0 {
-                (map_charset(charset, c), width)
-            } else {
-                (c, 0)
-            };
-            let report = self
-                .state
-                .grid
-                .print(mapped, width, mode, &mut self.state.interner);
-            self.report(report);
-            // REP repeats the scalar as received, not as the charset drew it.
-            self.state.preceding_char = Some(c);
-            scalars += 1;
+        let mut scalars = cluster.chars();
+        let first = scalars.next();
+        let marks = scalars.as_str();
+        if let Some(first) = first {
+            if width > 0 {
+                let report = self.state.grid.print(
+                    map_charset(charset, first),
+                    width,
+                    mode,
+                    &mut self.state.interner,
+                );
+                self.report(report);
+            }
+            // A cluster of width 0 is all marks; a control never starts one the parser lets by.
+            let attached = if width > 0 { marks } else { cluster };
+            if !attached.is_empty() && !first.is_control() {
+                self.state
+                    .grid
+                    .attach_marks(attached, &mut self.state.interner);
+            }
         }
+        // REP repeats the scalar as received, not as the charset drew it.
+        self.state.preceding_char = cluster.chars().next_back();
+        let scalars = cluster.chars().count();
         if width == 0 {
             self.state.carry = None;
         } else if scalars > CLUSTER_CARRY_MAX {
