@@ -1637,3 +1637,26 @@ fn slice_rotation_never_revives_a_stale_row() {
     // Rows 1..6 moved up by one; the stale row's slot reads as a blank row, not as 'S'.
     assert_eq!(f.screen_text(), "r0|r2||r4|r5|");
 }
+
+#[test]
+fn shrinking_the_ring_skips_stale_rows() {
+    // 1,024 rows of scrollback give a 2,048-slot ring; none gives 1,024.
+    let mut f = fixture_with(6, 6, 1024);
+    f.label_rows();
+    let big = screen(&f).slots.len() as u64;
+    let live = screen(&f).row_of_index(2);
+    // A stale row in a higher slot that maps to the live row's slot in the smaller ring.
+    let stale_id = live + big / 2;
+    assert!(screen(&f).slot_index(stale_id) > screen(&f).slot_index(live));
+    let stale = crate::grid::row::Row::new(
+        stale_id,
+        6,
+        crate::grid::row::SeqNo(1),
+        Cell::EMPTY.with_content(CellContent::Scalar('S')),
+    );
+    let index = screen(&f).slot_index(stale_id);
+    f.grid.screen_mut().slots[index] = Some(stale);
+    f.grid.set_scrollback_limit(0);
+    f.check();
+    assert_eq!(f.screen_text(), "r0|r1|r2|r3|r4|r5");
+}

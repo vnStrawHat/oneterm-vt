@@ -1038,7 +1038,14 @@ impl Screen {
             let mask = (ring - 1) as u64;
             let mut slots: Box<[Option<Row>]> =
                 std::iter::repeat_with(|| None).take(ring).collect();
-            for row in self.slots.iter_mut().filter_map(Option::take) {
+            // A row outside the live ids is stale: it must not take the slot of a live one.
+            let live = self.oldest..=self.newest;
+            for row in self
+                .slots
+                .iter_mut()
+                .filter_map(Option::take)
+                .filter(|row| live.contains(&row.id()))
+            {
                 // The mask is below `2^21`, so it fits `usize`.
                 if let Some(slot) = slots.get_mut((row.id().0 & mask) as usize) {
                     *slot = Some(row);
