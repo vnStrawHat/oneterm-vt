@@ -1,0 +1,19 @@
+[package]
+name = "compare-harness"
+description = "Adapter side of the cross-engine comparison: engine trait, CLI, timing, canonical dump, memory."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_System_ProcessStatus", "Win32_System_Threading"] }
+
+[lints]
+workspace = true

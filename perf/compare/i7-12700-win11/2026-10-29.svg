@@ -1,0 +1,283 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 2863" width="1100" height="2863" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+<style>
+.title { font-size: 15px; font-weight: 600; fill: #1a1a1a }
+.panel { font-size: 13px; font-weight: 600; fill: #1a1a1a }
+.label { font-size: 11px; fill: #1a1a1a }
+.tick { font-size: 10px; fill: #555 }
+.gap { font-size: 10px; fill: #777 }
+.legend { font-size: 11px; fill: #1a1a1a }
+.grid { stroke: #ddd; stroke-width: 1 }
+</style>
+<defs><pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="#fff"/><rect width="2" height="4" fill="#555"/></pattern></defs>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="190" y="22" class="title">Grid throughput (MiB/s, log scale), i7-12700-win11 2026-10-29, corpus v1</text>
+<rect x="190" y="29" width="10" height="10" fill="#0072B2"/><text x="204" y="38" class="legend">oneterm 0.1.4</text>
+<rect x="370" y="29" width="10" height="10" fill="#E69F00"/><text x="384" y="38" class="legend">ghostty 1.4.1-dev</text>
+<rect x="550" y="29" width="10" height="10" fill="#009E73"/><text x="564" y="38" class="legend">alacritty 0.26.0</text>
+<rect x="730" y="29" width="10" height="10" fill="#CC79A7"/><text x="744" y="38" class="legend">rio 0.5.28</text>
+<rect x="910" y="29" width="10" height="10" fill="#56B4E9"/><text x="924" y="38" class="legend">wezterm 0.1.0</text>
+<rect x="190" y="45" width="10" height="10" fill="#D55E00"/><text x="204" y="54" class="legend">vt100 0.18.1</text>
+<rect x="370" y="45" width="10" height="10" fill="#7F7F7F"/><text x="384" y="54" class="legend">avt 0.19.0</text>
+<rect x="550" y="45" width="10" height="10" fill="#6A3D9A"/><text x="564" y="54" class="legend">libvterm 0.3 (neovim mirror)</text>
+<rect x="730" y="45" width="10" height="10" fill="#B15928"/><text x="744" y="54" class="legend">xterm 6.0.0</text>
+<text x="190" y="76" class="panel">core fixtures</text>
+<text x="182" y="102" class="label" text-anchor="end">plain_ascii</text>
+<rect x="190" y="90.0" width="467.4" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 153.8 MiB/s</title></rect>
+<rect x="190" y="102.0" width="464.1" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 146.0 MiB/s</title></rect>
+<rect x="190" y="114.0" width="457.7" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 131.9 MiB/s</title></rect>
+<rect x="190" y="126.0" width="578.0" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 872.8 MiB/s</title></rect>
+<rect x="190" y="138.0" width="382.7" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 40.7 MiB/s</title></rect>
+<rect x="190" y="150.0" width="414.5" height="11" fill="#D55E00" stroke="#D55E00"><title>vt100 67.0 MiB/s</title></rect>
+<rect x="190" y="162.0" width="403.6" height="11" fill="#7F7F7F" stroke="#7F7F7F"><title>avt 56.4 MiB/s</title></rect>
+<rect x="190" y="174.0" width="302.7" height="11" fill="#6A3D9A" stroke="#6A3D9A"><title>libvterm 11.6 MiB/s</title></rect>
+<rect x="190" y="186.0" width="440.4" height="11" fill="#B15928" stroke="#B15928"><title>xterm 100.7 MiB/s</title></rect>
+<text x="182" y="219" class="label" text-anchor="end">long_lines</text>
+<rect x="190" y="207.0" width="469.7" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 159.5 MiB/s</title></rect>
+<rect x="190" y="219.0" width="512.7" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 313.3 MiB/s</title></rect>
+<rect x="190" y="231.0" width="465.2" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 148.6 MiB/s</title></rect>
+<rect x="190" y="243.0" width="587.9" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 1020.2 MiB/s</title></rect>
+<rect x="190" y="255.0" width="383.5" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 41.2 MiB/s</title></rect>
+<rect x="190" y="267.0" width="435.8" height="11" fill="#D55E00" stroke="#D55E00"><title>vt100 93.5 MiB/s</title></rect>
+<rect x="190" y="279.0" width="409.5" height="11" fill="#7F7F7F" stroke="#7F7F7F"><title>avt 62.0 MiB/s</title></rect>
+<rect x="190" y="291.0" width="344.3" height="11" fill="#6A3D9A" stroke="#6A3D9A"><title>libvterm 22.3 MiB/s</title></rect>
+<rect x="190" y="303.0" width="445.9" height="11" fill="#B15928" stroke="#B15928"><title>xterm 109.8 MiB/s</title></rect>
+<text x="182" y="336" class="label" text-anchor="end">heavy_sgr</text>
+<rect x="190" y="324.0" width="501.2" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 261.5 MiB/s</title></rect>
+<rect x="190" y="336.0" width="505.5" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 279.7 MiB/s</title></rect>
+<rect x="190" y="348.0" width="503.8" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 272.4 MiB/s</title></rect>
+<text x="193" y="369.0" class="gap">≠</text>
+<text x="193" y="381.0" class="gap">≠</text>
+<rect x="190" y="384.0" width="502.8" height="11" fill="#D55E00" stroke="#D55E00"><title>vt100 268.0 MiB/s</title></rect>
+<text x="193" y="405.0" class="gap">≠</text>
+<text x="193" y="417.0" class="gap">≠</text>
+<rect x="190" y="420.0" width="460.2" height="11" fill="#B15928" stroke="#B15928"><title>xterm 137.4 MiB/s</title></rect>
+<text x="182" y="453" class="label" text-anchor="end">tui_redraw</text>
+<rect x="190" y="441.0" width="480.7" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 189.6 MiB/s</title></rect>
+<rect x="190" y="453.0" width="529.6" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 407.9 MiB/s</title></rect>
+<rect x="190" y="465.0" width="487.1" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 209.5 MiB/s</title></rect>
+<rect x="190" y="477.0" width="539.4" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 476.2 MiB/s</title></rect>
+<rect x="190" y="489.0" width="388.4" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 44.5 MiB/s</title></rect>
+<rect x="190" y="501.0" width="472.6" height="11" fill="#D55E00" stroke="#D55E00"><title>vt100 166.9 MiB/s</title></rect>
+<rect x="190" y="513.0" width="444.6" height="11" fill="#7F7F7F" stroke="#7F7F7F"><title>avt 107.5 MiB/s</title></rect>
+<rect x="190" y="525.0" width="438.5" height="11" fill="#6A3D9A" stroke="#6A3D9A"><title>libvterm 97.6 MiB/s</title></rect>
+<rect x="190" y="537.0" width="453.8" height="11" fill="#B15928" stroke="#B15928"><title>xterm 124.1 MiB/s</title></rect>
+<text x="182" y="570" class="label" text-anchor="end">scroll_region</text>
+<rect x="190" y="558.0" width="433.6" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 90.5 MiB/s</title></rect>
+<rect x="190" y="570.0" width="568.9" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 756.2 MiB/s</title></rect>
+<rect x="190" y="582.0" width="470.3" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 161.0 MiB/s</title></rect>
+<rect x="190" y="594.0" width="515.5" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 327.3 MiB/s</title></rect>
+<rect x="190" y="606.0" width="379.4" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 38.6 MiB/s</title></rect>
+<text x="193" y="627.0" class="gap">≠</text>
+<rect x="190" y="630.0" width="409.5" height="11" fill="#7F7F7F" stroke="#7F7F7F"><title>avt 61.9 MiB/s</title></rect>
+<rect x="190" y="642.0" width="302.8" height="11" fill="#6A3D9A" stroke="#6A3D9A"><title>libvterm 11.6 MiB/s</title></rect>
+<rect x="190" y="654.0" width="376.4" height="11" fill="#B15928" stroke="#B15928"><title>xterm 36.8 MiB/s</title></rect>
+<text x="182" y="687" class="label" text-anchor="end">cjk_wide</text>
+<rect x="190" y="675.0" width="461.0" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 139.1 MiB/s</title></rect>
+<rect x="190" y="687.0" width="527.0" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 392.1 MiB/s</title></rect>
+<rect x="190" y="699.0" width="481.2" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 190.9 MiB/s</title></rect>
+<rect x="190" y="711.0" width="473.0" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 167.8 MiB/s</title></rect>
+<rect x="190" y="723.0" width="415.7" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 68.3 MiB/s</title></rect>
+<rect x="190" y="735.0" width="465.9" height="11" fill="#D55E00" stroke="#D55E00"><title>vt100 150.3 MiB/s</title></rect>
+<rect x="190" y="747.0" width="463.0" height="11" fill="#7F7F7F" stroke="#7F7F7F"><title>avt 143.6 MiB/s</title></rect>
+<rect x="190" y="759.0" width="369.3" height="11" fill="#6A3D9A" stroke="#6A3D9A"><title>libvterm 33.0 MiB/s</title></rect>
+<rect x="190" y="771.0" width="450.8" height="11" fill="#B15928" stroke="#B15928"><title>xterm 118.5 MiB/s</title></rect>
+<text x="182" y="804" class="label" text-anchor="end">dense_cells</text>
+<rect x="190" y="792.0" width="480.6" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 189.2 MiB/s</title></rect>
+<rect x="190" y="804.0" width="494.5" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 235.5 MiB/s</title></rect>
+<rect x="190" y="816.0" width="500.5" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 258.7 MiB/s</title></rect>
+<rect x="190" y="828.0" width="514.8" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 323.4 MiB/s</title></rect>
+<rect x="190" y="840.0" width="434.5" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 91.8 MiB/s</title></rect>
+<rect x="190" y="852.0" width="501.3" height="11" fill="#D55E00" stroke="#D55E00"><title>vt100 261.6 MiB/s</title></rect>
+<rect x="190" y="864.0" width="474.0" height="11" fill="#7F7F7F" stroke="#7F7F7F"><title>avt 170.7 MiB/s</title></rect>
+<rect x="190" y="876.0" width="485.4" height="11" fill="#6A3D9A" stroke="#6A3D9A"><title>libvterm 204.0 MiB/s</title></rect>
+<rect x="190" y="888.0" width="444.6" height="11" fill="#B15928" stroke="#B15928"><title>xterm 107.4 MiB/s</title></rect>
+<text x="182" y="921" class="label" text-anchor="end">scrolling</text>
+<rect x="190" y="909.0" width="469.8" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 159.7 MiB/s</title></rect>
+<rect x="190" y="921.0" width="511.6" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 307.9 MiB/s</title></rect>
+<rect x="190" y="933.0" width="467.3" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 153.6 MiB/s</title></rect>
+<rect x="190" y="945.0" width="589.4" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 1044.6 MiB/s</title></rect>
+<rect x="190" y="957.0" width="383.1" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 40.9 MiB/s</title></rect>
+<rect x="190" y="969.0" width="435.9" height="11" fill="#D55E00" stroke="#D55E00"><title>vt100 93.8 MiB/s</title></rect>
+<rect x="190" y="981.0" width="409.4" height="11" fill="#7F7F7F" stroke="#7F7F7F"><title>avt 61.9 MiB/s</title></rect>
+<rect x="190" y="993.0" width="345.0" height="11" fill="#6A3D9A" stroke="#6A3D9A"><title>libvterm 22.5 MiB/s</title></rect>
+<rect x="190" y="1005.0" width="449.1" height="11" fill="#B15928" stroke="#B15928"><title>xterm 115.3 MiB/s</title></rect>
+<text x="182" y="1038" class="label" text-anchor="end">osc_9_7</text>
+<rect x="190" y="1026.0" width="471.0" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 162.8 MiB/s</title></rect>
+<rect x="190" y="1038.0" width="450.1" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 117.2 MiB/s</title></rect>
+<rect x="190" y="1050.0" width="417.0" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 69.7 MiB/s</title></rect>
+<rect x="190" y="1062.0" width="541.4" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 491.3 MiB/s</title></rect>
+<rect x="190" y="1074.0" width="390.7" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 46.1 MiB/s</title></rect>
+<rect x="190" y="1086.0" width="423.5" height="11" fill="#D55E00" stroke="#D55E00"><title>vt100 77.2 MiB/s</title></rect>
+<rect x="190" y="1098.0" width="425.6" height="11" fill="#7F7F7F" stroke="#7F7F7F"><title>avt 79.8 MiB/s</title></rect>
+<rect x="190" y="1110.0" width="297.4" height="11" fill="#6A3D9A" stroke="#6A3D9A"><title>libvterm 10.7 MiB/s</title></rect>
+<rect x="190" y="1122.0" width="428.6" height="11" fill="#B15928" stroke="#B15928"><title>xterm 83.6 MiB/s</title></rect>
+<text x="182" y="1155" class="label" text-anchor="end">mode_churn</text>
+<rect x="190" y="1143.0" width="464.1" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 145.9 MiB/s</title></rect>
+<rect x="190" y="1155.0" width="434.2" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 91.3 MiB/s</title></rect>
+<rect x="190" y="1167.0" width="462.5" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 142.3 MiB/s</title></rect>
+<rect x="190" y="1179.0" width="476.9" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 178.3 MiB/s</title></rect>
+<text x="193" y="1200.0" class="gap">≠</text>
+<text x="193" y="1212.0" class="gap">≠</text>
+<rect x="190" y="1215.0" width="375.4" height="11" fill="#7F7F7F" stroke="#7F7F7F"><title>avt 36.3 MiB/s</title></rect>
+<rect x="190" y="1227.0" width="331.4" height="11" fill="#6A3D9A" stroke="#6A3D9A"><title>libvterm 18.2 MiB/s</title></rect>
+<rect x="190" y="1239.0" width="278.1" height="11" fill="#B15928" stroke="#B15928"><title>xterm 7.9 MiB/s</title></rect>
+<text x="182" y="1272" class="label" text-anchor="end">cursor_motion</text>
+<rect x="190" y="1260.0" width="493.3" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 230.9 MiB/s</title></rect>
+<rect x="190" y="1272.0" width="510.2" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 301.3 MiB/s</title></rect>
+<rect x="190" y="1284.0" width="497.5" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 246.5 MiB/s</title></rect>
+<rect x="190" y="1296.0" width="512.7" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 312.9 MiB/s</title></rect>
+<rect x="190" y="1308.0" width="435.0" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 92.4 MiB/s</title></rect>
+<rect x="190" y="1320.0" width="504.4" height="11" fill="#D55E00" stroke="#D55E00"><title>vt100 274.7 MiB/s</title></rect>
+<rect x="190" y="1332.0" width="479.0" height="11" fill="#7F7F7F" stroke="#7F7F7F"><title>avt 184.3 MiB/s</title></rect>
+<rect x="190" y="1344.0" width="483.0" height="11" fill="#6A3D9A" stroke="#6A3D9A"><title>libvterm 196.5 MiB/s</title></rect>
+<rect x="190" y="1356.0" width="451.9" height="11" fill="#B15928" stroke="#B15928"><title>xterm 120.5 MiB/s</title></rect>
+<text x="182" y="1389" class="label" text-anchor="end">light_cells</text>
+<rect x="190" y="1377.0" width="475.6" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 174.9 MiB/s</title></rect>
+<rect x="190" y="1389.0" width="612.4" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 1497.8 MiB/s</title></rect>
+<rect x="190" y="1401.0" width="492.3" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 227.3 MiB/s</title></rect>
+<rect x="190" y="1413.0" width="611.2" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 1468.8 MiB/s</title></rect>
+<rect x="190" y="1425.0" width="358.4" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 27.8 MiB/s</title></rect>
+<rect x="190" y="1437.0" width="455.6" height="11" fill="#D55E00" stroke="#D55E00"><title>vt100 127.8 MiB/s</title></rect>
+<rect x="190" y="1449.0" width="417.5" height="11" fill="#7F7F7F" stroke="#7F7F7F"><title>avt 70.3 MiB/s</title></rect>
+<rect x="190" y="1461.0" width="413.3" height="11" fill="#6A3D9A" stroke="#6A3D9A"><title>libvterm 65.7 MiB/s</title></rect>
+<rect x="190" y="1473.0" width="457.8" height="11" fill="#B15928" stroke="#B15928"><title>xterm 132.3 MiB/s</title></rect>
+<text x="182" y="1506" class="label" text-anchor="end">short_lines</text>
+<rect x="190" y="1494.0" width="378.1" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 37.9 MiB/s</title></rect>
+<rect x="190" y="1506.0" width="272.1" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 7.2 MiB/s</title></rect>
+<rect x="190" y="1518.0" width="445.4" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 108.8 MiB/s</title></rect>
+<rect x="190" y="1530.0" width="456.2" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 129.1 MiB/s</title></rect>
+<rect x="190" y="1542.0" width="341.6" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 21.3 MiB/s</title></rect>
+<rect x="190" y="1554.0" width="263.5" height="11" fill="#D55E00" stroke="#D55E00"><title>vt100 6.3 MiB/s</title></rect>
+<rect x="190" y="1566.0" width="304.0" height="11" fill="#7F7F7F" stroke="#7F7F7F"><title>avt 11.8 MiB/s</title></rect>
+<rect x="190" y="1578.0" width="116.2" height="11" fill="#6A3D9A" stroke="#6A3D9A"><title>libvterm 0.6 MiB/s</title></rect>
+<rect x="190" y="1590.0" width="336.7" height="11" fill="#B15928" stroke="#B15928"><title>xterm 19.8 MiB/s</title></rect>
+<text x="182" y="1623" class="label" text-anchor="end">scroll_region_small</text>
+<rect x="190" y="1611.0" width="305.9" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 12.2 MiB/s</title></rect>
+<rect x="190" y="1623.0" width="424.8" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 78.7 MiB/s</title></rect>
+<rect x="190" y="1635.0" width="408.4" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 60.8 MiB/s</title></rect>
+<rect x="190" y="1647.0" width="384.4" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 41.8 MiB/s</title></rect>
+<rect x="190" y="1659.0" width="332.3" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 18.4 MiB/s</title></rect>
+<rect x="190" y="1671.0" width="373.1" height="11" fill="#D55E00" stroke="#D55E00"><title>vt100 35.0 MiB/s</title></rect>
+<rect x="190" y="1683.0" width="315.3" height="11" fill="#7F7F7F" stroke="#7F7F7F"><title>avt 14.1 MiB/s</title></rect>
+<rect x="190" y="1695.0" width="174.5" height="11" fill="#6A3D9A" stroke="#6A3D9A"><title>libvterm 1.5 MiB/s</title></rect>
+<rect x="190" y="1707.0" width="247.3" height="11" fill="#B15928" stroke="#B15928"><title>xterm 4.9 MiB/s</title></rect>
+<text x="182" y="1740" class="label" text-anchor="end">csi_mix</text>
+<text x="193" y="1737.0" class="gap">≠</text>
+<rect x="190" y="1740.0" width="459.2" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 135.3 MiB/s</title></rect>
+<rect x="190" y="1752.0" width="426.1" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 80.4 MiB/s</title></rect>
+<rect x="190" y="1764.0" width="436.6" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 94.9 MiB/s</title></rect>
+<text x="193" y="1785.0" class="gap">≠</text>
+<text x="193" y="1797.0" class="gap">≠</text>
+<text x="193" y="1809.0" class="gap">≠</text>
+<text x="193" y="1821.0" class="gap">≠</text>
+<rect x="190" y="1824.0" width="341.9" height="11" fill="#B15928" stroke="#B15928"><title>xterm 21.4 MiB/s</title></rect>
+<text x="182" y="1857" class="label" text-anchor="end">combining_unique</text>
+<text x="193" y="1854.0" class="gap">?</text>
+<text x="193" y="1866.0" class="gap">?</text>
+<text x="193" y="1878.0" class="gap">?</text>
+<text x="193" y="1890.0" class="gap">fail</text>
+<text x="193" y="1902.0" class="gap">?</text>
+<text x="193" y="1914.0" class="gap">?</text>
+<text x="193" y="1926.0" class="gap">?</text>
+<text x="193" y="1938.0" class="gap">?</text>
+<text x="193" y="1950.0" class="gap">?</text>
+<text x="182" y="1974" class="label" text-anchor="end">long_osc</text>
+<rect x="190" y="1962.0" width="568.5" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 751.9 MiB/s</title></rect>
+<rect x="190" y="1974.0" width="753.0" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 13609.1 MiB/s</title></rect>
+<rect x="190" y="1986.0" width="422.0" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 75.4 MiB/s</title></rect>
+<rect x="190" y="1998.0" width="426.0" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 80.3 MiB/s</title></rect>
+<rect x="190" y="2010.0" width="505.9" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 281.4 MiB/s</title></rect>
+<rect x="190" y="2022.0" width="567.3" height="11" fill="#D55E00" stroke="#D55E00"><title>vt100 737.4 MiB/s</title></rect>
+<rect x="190" y="2034.0" width="511.7" height="11" fill="#7F7F7F" stroke="#7F7F7F"><title>avt 308.4 MiB/s</title></rect>
+<rect x="190" y="2046.0" width="541.0" height="11" fill="#6A3D9A" stroke="#6A3D9A"><title>libvterm 488.3 MiB/s</title></rect>
+<rect x="190" y="2058.0" width="482.4" height="11" fill="#B15928" stroke="#B15928"><title>xterm 194.6 MiB/s</title></rect>
+<text x="182" y="2091" class="label" text-anchor="end">unicode_symbols</text>
+<text x="193" y="2088.0" class="gap">?</text>
+<text x="193" y="2100.0" class="gap">?</text>
+<text x="193" y="2112.0" class="gap">?</text>
+<text x="193" y="2124.0" class="gap">?</text>
+<text x="193" y="2136.0" class="gap">?</text>
+<text x="193" y="2148.0" class="gap">?</text>
+<text x="193" y="2160.0" class="gap">?</text>
+<text x="193" y="2172.0" class="gap">?</text>
+<text x="193" y="2184.0" class="gap">?</text>
+<text x="182" y="2208" class="label" text-anchor="end">vim_session</text>
+<rect x="190" y="2196.0" width="471.2" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 163.3 MiB/s</title></rect>
+<rect x="190" y="2208.0" width="492.7" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 228.8 MiB/s</title></rect>
+<rect x="190" y="2220.0" width="478.6" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 183.2 MiB/s</title></rect>
+<text x="193" y="2241.0" class="gap">≠</text>
+<text x="193" y="2253.0" class="gap">≠</text>
+<text x="193" y="2265.0" class="gap">≠</text>
+<text x="193" y="2277.0" class="gap">≠</text>
+<text x="193" y="2289.0" class="gap">≠</text>
+<rect x="190" y="2292.0" width="426.1" height="11" fill="#B15928" stroke="#B15928"><title>xterm 80.4 MiB/s</title></rect>
+<line x1="190.0" y1="90.0" x2="190.0" y2="2304.0" class="grid"/>
+<text x="190.0" y="2316.0" class="tick" text-anchor="middle">0.1</text>
+<line x1="336.7" y1="90.0" x2="336.7" y2="2304.0" class="grid"/>
+<text x="336.7" y="2316.0" class="tick" text-anchor="middle">1</text>
+<line x1="483.3" y1="90.0" x2="483.3" y2="2304.0" class="grid"/>
+<text x="483.3" y="2316.0" class="tick" text-anchor="middle">10</text>
+<line x1="630.0" y1="90.0" x2="630.0" y2="2304.0" class="grid"/>
+<text x="630.0" y="2316.0" class="tick" text-anchor="middle">100</text>
+<line x1="776.7" y1="90.0" x2="776.7" y2="2304.0" class="grid"/>
+<text x="776.7" y="2316.0" class="tick" text-anchor="middle">1000</text>
+<line x1="923.3" y1="90.0" x2="923.3" y2="2304.0" class="grid"/>
+<text x="923.3" y="2316.0" class="tick" text-anchor="middle">10000</text>
+<line x1="1070.0" y1="90.0" x2="1070.0" y2="2304.0" class="grid"/>
+<text x="1070.0" y="2316.0" class="tick" text-anchor="middle">100000</text>
+<text x="190" y="2347" class="panel">capability fixtures</text>
+<text x="182" y="2373" class="label" text-anchor="end">sixel</text>
+<rect x="190" y="2361.0" width="386.1" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 42.9 MiB/s</title></rect>
+<text x="193" y="2382.0" class="gap">n/a</text>
+<text x="193" y="2394.0" class="gap">n/a</text>
+<rect x="190" y="2397.0" width="426.1" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 80.4 MiB/s</title></rect>
+<rect x="190" y="2409.0" width="361.7" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 29.3 MiB/s</title></rect>
+<text x="193" y="2430.0" class="gap">n/a</text>
+<text x="193" y="2442.0" class="gap">n/a</text>
+<text x="193" y="2454.0" class="gap">n/a</text>
+<text x="193" y="2466.0" class="gap">n/a</text>
+<text x="182" y="2490" class="label" text-anchor="end">grapheme_clusters</text>
+<rect x="190" y="2478.0" width="357.9" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 27.5 MiB/s</title></rect>
+<rect x="190" y="2490.0" width="390.6" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 46.1 MiB/s</title></rect>
+<text x="193" y="2511.0" class="gap">n/a</text>
+<rect x="190" y="2514.0" width="399.4" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 52.9 MiB/s</title></rect>
+<text x="193" y="2535.0" class="gap">≠</text>
+<text x="193" y="2547.0" class="gap">n/a</text>
+<text x="193" y="2559.0" class="gap">n/a</text>
+<text x="193" y="2571.0" class="gap">n/a</text>
+<text x="193" y="2583.0" class="gap">≠</text>
+<text x="182" y="2607" class="label" text-anchor="end">hyperlinks</text>
+<rect x="190" y="2595.0" width="495.8" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 240.0 MiB/s</title></rect>
+<rect x="190" y="2607.0" width="312.9" height="11" fill="#E69F00" stroke="#E69F00"><title>ghostty 13.6 MiB/s</title></rect>
+<rect x="190" y="2619.0" width="496.7" height="11" fill="#009E73" stroke="#009E73"><title>alacritty 243.4 MiB/s</title></rect>
+<rect x="190" y="2631.0" width="583.5" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 951.3 MiB/s</title></rect>
+<rect x="190" y="2643.0" width="462.4" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 142.1 MiB/s</title></rect>
+<text x="193" y="2664.0" class="gap">n/a</text>
+<text x="193" y="2676.0" class="gap">n/a</text>
+<text x="193" y="2688.0" class="gap">n/a</text>
+<text x="193" y="2700.0" class="gap">≠</text>
+<text x="182" y="2724" class="label" text-anchor="end">sixel_large</text>
+<rect x="190" y="2712.0" width="355.8" height="11" fill="#0072B2" stroke="#0072B2"><title>oneterm 26.7 MiB/s</title></rect>
+<text x="193" y="2733.0" class="gap">n/a</text>
+<text x="193" y="2745.0" class="gap">n/a</text>
+<rect x="190" y="2748.0" width="372.4" height="11" fill="#CC79A7" stroke="#CC79A7"><title>rio 34.6 MiB/s</title></rect>
+<rect x="190" y="2760.0" width="307.3" height="11" fill="#56B4E9" stroke="#56B4E9"><title>wezterm 12.4 MiB/s</title></rect>
+<text x="193" y="2781.0" class="gap">n/a</text>
+<text x="193" y="2793.0" class="gap">n/a</text>
+<text x="193" y="2805.0" class="gap">n/a</text>
+<text x="193" y="2817.0" class="gap">n/a</text>
+<line x1="190.0" y1="2361.0" x2="190.0" y2="2820.0" class="grid"/>
+<text x="190.0" y="2832.0" class="tick" text-anchor="middle">0.1</text>
+<line x1="336.7" y1="2361.0" x2="336.7" y2="2820.0" class="grid"/>
+<text x="336.7" y="2832.0" class="tick" text-anchor="middle">1</text>
+<line x1="483.3" y1="2361.0" x2="483.3" y2="2820.0" class="grid"/>
+<text x="483.3" y="2832.0" class="tick" text-anchor="middle">10</text>
+<line x1="630.0" y1="2361.0" x2="630.0" y2="2820.0" class="grid"/>
+<text x="630.0" y="2832.0" class="tick" text-anchor="middle">100</text>
+<line x1="776.7" y1="2361.0" x2="776.7" y2="2820.0" class="grid"/>
+<text x="776.7" y="2832.0" class="tick" text-anchor="middle">1000</text>
+<line x1="923.3" y1="2361.0" x2="923.3" y2="2820.0" class="grid"/>
+<text x="923.3" y="2832.0" class="tick" text-anchor="middle">10000</text>
+<line x1="1070.0" y1="2361.0" x2="1070.0" y2="2820.0" class="grid"/>
+<text x="1070.0" y="2832.0" class="tick" text-anchor="middle">100000</text>
+</svg>

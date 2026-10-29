@@ -16,7 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
 
-use crate::fixtures::{COLUMNS, Fixture, LINES};
+use crate::fixtures::{COLUMNS, Fixture, FixtureSet, LINES};
 use crate::perf_history::{FrameCost, MemoryCost, PerfRecord, ResizeCost, Throughput, Tiers};
 use crate::regression_check::BuildFlavour;
 use crate::render::DEFAULT_FRAMES;
@@ -35,7 +35,9 @@ Measure:
       --json prints the record; with --out the record goes to FILE and stdout gets the
       markdown report of the same run
       [--fixture NAME]                 parser, grid, render only: one fixture, no --json
-  fixtures --out DIR [--mib N]     write every benchmark stream as DIR/<name>.vt
+  fixtures --out DIR [--mib N] [--compare]
+                                   write every benchmark stream as DIR/<name>.vt;
+                                   --compare adds the 9 cross-engine streams
   grid --check [--baseline FILE] [--tolerance R] [--mib N]
                                    compare tier 2 with the newest perf/history/<os> record
 
@@ -140,6 +142,8 @@ struct MeasureOptions {
     out: Option<PathBuf>,
     /// `--fixture` as given; only `parser`, `grid` and `render` take it.
     fixture: Option<String>,
+    /// `--compare` given; only `fixtures` takes it.
+    compare: bool,
 }
 
 /// `--mib N`: a whole number of MiB per fixture, `1..=4096`.
@@ -160,12 +164,17 @@ fn parse_measure_options(command: &str, args: &[String]) -> Result<MeasureOption
         machine: None,
         out: None,
         fixture: None,
+        compare: false,
     };
     let takes_fixture = matches!(command, "parser" | "grid" | "render");
     let mut iter = args.iter();
     while let Some(flag) = iter.next() {
         if flag == "--json" {
             options.json = true;
+            continue;
+        }
+        if flag == "--compare" && command == "fixtures" {
+            options.compare = true;
             continue;
         }
         let known = match flag.as_str() {
@@ -361,14 +370,19 @@ fn render_json(options: &MeasureOptions, measured: Measured) -> Result<String> {
     Ok(serde_json::to_string_pretty(&record)? + "\n")
 }
 
-/// `fixtures --out DIR [--mib N]`. Returns one line per written file.
+/// `fixtures --out DIR [--mib N] [--compare]`. Returns one line per written file.
 fn fixtures_command(args: &[String]) -> Result<String> {
     let options = parse_measure_options("fixtures", args)?;
     if options.json || options.machine.is_some() || options.frames.is_some() {
         bail!("'fixtures' takes only --out and --mib");
     }
     let dir = options.out.context("'fixtures' needs --out DIR")?;
-    let lines = fixtures::write_fixtures(&dir, options.mib)?;
+    let set = if options.compare {
+        FixtureSet::Corpus
+    } else {
+        FixtureSet::Release
+    };
+    let lines = fixtures::write_fixtures(&dir, options.mib, set)?;
     Ok(lines.iter().map(|line| format!("{line}\n")).collect())
 }
 
@@ -424,6 +438,23 @@ mod tests {
                 .mib,
             4096
         );
+    }
+
+    #[test]
+    fn compare_flag_is_for_fixtures_only() {
+        let options = parse_measure_options("fixtures", &strings(&["--compare"])).unwrap();
+        assert!(options.compare);
+        assert!(!parse_measure_options("fixtures", &[]).unwrap().compare);
+        for command in ["all", "parser", "grid", "render", "resize", "rss"] {
+            let error = parse_measure_options(command, &strings(&["--compare"]))
+                .err()
+                .unwrap();
+            assert_eq!(
+                format!("{error:#}"),
+                format!("unknown flag '--compare' for '{command}'")
+            );
+        }
+        assert!(USAGE.contains("[--compare]"));
     }
 
     #[test]

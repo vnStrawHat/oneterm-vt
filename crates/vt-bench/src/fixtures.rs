@@ -1,4 +1,4 @@
-//! The deterministic benchmark streams: fourteen generators, no RNG state, no files.
+//! The deterministic benchmark streams: fourteen release generators and nine compare-only ones, no RNG state.
 
 use std::fmt::Write as _;
 use std::fs;
@@ -93,13 +93,66 @@ pub(crate) const FIXTURES: [Fixture; 14] = [
     },
 ];
 
-/// The fixtures a measure command runs: all of them in table order, or the one `name` names.
+/// The nine streams only the cross-engine comparison runs (`compare/`, spec 0016). They stay
+/// out of `FIXTURES` so release tiers, the release bench, `grid --check` and the history
+/// charts never see them; `fixtures --compare` writes them and `--fixture NAME` finds them.
+pub(crate) const COMPARE_FIXTURES: [Fixture; 9] = [
+    Fixture {
+        name: "cursor_motion",
+        about: "a spiral of CUP, one letter per ring cell",
+        make: cursor_motion,
+    },
+    Fixture {
+        name: "light_cells",
+        about: "alt screen, home, then a full screen of one letter",
+        make: light_cells,
+    },
+    Fixture {
+        name: "short_lines",
+        about: "one-letter lines scrolling the whole screen",
+        make: short_lines,
+    },
+    Fixture {
+        name: "scroll_region_small",
+        about: "one-letter lines scrolling a 22-line region",
+        make: scroll_region_small,
+    },
+    Fixture {
+        name: "csi_mix",
+        about: "a weighted mix of short CSI sequences",
+        make: csi_mix,
+    },
+    Fixture {
+        name: "combining_unique",
+        about: "a base letter with three unique combining marks per cell",
+        make: combining_unique,
+    },
+    Fixture {
+        name: "long_osc",
+        about: "8000-byte OSC strings between short lines",
+        make: long_osc,
+    },
+    Fixture {
+        name: "unicode_symbols",
+        about: "vendored vtebench symbols stream",
+        make: unicode_symbols,
+    },
+    Fixture {
+        name: "vim_session",
+        about: "vendored vtebench zsh and vim recording",
+        make: vim_session,
+    },
+];
+
+/// The fixtures a measure command runs: the release ones in table order, or the one `name`
+/// names (release or compare-only).
 pub(crate) fn select(name: Option<&str>) -> Result<Vec<&'static Fixture>> {
     let all: &'static [Fixture] = &FIXTURES;
     let Some(name) = name else {
         return Ok(all.iter().collect());
     };
     all.iter()
+        .chain(&COMPARE_FIXTURES)
         .find(|fixture| fixture.name == name)
         .map(|fixture| vec![fixture])
         .with_context(|| {
@@ -445,11 +498,162 @@ fn sixel_large(target: usize) -> Vec<u8> {
     })
 }
 
-/// Writes `DIR/<name>.vt` for every fixture (`mib` MiB each) and returns one report line per file.
-pub(crate) fn write_fixtures(dir: &Path, mib: usize) -> Result<Vec<String>> {
+/// The `(row, col)` cells (0-based) of the full-screen spiral, ring by ring: each ring runs
+/// along its top edge, down its right edge, back along the bottom and up the left edge, so
+/// every cell is visited once. A ring of one row or one column is a single pass.
+fn spiral_cells(columns: usize, lines: usize) -> Vec<(usize, usize)> {
+    let mut cells = Vec::with_capacity(columns * lines);
+    for ring in 0.. {
+        if 2 * ring >= lines.min(columns) {
+            break;
+        }
+        let (top, bottom) = (ring, lines - 1 - ring);
+        let (left, right) = (ring, columns - 1 - ring);
+        cells.extend((left..=right).map(|col| (top, col)));
+        if bottom > top {
+            cells.extend((top + 1..=bottom).map(|row| (row, right)));
+        }
+        if bottom > top && right > left {
+            cells.extend((left..right).rev().map(|col| (bottom, col)));
+            cells.extend((top + 1..bottom).rev().map(|row| (row, left)));
+        }
+    }
+    cells
+}
+
+/// One spiral over the grid per unit, one `CUP` and one letter per cell; the letter changes
+/// from unit to unit.
+fn cursor_motion(target: usize) -> Vec<u8> {
+    let cells = spiral_cells(COLUMNS, LINES);
+    build(target, b"", |i, out| {
+        let mark = b'A' + (i % 26) as u8;
+        for &(row, col) in &cells {
+            put(out, format_args!("\x1b[{};{}H", row + 1, col + 1));
+            out.push(mark);
+        }
+    })
+}
+
+/// The alternate screen, then per unit home and one letter in every cell, never scrolling.
+fn light_cells(target: usize) -> Vec<u8> {
+    build(target, b"\x1b[?1049h", |i, out| {
+        out.extend_from_slice(b"\x1b[H");
+        out.extend(std::iter::repeat_n(letter(i), COLUMNS * LINES));
+    })
+}
+
+fn short_lines(target: usize) -> Vec<u8> {
+    build(target, b"", |_, out| out.extend_from_slice(b"y\r\n"))
+}
+
+/// The alternate screen with a 22-line scroll region at the top; the rows below stay blank.
+fn scroll_region_small(target: usize) -> Vec<u8> {
+    build(target, b"\x1b[?1049h\x1b[1;22r", |_, out| {
+        out.extend_from_slice(b"y\r\n");
+    })
+}
+
+/// Short sequences of the kinds a TUI sends most (SGR with sub-parameters, cursor moves,
+/// erases, REP), in rough proportion; `pick` chooses the kind, `detail` its parameters.
+fn csi_mix(target: usize) -> Vec<u8> {
+    build(target, b"", csi_mix_unit)
+}
+
+fn csi_mix_unit(i: usize, out: &mut Vec<u8>) {
+    let detail = scramble((i as u64) ^ 0x5EED_0000_0000);
+    match pick(i as u64, 100) {
+        0..10 => {
+            let length = 1 + (detail % 72) as usize;
+            out.extend((0..length).map(|k| letter(i + k)));
+            out.extend_from_slice(b"\r\n");
+        }
+        10..30 => out.extend_from_slice(b"\x1b[m\x1b[?1h\x1b[H"),
+        30..40 => out.extend_from_slice(b"\x1b[1;2;3;4:3;31m"),
+        40..50 => put(
+            out,
+            format_args!(
+                "\x1b[38:5:{}m\x1b[48:2::{}:{}:{}m",
+                detail % 256,
+                (detail >> 8) % 256,
+                (detail >> 16) % 256,
+                (detail >> 24) % 256
+            ),
+        ),
+        50..60 => put(out, format_args!("\x1b[58;5;{}m\x1b[2m", detail % 256)),
+        60..80 => out.extend_from_slice(b"\x1b[m\x1b[10A\x1b[3E\x1b[2K"),
+        _ => out.extend_from_slice(b"\x1b[39m\x1b[10`a\x1b[100b\x1b[?1l"),
+    }
+}
+
+/// Combining marks `combining_unique` draws from: U+0300..U+036F.
+const COMBINING_MARKS: usize = 112;
+
+/// One cell per unit: `a` and three combining marks that, read as base-112 digits of the
+/// unit number, make every triple unique for the first 112^3 units. The line wraps by itself.
+fn combining_unique(target: usize) -> Vec<u8> {
+    build(target, b"", |i, out| {
+        out.push(b'a');
+        let mut rest = i;
+        for _ in 0..3 {
+            let mark = char::from_u32(0x300 + (rest % COMBINING_MARKS) as u32);
+            rest /= COMBINING_MARKS;
+            if let Some(mark) = mark {
+                let mut bytes = [0; 4];
+                out.extend_from_slice(mark.encode_utf8(&mut bytes).as_bytes());
+            }
+        }
+    })
+}
+
+/// Bytes in the payload of one `long_osc` string.
+const LONG_OSC_PAYLOAD: usize = 8000;
+
+/// An 8000-byte OSC 6 string that no terminal acts on, then a short visible line.
+fn long_osc(target: usize) -> Vec<u8> {
+    build(target, b"", |i, out| {
+        out.extend_from_slice(b"\x1b]6;");
+        out.extend((0..LONG_OSC_PAYLOAD).map(|n| letter(pick((i as u64) << 16 | n as u64, 26))));
+        out.push(0x07);
+        put(out, format_args!("osc {i}\r\n"));
+    })
+}
+
+/// `symbols` and `vim_session` from github.com/alacritty/vtebench, unchanged (see the README
+/// beside them). Both mix CR LF with bare LFs (2 in `symbols`, 77 in `vim_session`) and are fed as they are.
+const VTEBENCH_SYMBOLS: &[u8] = include_bytes!("../data/vtebench/symbols");
+const VTEBENCH_VIM_SESSION: &[u8] = include_bytes!("../data/vtebench/vim_session");
+
+fn unicode_symbols(target: usize) -> Vec<u8> {
+    build(target, b"", |_, out| {
+        out.extend_from_slice(VTEBENCH_SYMBOLS);
+    })
+}
+
+fn vim_session(target: usize) -> Vec<u8> {
+    build(target, b"", |_, out| {
+        out.extend_from_slice(VTEBENCH_VIM_SESSION);
+    })
+}
+
+/// Which streams `fixtures` writes.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum FixtureSet {
+    /// The fourteen release streams.
+    Release,
+    /// The release streams plus the compare-only ones, in corpus order.
+    Corpus,
+}
+
+/// Writes `DIR/<name>.vt` for every fixture of `set` (`mib` MiB each) and returns one report
+/// line per file.
+pub(crate) fn write_fixtures(dir: &Path, mib: usize, set: FixtureSet) -> Result<Vec<String>> {
     fs::create_dir_all(dir).with_context(|| format!("cannot create {}", dir.display()))?;
-    let mut lines = Vec::with_capacity(FIXTURES.len());
-    for fixture in &FIXTURES {
+    let compare: &[Fixture] = match set {
+        FixtureSet::Release => &[],
+        FixtureSet::Corpus => &COMPARE_FIXTURES,
+    };
+    let mut lines = Vec::with_capacity(FIXTURES.len() + compare.len());
+    for fixture in FIXTURES.iter().chain(compare) {
         let bytes = (fixture.make)(mib << 20);
         let path = dir.join(format!("{}.vt", fixture.name));
         fs::write(&path, &bytes).with_context(|| format!("cannot write {}", path.display()))?;
@@ -470,7 +674,11 @@ mod tests {
     use super::*;
 
     fn make(name: &str, target: usize) -> Vec<u8> {
-        let fixture = FIXTURES.iter().find(|f| f.name == name).unwrap();
+        let fixture = FIXTURES
+            .iter()
+            .chain(&COMPARE_FIXTURES)
+            .find(|f| f.name == name)
+            .unwrap();
         (fixture.make)(target)
     }
 
@@ -589,7 +797,7 @@ mod tests {
 
     #[test]
     fn generators_are_deterministic_and_stop_at_the_target() {
-        for fixture in &FIXTURES {
+        for fixture in FIXTURES.iter().chain(&COMPARE_FIXTURES) {
             let first = (fixture.make)(100_000);
             assert_eq!(first, (fixture.make)(100_000), "{}", fixture.name);
             // Unit sizes vary (SGR numbers grow, URIs differ); 4096 covers every unit but a Sixel image.
@@ -625,6 +833,11 @@ mod tests {
             self.oscs += 1;
             self.flagged += usize::from(truncated);
         }
+        // `long_osc` is OSC 6; a terminal that truncates it past 2 KiB still ignores it, so
+        // the parser check lets it through whole.
+        fn osc_allows_large(&self, code: u32) -> bool {
+            code == 6
+        }
         fn dcs_hook(&mut self, _: &Params, _: &[u8], ignore: bool, _: u8) {
             self.hooks += 1;
             self.flagged += usize::from(ignore);
@@ -647,7 +860,7 @@ mod tests {
 
     #[test]
     fn every_fixture_parses_cleanly() {
-        for fixture in &FIXTURES {
+        for fixture in FIXTURES.iter().chain(&COMPARE_FIXTURES) {
             tally(fixture.name);
         }
         let sgr = tally("heavy_sgr");
@@ -706,12 +919,212 @@ mod tests {
         ))
         .join("write_fixtures_creates_one_file_each");
         let _guard = RemoveOnDrop(dir.clone());
-        let lines = write_fixtures(&dir, 1).unwrap();
+        let lines = write_fixtures(&dir, 1, FixtureSet::Release).unwrap();
         assert_eq!(lines.len(), FIXTURES.len());
         for fixture in &FIXTURES {
             let bytes = fs::read(dir.join(format!("{}.vt", fixture.name))).unwrap();
             assert!(bytes.len() >= 1 << 20);
         }
+    }
+
+    #[test]
+    fn select_none_stays_on_the_release_fixtures_and_names_find_both() {
+        assert_eq!(select(None).unwrap().len(), 14);
+        let compare = select(Some("csi_mix")).unwrap();
+        assert_eq!(compare[0].name, "csi_mix");
+        let release = select(Some("plain_ascii")).unwrap();
+        assert_eq!(release[0].name, "plain_ascii");
+    }
+
+    #[test]
+    fn names_are_unique_across_both_tables_and_in_corpus_order() {
+        let names: Vec<&str> = FIXTURES
+            .iter()
+            .chain(&COMPARE_FIXTURES)
+            .map(|f| f.name)
+            .collect();
+        let mut sorted = names.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(sorted.len(), 23);
+        assert_eq!(
+            names[14..],
+            [
+                "cursor_motion",
+                "light_cells",
+                "short_lines",
+                "scroll_region_small",
+                "csi_mix",
+                "combining_unique",
+                "long_osc",
+                "unicode_symbols",
+                "vim_session"
+            ]
+        );
+    }
+
+    #[test]
+    fn compare_fixtures_first_unit_matches_the_table() {
+        assert!(make("cursor_motion", 1).starts_with(b"\x1b[1;1HA\x1b[1;2HA"));
+        let light = make("light_cells", 1);
+        assert_eq!(
+            light,
+            [b"\x1b[?1049h\x1b[H".as_slice(), &[b'a'; 7200]].concat()
+        );
+        assert_eq!(make("short_lines", 1), b"y\r\n");
+        assert_eq!(
+            make("scroll_region_small", 1),
+            b"\x1b[?1049h\x1b[1;22ry\r\n"
+        );
+        let long = make("long_osc", 1);
+        assert!(long.starts_with(b"\x1b]6;"));
+        assert!(long.ends_with(b"\x07osc 0\r\n"));
+        assert_eq!(long.len(), 4 + LONG_OSC_PAYLOAD + 1 + b"osc 0\r\n".len());
+        assert!(
+            long[4..4 + LONG_OSC_PAYLOAD]
+                .iter()
+                .all(u8::is_ascii_lowercase)
+        );
+    }
+
+    #[test]
+    fn cursor_motion_unit_visits_every_cell_once() {
+        let cells = spiral_cells(COLUMNS, LINES);
+        assert_eq!(cells.len(), COLUMNS * LINES);
+        let mut seen = vec![false; COLUMNS * LINES];
+        for &(row, col) in &cells {
+            assert!(!std::mem::replace(&mut seen[row * COLUMNS + col], true));
+        }
+        // Every step stays inside a ring: neighbours except where a ring ends and the next begins.
+        let unit = make("cursor_motion", 1);
+        let cups = unit.windows(2).filter(|w| w == b"\x1b[").count();
+        assert_eq!(cups, cells.len());
+        assert_eq!(&unit[unit.len() - 1..], b"A");
+    }
+
+    #[test]
+    fn spiral_handles_thin_grids() {
+        for (columns, lines) in [(1, 1), (1, 5), (5, 1), (2, 2), (3, 7), (7, 3)] {
+            let mut cells = spiral_cells(columns, lines);
+            assert_eq!(cells.len(), columns * lines, "{columns}x{lines}");
+            cells.sort_unstable();
+            cells.dedup();
+            assert_eq!(cells.len(), columns * lines, "{columns}x{lines}");
+        }
+    }
+
+    #[test]
+    fn combining_unique_units_are_pairwise_distinct() {
+        let stream = make("combining_unique", 7 * 1000);
+        let units: Vec<&[u8]> = stream
+            .split_inclusive(|&b| b == b'a')
+            .filter(|u| u.len() > 1)
+            .collect();
+        assert!(units.len() >= 1000);
+        let mut firsts: Vec<&[u8]> = units[..1000].to_vec();
+        firsts.sort_unstable();
+        firsts.dedup();
+        assert_eq!(firsts.len(), 1000);
+    }
+
+    /// Which of the seven `csi_mix` branches produced `unit`.
+    fn csi_branch(unit: &[u8]) -> usize {
+        let has = |needle: &[u8]| unit.windows(needle.len()).any(|w| w == needle);
+        match () {
+            () if !has(b"\x1b") => 0,
+            () if has(b"\x1b[?1h") => 1,
+            () if has(b"4:3;31m") => 2,
+            () if has(b"38:5:") => 3,
+            () if has(b"58;5;") => 4,
+            () if has(b"\x1b[10A") => 5,
+            () => 6,
+        }
+    }
+
+    #[test]
+    fn csi_mix_uses_all_seven_branches_roughly_by_weight() {
+        let mut counts = [0usize; 7];
+        let mut out = Vec::new();
+        for i in 0..10_000 {
+            out.clear();
+            csi_mix_unit(i, &mut out);
+            counts[csi_branch(&out)] += 1;
+        }
+        let weights = [10, 20, 10, 10, 10, 20, 20];
+        for (branch, weight) in weights.iter().enumerate() {
+            let expected = weight * 100;
+            assert!(
+                counts[branch] > expected * 7 / 10 && counts[branch] < expected * 13 / 10,
+                "branch {branch}: {} of 10000, expected about {expected}",
+                counts[branch]
+            );
+        }
+    }
+
+    #[test]
+    fn vendored_streams_are_whole_units_and_their_line_ends_are_known() {
+        // vtebench feeds these through a PTY that may add the CR (ONLCR); the files hold bare
+        // LFs (2 and 77) that no engine here translates, so all of them see the same bytes.
+        let bare_lfs = |file: &[u8]| {
+            (0..file.len())
+                .filter(|&n| file[n] == b'\n' && (n == 0 || file[n - 1] != b'\r'))
+                .count()
+        };
+        assert_eq!(make("unicode_symbols", 1), VTEBENCH_SYMBOLS);
+        assert_eq!(make("vim_session", 1), VTEBENCH_VIM_SESSION);
+        assert_eq!(bare_lfs(VTEBENCH_SYMBOLS), 2);
+        assert_eq!(bare_lfs(VTEBENCH_VIM_SESSION), 77);
+        assert_eq!(VTEBENCH_SYMBOLS.len(), 138_296);
+        assert_eq!(VTEBENCH_VIM_SESSION.len(), 178_345);
+    }
+
+    #[test]
+    fn every_sync_update_is_closed_in_each_unit() {
+        // vt100 has no flush: a `?2026h` left open would hold bytes back until the end.
+        for fixture in FIXTURES.iter().chain(&COMPARE_FIXTURES) {
+            let unit = (fixture.make)(1);
+            let mut open = false;
+            for window in unit.windows(8) {
+                if window == b"\x1b[?2026h" {
+                    assert!(!open, "{}: nested ?2026h", fixture.name);
+                    open = true;
+                } else if window == b"\x1b[?2026l" {
+                    open = false;
+                }
+            }
+            assert!(!open, "{}: ?2026h left open", fixture.name);
+        }
+    }
+
+    #[test]
+    fn write_fixtures_adds_the_compare_streams_only_on_request() {
+        struct RemoveOnDrop(std::path::PathBuf);
+        impl Drop for RemoveOnDrop {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let base = std::path::PathBuf::from(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../.tmp/fixtures-test"
+        ))
+        .join("write_fixtures_adds_the_compare_streams_only_on_request");
+        let _guard = RemoveOnDrop(base.clone());
+        let count = |dir: &Path| fs::read_dir(dir).unwrap().count();
+        assert_eq!(
+            write_fixtures(&base.join("release"), 1, FixtureSet::Release)
+                .unwrap()
+                .len(),
+            14
+        );
+        assert_eq!(count(&base.join("release")), 14);
+        assert_eq!(
+            write_fixtures(&base.join("corpus"), 1, FixtureSet::Corpus)
+                .unwrap()
+                .len(),
+            23
+        );
+        assert_eq!(count(&base.join("corpus")), 23);
     }
 }
 

@@ -1,0 +1,12 @@
+# Fixtures without a 3-engine consensus: no golden, every engine `unverified` there
+# (docs/specs/0016-cross-engine-bench/verification.md). Written by `compare golden`.
+
+[[ungated]]
+fixture = "combining_unique"
+corpus_sha256 = "432bccf1d39d78357eec2251349f3f309f45b8fa9c31de289ae78656dd392650"
+group_sizes = [2, 2, 1, 1, 1, 1]
+
+[[ungated]]
+fixture = "unicode_symbols"
+corpus_sha256 = "c1ccd3bb23542dd31c55fcbef808b2f3035ad8b59a4d3cbd7e6a0e078a581ae0"
+group_sizes = [1, 1, 1, 1, 1, 1, 1, 1, 1]

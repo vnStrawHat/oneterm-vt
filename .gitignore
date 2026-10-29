@@ -7,3 +7,6 @@
 /fuzz/corpus/
 /fuzz/artifacts/
 /fuzz/coverage/
+/compare/engines/xterm/node_modules/
+/compare/target/
+/compare/engines/*/target/

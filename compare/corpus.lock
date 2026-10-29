@@ -1,0 +1,144 @@
+version = 1
+mib = 32
+
+[[fixture]]
+name = "plain_ascii"
+class = "core"
+bytes = 33554464
+sha256 = "f5ba939b195c1d1878d97d85575236a823efa5b37502771437ba996851415783"
+
+[[fixture]]
+name = "long_lines"
+class = "core"
+bytes = 33554878
+sha256 = "8b0ec4f22130ccd52b0242aaa0cf71bcf1a5a3ca29377706a580c716c011929a"
+
+[[fixture]]
+name = "heavy_sgr"
+class = "core"
+bytes = 33554432
+sha256 = "59df021d00c07cbcc507b604fb6ba0be5232b925617bf676e5c10589ec751ef3"
+
+[[fixture]]
+name = "tui_redraw"
+class = "core"
+bytes = 33554440
+sha256 = "8582224bdb8d55a9a6ddb413cc526479dbacc72194486525304d85cfafdd8efd"
+
+[[fixture]]
+name = "scroll_region"
+class = "core"
+bytes = 33554472
+sha256 = "c699564995b0a9adad567405f4dc820f41aa875f41a66b39b8e1fe44efaa0a59"
+
+[[fixture]]
+name = "cjk_wide"
+class = "core"
+bytes = 33554510
+sha256 = "226291c780715feab72e730526d14b46f0cbe93d4fbc37bdf0c7ef607df1af95"
+
+[[fixture]]
+name = "dense_cells"
+class = "core"
+bytes = 33562243
+sha256 = "1c5e82e6a726d70bf6a5f76c3f0405bc42bb58df1bfb7d765160dbd96a030034"
+
+[[fixture]]
+name = "scrolling"
+class = "core"
+bytes = 33554574
+sha256 = "3ee08a636766e34ae884d0cfd1cb9c783713dda31499deb678cb72594e79ab17"
+
+[[fixture]]
+name = "sixel"
+class = "capability"
+capability = "sixel"
+bytes = 33554500
+sha256 = "e9ce2b70033a526957d128656ff2a89e738a760c4d502d0d1e936733003f1d94"
+
+[[fixture]]
+name = "osc_9_7"
+class = "core"
+bytes = 33554472
+sha256 = "a3af43742d7fff5e2479886a44c21f35db5eb45c20637358a3dfa454e7674d39"
+
+[[fixture]]
+name = "grapheme_clusters"
+class = "capability"
+capability = "graphemes"
+bytes = 33554438
+sha256 = "80b689a96b9da8e1a7433c26a4dcf042a067a9d480e2c9987734f8079feacc91"
+
+[[fixture]]
+name = "hyperlinks"
+class = "capability"
+capability = "hyperlinks"
+bytes = 33556110
+sha256 = "d7a4cb9d0e054cdec489af466c55bbfde1f948370d547434a0b5df07ca3b66ae"
+
+[[fixture]]
+name = "mode_churn"
+class = "core"
+bytes = 33554479
+sha256 = "a33a903a9c901ef5371a0dcfb9d5e429a6cb1aed3e233b0acb3ac30583b5dde0"
+
+[[fixture]]
+name = "sixel_large"
+class = "capability"
+capability = "sixel"
+bytes = 33560820
+sha256 = "b8e8e74b811b9b37c4cfb6c2fb86e828e48aef6417aa706c9f7b32227785db67"
+
+[[fixture]]
+name = "cursor_motion"
+class = "core"
+bytes = 33572700
+sha256 = "09425e6610dc25a7ba1b763009ef967e61e1229cda379cc23ff2e1bd3ff464c1"
+
+[[fixture]]
+name = "light_cells"
+class = "core"
+bytes = 33558785
+sha256 = "b1a5b90b35076bcd4614ccd3ed996e023ab20a196d19c295ec228725ac1f5bc3"
+
+[[fixture]]
+name = "short_lines"
+class = "core"
+bytes = 33554433
+sha256 = "a8ea99fe5924d0d887b90bc3f66a155c04006e27688556e3cd640a372286bcb3"
+
+[[fixture]]
+name = "scroll_region_small"
+class = "core"
+bytes = 33554433
+sha256 = "ea1227185a2563005aa1062bf5eeb82a039e3647418a27c411de10be1b3bcbd9"
+
+[[fixture]]
+name = "csi_mix"
+class = "core"
+bytes = 33554436
+sha256 = "e29935baa10d78f48bc27e3d4d918667d2acbbce052f03cb85c0cb4a604e1f08"
+
+[[fixture]]
+name = "combining_unique"
+class = "core"
+bytes = 33554437
+sha256 = "432bccf1d39d78357eec2251349f3f309f45b8fa9c31de289ae78656dd392650"
+
+[[fixture]]
+name = "long_osc"
+class = "core"
+bytes = 33557695
+sha256 = "dfc7b9a31b1df64fbc48f39ca9db430796316559f0d30846ae3aac6c3d9ad089"
+
+[[fixture]]
+name = "unicode_symbols"
+class = "core"
+bytes = 33605928
+sha256 = "c1ccd3bb23542dd31c55fcbef808b2f3035ad8b59a4d3cbd7e6a0e078a581ae0"
+
+[[fixture]]
+name = "vim_session"
+class = "core"
+bytes = 33707205
+sha256 = "4164f52994872df111ef030d822a38468e94e98c1718d3b9c63f5554f5db9e6d"

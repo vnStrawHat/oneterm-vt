@@ -7,6 +7,7 @@ Platforms: `linux`, `windows`, `macos` (Rust's `std::env::consts::OS`).
 |---|---|
 | `perf/history/<platform>/v<version>.json` | the run captured on that platform's Release workflow runner just before tagging |
 | `perf/chart-<platform>.svg` | two panels, tier-1 (parser) above tier-2 (grid) MiB/s per fixture across that platform's releases (`vt-bench chart`) |
+| `perf/compare/<machine>/<date>.{json,md,svg}` | cross-engine runs on one machine (not a release record); method in `compare/README.md` |
 
 The GitHub release carries no copies: read both at the release tag. The root README embeds the charts.
 

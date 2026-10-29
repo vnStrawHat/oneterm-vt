@@ -24,6 +24,7 @@ struct Fed {
 fn feed_fixture(name: &str, target: usize, chunk: usize) -> (Fed, Vec<u8>) {
     let fixture = FIXTURES
         .iter()
+        .chain(&COMPARE_FIXTURES)
         .find(|f| f.name == name)
         .expect("fixture exists");
     let bytes = (fixture.make)(target);
@@ -157,4 +158,47 @@ fn sixel_large_decodes_every_image_at_full_size() {
         let painted = image.rgba.chunks_exact(4).filter(|px| px[3] == 255).count();
         assert!(painted * 2 > image.rgba.len() / 4, "image {:?}", image.id);
     }
+}
+
+/// The visible rows as text, trailing blanks trimmed.
+fn visible_rows(term: &Terminal) -> Vec<String> {
+    let top = term.screen().visible_top();
+    (0..u64::from(term.size().rows))
+        .map(|n| term.row_text(top + n).trim_end().to_string())
+        .collect()
+}
+
+#[test]
+fn light_cells_leaves_the_alt_screen_full_of_the_last_letter() {
+    let (fed, bytes) = feed_fixture("light_cells", 1 << 16, CHUNK);
+    let term = &fed.term;
+    assert!(term.mode(Mode::AltScreen));
+    assert_eq!(fed.refused, 0);
+    let last = char::from(*bytes.last().expect("a non-empty stream"));
+    let cells = visible_cells(term);
+    assert_eq!(cells.len(), COLUMNS * LINES);
+    assert!(
+        cells
+            .iter()
+            .all(|cell| matches!(cell.content(), CellContent::Scalar(c) if c == last))
+    );
+}
+
+#[test]
+fn scroll_region_small_keeps_the_rows_below_the_region_blank() {
+    let (fed, _) = feed_fixture("scroll_region_small", 1 << 14, CHUNK);
+    assert_eq!(fed.refused, 0);
+    let rows = visible_rows(&fed.term);
+    assert!(rows[..21].iter().all(|row| row == "y"));
+    assert!(rows[22..].iter().all(String::is_empty), "{rows:?}");
+}
+
+#[test]
+fn long_osc_leaves_the_status_text_and_no_title() {
+    let (fed, bytes) = feed_fixture("long_osc", 1 << 17, CHUNK);
+    assert_eq!(fed.term.title(), None);
+    let units = bytes.windows(3).filter(|w| w == b"\x1b]6").count();
+    let rows = visible_rows(&fed.term);
+    let last = rows.iter().rposition(|row| !row.is_empty()).expect("text");
+    assert_eq!(rows[last], format!("osc {}", units - 1));
 }

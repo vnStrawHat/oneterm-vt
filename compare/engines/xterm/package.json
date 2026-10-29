@@ -1,0 +1,12 @@
+{
+  "name": "engine-xterm",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Adapter: @xterm/headless for the cross-engine comparison.",
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "@xterm/addon-unicode-graphemes": "0.4.0",
+    "@xterm/headless": "6.0.0"
+  }
+}

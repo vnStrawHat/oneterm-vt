@@ -1,0 +1,9 @@
+# Divergences the owner accepted (docs/specs/0016-cross-engine-bench/verification.md).
+# Agents never add entries. An entry matches only on the exact (engine, fixture, final_sha256):
+# if the engine changes behaviour the entry stops matching and the pair is `diverged` again.
+#
+# [[accepted]]
+# engine = "vt100"
+# fixture = "cjk_wide"
+# final_sha256 = "..."
+# reason = "one-line semantic difference, e.g. Unicode width table version"
