@@ -170,17 +170,16 @@ fn print_text<D: Dispatch + ?Sized>(dispatch: &mut D, text: &str) {
     let mut rest = text;
     while !rest.is_empty() {
         let bytes = rest.as_bytes();
-        let split = bytes
-            .iter()
-            .enumerate()
-            .find_map(|(index, &byte)| match byte {
+        let split = bytes.iter().enumerate().skip(quiet_prefix(bytes)).find_map(
+            |(index, &byte)| match byte {
                 0x00..=0x1F | 0x7F => Some((index, 1, byte)),
                 0xC2 => match bytes.get(index + 1) {
                     Some(&next @ 0x80..=0x9F) => Some((index, 2, next)),
                     _ => None,
                 },
                 _ => None,
-            });
+            },
+        );
         let Some((index, width, control)) = split else {
             dispatch.print_str(rest);
             return;
@@ -213,4 +212,21 @@ fn ascii_prefix(bytes: &[u8]) -> usize {
         .iter()
         .position(|&byte| byte.wrapping_sub(0x20) >= 0x5F)
         .unwrap_or(rest.len())
+}
+
+/// Length of the leading whole 16-byte blocks of `bytes` without a byte that can start a
+/// control: below `0x20`, `DEL`, or `0xC2` (the lead of `C2 80..=C2 9F`, a C1 control; the
+/// exact search that follows confirms it).
+fn quiet_prefix(bytes: &[u8]) -> usize {
+    let mut done = 0;
+    for block in bytes.chunks_exact(16) {
+        let loud = block.iter().fold(false, |loud, &byte| {
+            loud | (byte < 0x20) | (byte == 0x7F) | (byte == 0xC2)
+        });
+        if loud {
+            break;
+        }
+        done += 16;
+    }
+    done
 }

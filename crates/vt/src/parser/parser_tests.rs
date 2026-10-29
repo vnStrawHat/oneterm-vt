@@ -871,3 +871,20 @@ fn mixed_runs_split_at_c0() {
         ])
     );
 }
+
+#[test]
+fn quiet_prefix_finds_c1_after_a_block() {
+    for offset in [15, 16, 17, 31, 32, 33] {
+        // A leading non-ASCII scalar sends the segment through the general path; the C1
+        // control (`C2 85`) starts `offset` bytes in.
+        let head = format!("\u{e9}{}", "x".repeat(offset - 2));
+        let mut bytes = head.clone().into_bytes();
+        bytes.extend_from_slice("\u{85}y".as_bytes());
+        let expected = concat(vec![
+            prints(&head),
+            vec![Action::Execute(0x85)],
+            prints("y"),
+        ]);
+        assert_eq!(feed_both_ways(&bytes), expected, "offset {offset}");
+    }
+}

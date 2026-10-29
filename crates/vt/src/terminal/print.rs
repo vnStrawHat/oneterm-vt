@@ -117,23 +117,24 @@ impl Handler<'_> {
         }
         // Nothing in a run changes the designations, so the set is looked up once.
         let charset = self.state.charset(self.state.shifts.active);
-        let narrow = |c: char| {
+        let glyph = |c: char| {
             let mapped = map_charset(charset, c);
-            (!mapped.is_control() && scalar_width(mapped) == 1).then_some(mapped)
+            let width = scalar_width(mapped);
+            (!mapped.is_control() && width >= 1).then_some((mapped, width))
         };
         let last = text.chars().next_back();
-        // After a scalar that was not one column wide the next is likely the same (CJK text),
-        // so the run is not tried again until a narrow one goes through the general path.
+        // After a width-0 scalar the next is likely another mark, so the run is not tried again
+        // until a scalar with a width goes through the general path.
         let mut try_run = true;
         while !text.is_empty() {
             if try_run {
-                let run = self.state.grid.print_run(text, mode, charset, narrow);
+                let run = self.state.grid.print_run(text, mode, charset, glyph);
                 text = &text[run..];
             }
             let Some(c) = text.chars().next() else {
                 break;
             };
-            try_run = self.print_mapped(c, charset, mode) == 1;
+            try_run = self.print_mapped(c, charset, mode) != 0;
             text = &text[c.len_utf8()..];
         }
         if last.is_some() {

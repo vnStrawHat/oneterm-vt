@@ -56,21 +56,23 @@ impl Screen {
         report
     }
 
-    /// Prints the leading run of `text` whose scalars `narrow` maps to a single-column glyph,
-    /// under one row borrow. Returns the bytes consumed.
+    /// Prints the leading run of `text` whose scalars `glyph` maps to a one- or two-column
+    /// glyph, under one row borrow. Returns the bytes consumed.
     ///
-    /// `charset` is the set `narrow` maps through; under [`Charset::Ascii`] printable ASCII
-    /// bypasses `narrow` and is written in bulk.
+    /// `glyph` gives the mapped scalar and its width, or `None` for a width-0 scalar or a
+    /// control. `charset` is the set `glyph` maps through; under [`Charset::Ascii`] printable
+    /// ASCII bypasses `glyph` and is written in bulk.
     ///
     /// It stops before anything the general path must decide: insert mode, a pending wrap that
-    /// autowrap performs, a scalar `narrow` rejects, a wide-pair half at column 0 or 1 (the
-    /// filler above may need releasing), and after filling the last column.
+    /// autowrap performs, a scalar `glyph` rejects, a wide glyph that needs the last column
+    /// (the filler and the wrap), a wide-pair half at column 0 or 1 (the filler above may need
+    /// releasing), and after filling the last column.
     pub(crate) fn print_run(
         &mut self,
         text: &str,
         mode: PrintMode,
         charset: Charset,
-        narrow: impl Fn(char) -> Option<char>,
+        glyph: impl Fn(char) -> Option<(char, u8)>,
     ) -> usize {
         if mode.insert || (self.cursor.pending_wrap && mode.autowrap) {
             return 0;
@@ -81,7 +83,7 @@ impl Screen {
                 return written;
             }
         }
-        if text.chars().next().is_none_or(|c| narrow(c).is_none()) {
+        if text.chars().next().is_none_or(|c| glyph(c).is_none()) {
             return 0;
         }
         let Pos { row, mut col } = self.cursor.pos;
@@ -95,13 +97,34 @@ impl Screen {
             return 0;
         };
         for c in text.chars() {
-            let Some(mapped) = narrow(c) else { break };
+            let Some((mapped, width)) = glyph(c) else {
+                break;
+            };
             if col <= 1
                 && target
                     .cells()
                     .get(usize::from(col))
                     .is_some_and(|&cell| is_wide_half(cell))
             {
+                break;
+            }
+            if width == 2 {
+                if col + 1 >= cols {
+                    break;
+                }
+                // `set` writes the spacer too and releases the pairs it overwrites.
+                target.set(
+                    col,
+                    pen.with_content(CellContent::Scalar(mapped))
+                        .with_width(CellWidth::Wide),
+                );
+                consumed += c.len_utf8();
+                if col + 2 < cols {
+                    col += 2;
+                    continue;
+                }
+                col += 1;
+                pending_wrap = true;
                 break;
             }
             target.set(

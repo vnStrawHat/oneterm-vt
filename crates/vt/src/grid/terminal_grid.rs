@@ -274,9 +274,9 @@ impl TerminalGrid {
         text: &str,
         mode: PrintMode,
         charset: Charset,
-        narrow: impl Fn(char) -> Option<char>,
+        glyph: impl Fn(char) -> Option<(char, u8)>,
     ) -> usize {
-        self.active().0.print_run(text, mode, charset, narrow)
+        self.active().0.print_run(text, mode, charset, glyph)
     }
 
     pub(crate) fn put_tab(&mut self, count: u16, mode: PrintMode) -> Option<ScrollReport> {

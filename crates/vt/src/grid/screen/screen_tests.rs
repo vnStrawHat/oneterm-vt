@@ -1353,14 +1353,28 @@ fn check_reports_newest_past_newest_issued() {
 
 // ---- narrow runs ----
 
-fn narrow(c: char) -> Option<char> {
-    (crate::width::scalar_width(c) == 1).then_some(c)
+fn narrow(c: char) -> Option<(char, u8)> {
+    let width = crate::width::scalar_width(c);
+    (width >= 1 && !c.is_control()).then_some((c, width))
 }
 
 fn print_run(f: &mut Fixture, mode: PrintMode, text: &str) -> usize {
     let consumed = f.grid.print_run(text, mode, Charset::Ascii, narrow);
     f.check();
     consumed
+}
+
+/// Runs until the run path declines; an ASCII prefix is returned on its own, so a mixed text
+/// takes one call per kind.
+fn print_runs(f: &mut Fixture, mode: PrintMode, text: &str) -> usize {
+    let mut total = 0;
+    loop {
+        let consumed = print_run(f, mode, &text[total..]);
+        if consumed == 0 {
+            return total;
+        }
+        total += consumed;
+    }
 }
 
 #[test]
@@ -1375,13 +1389,18 @@ fn a_narrow_run_stops_after_filling_the_last_column() {
 }
 
 #[test]
-fn a_narrow_run_stops_before_a_wide_scalar() {
+fn a_run_places_wide_scalars_with_their_spacers() {
     let mut f = fixture(2, 8);
     let text = format!("ab{WIDE_A}c");
-    assert_eq!(print_run(&mut f, PrintMode::default(), &text), 2);
-    assert_eq!(screen(&f).cursor().pos.col, 2);
-    assert_eq!(print_run(&mut f, PrintMode::default(), &text[2..]), 0);
-    assert_eq!(f.index_text(0).trim_end(), "ab");
+    assert_eq!(print_runs(&mut f, PrintMode::default(), &text), text.len());
+    assert_eq!(screen(&f).cursor().pos.col, 5);
+    assert_eq!(
+        f.index_text(0).trim_end(),
+        format!("ab{WIDE_A}_c").replace('_', "")
+    );
+    let row = screen(&f).row(screen(&f).row_of_index(0));
+    assert_eq!(row.cell(2).width(), CellWidth::Wide);
+    assert_eq!(row.cell(3).width(), CellWidth::WideSpacer);
 }
 
 #[test]
@@ -1465,4 +1484,48 @@ fn ascii_run_after_col_1_ignores_a_wide_half_further_right() {
     f.goto(0, 2);
     assert_eq!(print_run(&mut f, PrintMode::default(), "abc"), 3);
     assert_eq!(f.index_text(0).trim_end(), "  abc");
+}
+
+#[test]
+fn wide_glyph_in_run_stops_before_the_last_column() {
+    let mut f = fixture(2, 5);
+    let text = "\u{4E2D}\u{4E2D}\u{4E2D}";
+    assert_eq!(print_run(&mut f, PrintMode::default(), text), 6);
+    assert_eq!(screen(&f).cursor().pos.col, 4);
+    // The third needs the last column for its filler and a wrap: the general path.
+    assert_eq!(print_run(&mut f, PrintMode::default(), &text[6..]), 0);
+    f.print(&text[6..]);
+    let top = screen(&f).row(screen(&f).row_of_index(0));
+    assert_eq!(top.cell(4).width(), CellWidth::LeadingWideSpacer);
+    let next = screen(&f).row(screen(&f).row_of_index(1));
+    assert_eq!(next.cell(0).width(), CellWidth::Wide);
+}
+
+#[test]
+fn wide_glyph_ending_at_the_last_column_arms_the_wrap() {
+    let mut f = fixture(2, 4);
+    assert_eq!(
+        print_runs(&mut f, PrintMode::default(), "\u{4E2D}\u{4E2D}x"),
+        6
+    );
+    assert!(screen(&f).cursor().pending_wrap);
+    assert_eq!(screen(&f).cursor().pos.col, 3);
+    assert_eq!(print_run(&mut f, PrintMode::default(), "x"), 0);
+}
+
+#[test]
+fn wide_glyph_overwrites_pairs_in_run() {
+    let mut f = fixture(2, 8);
+    f.goto(0, 1);
+    f.print(WIDE_A);
+    f.print(WIDE_B);
+    // Over the middle of both pairs: narrow then wide, then a wide over narrow cells.
+    f.goto(0, 2);
+    assert_eq!(print_runs(&mut f, PrintMode::default(), "x\u{4E2D}"), 4);
+    f.goto(0, 0);
+    assert_eq!(
+        print_runs(&mut f, PrintMode::default(), "\u{4E2D}\u{4E2D}"),
+        6
+    );
+    f.check();
 }
