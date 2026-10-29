@@ -35,7 +35,7 @@ Measure:
       --json prints the record; with --out the record goes to FILE and stdout gets the
       markdown report of the same run
       [--fixture NAME]                 parser, grid, render only: one fixture, no --json
-  fixtures --out DIR [--mib N]     write the ten benchmark streams as DIR/<name>.vt
+  fixtures --out DIR [--mib N]     write every benchmark stream as DIR/<name>.vt
   grid --check [--baseline FILE] [--tolerance R] [--mib N]
                                    compare tier 2 with the newest perf/history/<os> record
 

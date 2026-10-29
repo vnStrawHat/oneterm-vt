@@ -14,8 +14,14 @@ The tool is `vt-bench` (`crates/vt-bench`, a developer binary that is not part o
 | 5 | `rss` | live heap after 10 000 scrollback rows of plain, unicode, styled and mixed text | bytes/row |
 
 Tier 2 is the headline: it is what every byte of terminal output costs an embedder. Tiers 1-3
-run ten deterministic streams at 160x45: `plain_ascii`, `long_lines`, `heavy_sgr`, `tui_redraw`,
-`scroll_region`, `cjk_wide`, `dense_cells`, `scrolling`, `sixel`, `osc_9_7`.
+run fourteen deterministic streams at 160x45: `plain_ascii`, `long_lines`, `heavy_sgr`, `tui_redraw`,
+`scroll_region`, `cjk_wide`, `dense_cells`, `scrolling`, `sixel`, `osc_9_7`, and four newer ones,
+absent from the numbers below until a release records them:
+
+- `grapheme_clusters`: emoji ZWJ, VS16, skin tones, flags and combining marks under `?2027`.
+- `hyperlinks`: OSC 8 links with 200-1000 byte URIs, `ST` and `BEL` ends, repeats.
+- `mode_churn`: alt screen, mode toggles, DECSC, titles, regions: a TUI opening and closing.
+- `sixel_large`: 640x480 to 1024x768 images, so pixel painting dominates.
 
 ## What is not measured
 
@@ -50,9 +56,8 @@ cargo run -p oneterm-vt-bench --release -- all --mib 32 --json --machine "<runne
 ```
 
 - Always `--release`; debug numbers say nothing about the shipped code.
-- Quiet machine: close builds, editors and sync clients. On a hybrid CPU, pin the process to one
-  performance core (on Windows `start /b /wait /high /affinity 10 vt-bench.exe ...`); core
-  migration alone can double the spread.
+- Quiet machine: close builds, editors and sync clients. On a hybrid CPU, pin to one performance
+  core (Windows: `start /b /wait /high /affinity 10 vt-bench.exe ...`); migration can double the spread.
 - Never pipe a generator into the tool; fixtures are generated in memory, outside the timer.
 - `--json` refuses a debug build, `vt-paranoid` and `hotpath-profiling`: a skewed build must
   never become a history record.
@@ -61,13 +66,8 @@ cargo run -p oneterm-vt-bench --release -- all --mib 32 --json --machine "<runne
 ## History and chart
 
 The Release workflow stores one tier 1-5 run per release on each of its hosted Linux, Windows
-and macOS runners:
-
-| Platform | Records | Chart (tier-1 and tier-2 MiB/s per fixture across releases) |
-|---|---|---|
-| Linux | `perf/history/linux/v<version>.json` | `perf/chart-linux.svg` |
-| Windows | `perf/history/windows/v<version>.json` | `perf/chart-windows.svg` |
-| macOS | `perf/history/macos/v<version>.json` | `perf/chart-macos.svg` |
+and macOS runners (paths above; the chart plots tier-1 and tier-2 MiB/s per fixture across
+releases).
 
 The GitHub release carries only GitHub's source archives; read records and charts in the
 repository at the tag. Each chart has two panels, tier 1 (parser) above tier 2 (grid). Compare runs from one platform and one machine only; the record's `platform` and `machine` name
@@ -89,8 +89,8 @@ regressions (a clone per cell, a linear scan in a per-byte loop, a lost fast pat
 - Exit codes: `0` pass, `1` at least one fixture `SLOWER`, `2` no verdict.
 - No verdict (exit 2): bad flag; debug, `vt-paranoid` or `hotpath-profiling` build; no history
   and no `--baseline`; unreadable baseline; baseline from another platform; baseline geometry
-  not 160x45; fixture sets differ;
-  a baseline figure that is not a positive number.
+  not 160x45; no fixture in common, or one that no longer exists; a baseline figure that is not a
+  positive number. A fixture newer than the baseline shows as `no baseline` and is not judged.
 - The build refusals read `vt-bench`'s own features; `--features oneterm-vt/vt-paranoid` on the
   command line bypasses them, so do not.
 - The Release workflow runs it on each platform against that platform's previous release record

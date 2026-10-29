@@ -79,7 +79,8 @@ struct CheckPlan {
 
 struct CheckRow {
     fixture: String,
-    baseline: f64,
+    /// `None` for a fixture the baseline predates: shown, never judged.
+    baseline: Option<f64>,
     now: f64,
     slower: bool,
 }
@@ -206,7 +207,9 @@ fn check_baseline(source: &str, baseline: &Release) -> Result<()> {
         .map(|row| row.fixture.as_str())
         .filter(|name| !FIXTURES.iter().any(|fixture| fixture.name == *name))
         .collect();
-    if !missing.is_empty() || !extra.is_empty() {
+    // A fixture added after the baseline was recorded is skipped by `compare`; a baseline that
+    // shares no fixture with this build, or names one that is gone, is not a baseline for it.
+    if missing.len() == FIXTURES.len() || !extra.is_empty() {
         bail!(
             "fixture sets differ: not in baseline: {}; not measured: {}",
             quoted_list(&missing),
@@ -233,19 +236,22 @@ fn quoted_list(names: &[&str]) -> String {
     quoted.join(", ")
 }
 
-/// One row per fixture, in `FIXTURES` order. A fixture is `slower` when `now < tolerance *
-/// baseline`; exactly at the band passes.
+/// One row per measured fixture, in `FIXTURES` order. A fixture is `slower` when `now <
+/// tolerance * baseline`; exactly at the band passes. One the baseline lacks is never slower.
 fn compare(baseline: &[Throughput], now: &[Throughput], tolerance: f64) -> Vec<CheckRow> {
     FIXTURES
         .iter()
         .filter_map(|fixture| {
-            let before = baseline.iter().find(|row| row.fixture == fixture.name)?;
             let after = now.iter().find(|row| row.fixture == fixture.name)?;
+            let before = baseline
+                .iter()
+                .find(|row| row.fixture == fixture.name)
+                .map(|row| row.mib_per_second);
             Some(CheckRow {
                 fixture: fixture.name.to_owned(),
-                baseline: before.mib_per_second,
+                baseline: before,
                 now: after.mib_per_second,
-                slower: after.mib_per_second < tolerance * before.mib_per_second,
+                slower: before.is_some_and(|before| after.mib_per_second < tolerance * before),
             })
         })
         .collect()
@@ -266,15 +272,28 @@ fn render_check(plan: &CheckPlan, rows: &[CheckRow]) -> String {
     );
     for row in rows {
         // Writing to a String cannot fail.
+        let (baseline, ratio, verdict) = match row.baseline {
+            Some(before) => (
+                format!("{before:.1}"),
+                format!("{:.2}", row.now / before),
+                if row.slower { "SLOWER" } else { "ok" },
+            ),
+            None => ("-".to_owned(), "-".to_owned(), "no baseline"),
+        };
         let _ = writeln!(
             text,
-            "| `{}` | {:.1} | {:.1} | {:.2} | {} |",
-            row.fixture,
-            row.baseline,
-            row.now,
-            row.now / row.baseline,
-            if row.slower { "SLOWER" } else { "ok" }
+            "| `{}` | {baseline} | {:.1} | {ratio} | {verdict} |",
+            row.fixture, row.now
         );
+    }
+    let judged = rows.iter().filter(|row| row.baseline.is_some()).count();
+    let unjudged: Vec<String> = rows
+        .iter()
+        .filter(|row| row.baseline.is_none())
+        .map(|row| format!("`{}`", row.fixture))
+        .collect();
+    if !unjudged.is_empty() {
+        let _ = writeln!(text, "\nNot judged, no baseline: {}", unjudged.join(", "));
     }
     let slower: Vec<String> = rows
         .iter()
@@ -284,15 +303,13 @@ fn render_check(plan: &CheckPlan, rows: &[CheckRow]) -> String {
     if slower.is_empty() {
         let _ = writeln!(
             text,
-            "\nPASS: {total} of {total} fixtures at or above {tolerance:.2} x baseline",
-            total = rows.len()
+            "\nPASS: {judged} of {judged} fixtures at or above {tolerance:.2} x baseline"
         );
     } else {
         let _ = writeln!(
             text,
-            "\nFAIL: {} of {} fixtures below {tolerance:.2} x baseline: {}",
+            "\nFAIL: {} of {judged} fixtures below {tolerance:.2} x baseline: {}",
             slower.len(),
-            rows.len(),
             slower.join(", ")
         );
     }
@@ -503,13 +520,77 @@ mod tests {
             "fixture sets differ: not in baseline: `sixel`; not measured: `old_name`"
         );
 
-        let mut rows = all_rows(1.0);
-        rows.pop();
-        let baseline = release("0.1.0", 160, 45, 32, rows);
+        let baseline = release("0.1.0", 160, 45, 32, Vec::new());
+        let every = FIXTURES
+            .iter()
+            .map(|fixture| format!("`{}`", fixture.name))
+            .collect::<Vec<_>>()
+            .join(", ");
         assert_eq!(
             error_text(check_baseline("b.json", &baseline)),
-            "fixture sets differ: not in baseline: `osc_9_7`; not measured: -"
+            format!("fixture sets differ: not in baseline: {every}; not measured: -")
         );
+    }
+
+    /// The first ten fixtures: what every record written before the newer ones holds.
+    fn early_rows(mib_per_second: f64) -> Vec<Throughput> {
+        let mut rows = all_rows(mib_per_second);
+        rows.truncate(10);
+        rows
+    }
+
+    #[test]
+    fn fixtures_newer_than_the_baseline_are_skipped() {
+        let baseline = release("0.1.0", 160, 45, 32, early_rows(100.0));
+        check_baseline("b.json", &baseline).unwrap();
+
+        // The new fixtures run far below any band; they still cannot fail the check.
+        let rows = compare(&early_rows(100.0), &all_rows(1.0), 0.5);
+        assert_eq!(rows.len(), FIXTURES.len());
+        let unjudged: Vec<&str> = rows
+            .iter()
+            .filter(|row| row.baseline.is_none())
+            .map(|row| row.fixture.as_str())
+            .collect();
+        assert_eq!(
+            unjudged,
+            [
+                "grapheme_clusters",
+                "hyperlinks",
+                "mode_churn",
+                "sixel_large"
+            ]
+        );
+        assert!(rows.iter().all(|row| row.baseline.is_none() != row.slower));
+        let plan = CheckPlan {
+            source: "b.json".to_owned(),
+            baseline,
+            tolerance: 0.5,
+            mib: 32,
+        };
+        let text = render_check(&plan, &rows);
+        assert!(text.contains("| `hyperlinks` | - | 1.0 | - | no baseline |\n"));
+        assert!(text.contains(
+            "\nNot judged, no baseline: `grapheme_clusters`, `hyperlinks`, `mode_churn`, `sixel_large`\n"
+        ));
+        assert!(text.ends_with("\nFAIL: 10 of 10 fixtures below 0.50 x baseline: `plain_ascii`, `long_lines`, `heavy_sgr`, `tui_redraw`, `scroll_region`, `cjk_wide`, `dense_cells`, `scrolling`, `sixel`, `osc_9_7`\n"));
+    }
+
+    #[test]
+    fn a_baseline_of_old_fixtures_passes_end_to_end() {
+        let dir = TempDir::new("early");
+        let path = dir.write_record(
+            "early.json",
+            &release("0.1.0", 160, 45, 32, early_rows(1.0)),
+        );
+        let args = strings(&["--check", "--baseline", path.to_str().unwrap()]);
+        assert!(prepare_check(&args, CLEAN, &dir.0).is_ok());
+    }
+
+    #[test]
+    fn the_shipped_history_still_checks() {
+        let (source, newest) = newest_record(&Path::new(HISTORY_DIR).join(PLATFORM)).unwrap();
+        check_baseline(&source, &newest).unwrap();
     }
 
     #[test]
@@ -650,8 +731,8 @@ mod tests {
             slower,
         };
         let rows = [
-            check_row("plain_ascii", 82.9, 81.0, false),
-            check_row("heavy_sgr", 204.1, 90.2, true),
+            check_row("plain_ascii", Some(82.9), 81.0, false),
+            check_row("heavy_sgr", Some(204.1), 90.2, true),
         ];
         let header = "\
 # vt-bench grid --check

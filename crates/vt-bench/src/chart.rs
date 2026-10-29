@@ -16,9 +16,11 @@ const MARGIN_TOP: f64 = 50.0;
 /// From the bottom of a panel up to the plot area (the release labels sit below).
 const MARGIN_BOTTOM: f64 = 40.0;
 
-const PALETTE: [&str; 10] = [
+/// One colour per fixture on the white chart: the first ten are the original set, the rest were
+/// added for the fixtures that followed. Keep it at least as long as the fixture table.
+const PALETTE: [&str; 14] = [
     "#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#ff7f0e", "#17becf", "#8c564b", "#e377c2",
-    "#7f7f7f", "#bcbd22",
+    "#7f7f7f", "#bcbd22", "#111111", "#003f5c", "#e6ab02", "#a0006b",
 ];
 
 /// One fixture's points: `(release index, MiB/s, spread %)`.
@@ -249,6 +251,15 @@ fn escape_xml(text: &str) -> String {
 mod tests {
     use super::*;
     use crate::perf_history::parse_release;
+
+    #[test]
+    fn every_fixture_gets_its_own_colour() {
+        let mut colours: Vec<&str> = PALETTE.to_vec();
+        colours.sort_unstable();
+        colours.dedup();
+        assert_eq!(colours.len(), PALETTE.len());
+        assert!(PALETTE.len() >= crate::fixtures::FIXTURES.len());
+    }
 
     #[test]
     fn nice_ceiling_survives_float_error() {

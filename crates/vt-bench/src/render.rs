@@ -121,7 +121,7 @@ mod tests {
         let rows = measure_render(4, &crate::fixtures::select(None).unwrap());
         let names: Vec<&str> = rows.iter().map(|row| row.fixture.as_str()).collect();
         let expected: Vec<&str> = FIXTURES.iter().map(|fixture| fixture.name).collect();
-        assert_eq!(names.len(), 10);
+        assert_eq!(names.len(), FIXTURES.len());
         assert_eq!(names, expected);
     }
 

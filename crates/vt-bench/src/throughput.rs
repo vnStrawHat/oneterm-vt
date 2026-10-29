@@ -24,7 +24,7 @@ impl Dispatch for NullDispatch {
 }
 
 /// Runs `pass` on each of `fixtures` for `RUNS + 1` interleaved cycles and summarizes each.
-/// The stream is regenerated per cycle (untimed) so ten fixtures are never
+/// The stream is regenerated per cycle (untimed) so the fixtures are never
 /// resident at once.
 pub(crate) fn measure_tier(
     mib: usize,
@@ -172,7 +172,7 @@ mod tests {
         let rows = measure_tier(1, &select_all(), |_| ms(1));
         let names: Vec<&str> = rows.iter().map(|row| row.fixture.as_str()).collect();
         let expected: Vec<&str> = FIXTURES.iter().map(|fixture| fixture.name).collect();
-        assert_eq!(names.len(), 10);
+        assert_eq!(names.len(), FIXTURES.len());
         assert_eq!(names, expected);
     }
 
