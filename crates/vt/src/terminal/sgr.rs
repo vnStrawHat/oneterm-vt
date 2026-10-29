@@ -3,8 +3,10 @@
 use std::fmt::Write as _;
 
 use crate::cell::{Attrs, Color, NamedColor, Rgb, Style};
+use crate::intern::StyleId;
 use crate::parser::ParamGroups;
 
+use super::State;
 use super::csi::Args;
 use super::dispatch::Handler;
 
@@ -36,6 +38,30 @@ enum Target {
     Underline,
 }
 
+impl State {
+    /// Interns the pen's new style. A hit costs one hash; only a miss that finds fewer than two
+    /// free slots (the pen and, in `set_template`, its erase cell may each need one) sweeps the
+    /// ids no cell, pen or saved cursor names, once enough misses have piled up.
+    ///
+    /// The sweep runs between sequences, so every holder of a style id is reachable, and
+    /// before the intern, so the id about to be minted is not freed.
+    fn intern_pen_style(&mut self, style: Style) -> StyleId {
+        if let Some(id) = self.interner.styles.lookup(&style) {
+            return StyleId(id);
+        }
+        if self.interner.styles.room() < 2 && self.interner.styles.needs_sweep() {
+            self.sweep_styles();
+        }
+        self.interner.style(style)
+    }
+
+    /// Frees every style id that no cell, pen or saved cursor names.
+    fn sweep_styles(&mut self) {
+        self.grid.live_style_ids(&mut self.live_ids);
+        self.interner.styles.sweep_unreferenced(&self.live_ids);
+    }
+}
+
 impl Handler<'_> {
     /// `CSI Pm m`: edits the pen's style group by group. A group the engine does not know is
     /// skipped and the rest still applies.
@@ -46,7 +72,7 @@ impl Handler<'_> {
         while let Some(group) = groups.next() {
             apply_group(&mut style, group, &mut groups);
         }
-        let id = self.state.interner.style(style);
+        let id = self.state.intern_pen_style(style);
         if id == template.style_id() {
             return;
         }

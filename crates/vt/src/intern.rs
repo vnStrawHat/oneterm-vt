@@ -3,10 +3,10 @@
 //! One [`Interner`] belongs to one terminal and is shared by its screens, so an id never
 //! changes meaning when the screens swap. Overflow is handled in two ways:
 //!
-//! - **Styles and hyperlinks never move; extras ids are reclaimed by a full-grid sweep.** A
-//!   full table reuses, inserts, or falls back: an issued id resolves to the same value for the
-//!   table's life, except that the terminal frees an extras id once no cell, pen or saved
-//!   cursor names it (every image takes one entry).
+//! - **Hyperlinks never move; style and extras ids are reclaimed by a full-grid sweep.** A
+//!   full table reuses, inserts, or falls back: an issued id resolves to the same value while a
+//!   cell, pen or saved cursor names it, and the terminal frees it once none does (every image
+//!   takes one extras entry) so the next new value can reuse the slot.
 //! - **Graphemes are collected.** [`GraphemeArena::sweep`] rebuilds the arena from the ids
 //!   still in use and returns a [`GraphemeRemap`], because unique clusters are the one kind
 //!   of attacker-reachable growth with no natural reuse.
@@ -105,8 +105,8 @@ impl Extras {
 /// A deduplicating table of small values addressed by `u16` ids.
 ///
 /// Id 0 always holds `T::default()`. Ids are never moved; one is reused only after its owner
-/// swept it as unreferenced (the terminal does this for extras only). At 65,536 entries a new
-/// value gets id 0 and is counted by [`exhausted`](Self::exhausted); known values still hit.
+/// swept it as unreferenced (the terminal does this for styles and extras). At 65,536 entries a
+/// new value gets id 0 and is counted by [`exhausted`](Self::exhausted); known values still hit.
 /// The hash is not collision-resistant; the cap bounds the worst probe chain.
 #[derive(Debug)]
 pub struct InternTable<T> {
@@ -166,6 +166,16 @@ impl<T: Copy + Eq + Hash + Default> InternTable<T> {
             .unwrap_or(&self.entries[0])
     }
 
+    /// Returns the id of `value` if it is already interned, counting nothing.
+    pub(crate) fn lookup(&self, value: &T) -> Option<u16> {
+        self.index.get(value).copied()
+    }
+
+    /// How many new values fit before the table refuses: freed slots plus the unused tail.
+    pub(crate) fn room(&self) -> usize {
+        self.free.len() + (TABLE_CAPACITY - self.entries.len())
+    }
+
     /// Returns the number of entries, id 0 included.
     pub fn entries(&self) -> usize {
         self.entries.len()
@@ -208,11 +218,14 @@ impl<T: Copy + Eq + Hash + Default> InternTable<T> {
                 continue;
             }
             if let Some(slot) = self.entries.get_mut(index) {
-                self.index.remove(slot);
                 *slot = T::default();
                 self.free.push(id);
             }
         }
+        // One `retain` instead of a `remove` per freed value: `remove` shares its probe with
+        // `get`, and that second caller stops the compiler inlining `get` into the SGR hot path
+        // (measured: `dense_cells` -12 %). Freed ids are exactly those outside `live`.
+        self.index.retain(|_, id| *id == 0 || live.contains(id));
         self.since_sweep = 0;
     }
 }
@@ -522,7 +535,8 @@ pub struct Interner {
 }
 
 impl Interner {
-    /// Returns the id of `style`; a full table gives [`StyleId::DEFAULT`].
+    /// Returns the id of `style`; a full table gives [`StyleId::DEFAULT`]. The id stays valid
+    /// while a cell or pen holds it; the terminal may reuse it once none does.
     pub fn style(&mut self, style: Style) -> StyleId {
         StyleId(self.styles.intern(style))
     }

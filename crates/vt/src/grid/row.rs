@@ -311,7 +311,8 @@ impl UnknownId {
 
 /// Checks that every id a cell holds resolves in `interner`.
 pub(crate) fn check_cell_ids(cell: Cell, interner: &Interner) -> Result<(), UnknownId> {
-    if usize::from(cell.style_id().0) >= interner.styles.entries() {
+    let style = cell.style_id().0;
+    if usize::from(style) >= interner.styles.entries() || interner.styles.is_free(style) {
         return Err(UnknownId::Style);
     }
     let extras = cell.extras_id().0;

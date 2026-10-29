@@ -417,3 +417,28 @@ fn id_zero_never_freed() {
     assert_eq!(table.intern(Extras::NONE), 0);
     assert_eq!(table.entries(), 2);
 }
+
+#[test]
+fn lookup_counts_nothing() {
+    let mut table: InternTable<Style> = InternTable::default();
+    let id = table.intern(rgb_style(1));
+    let (entries, since) = (table.entries(), table.since_sweep);
+    assert_eq!(table.lookup(&rgb_style(1)), Some(id));
+    assert_eq!(table.lookup(&rgb_style(2)), None);
+    assert_eq!(table.lookup(&Style::DEFAULT), Some(0));
+    assert_eq!(table.entries(), entries);
+    assert_eq!(table.exhausted(), 0);
+    assert_eq!(table.since_sweep, since);
+    assert!(!table.needs_sweep());
+}
+
+#[test]
+fn room_counts_free_and_unused() {
+    let mut table: InternTable<Style> = InternTable::default();
+    assert_eq!(table.room(), 65_535);
+    let ids: Vec<u16> = (1..=10).map(|n| table.intern(rgb_style(n))).collect();
+    assert_eq!(table.room(), 65_525);
+    let keep: FxHashSet<u16> = ids[..6].iter().copied().collect();
+    table.sweep_unreferenced(&keep);
+    assert_eq!(table.room(), 65_525 + 4);
+}

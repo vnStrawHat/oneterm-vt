@@ -179,7 +179,8 @@ pub struct FeedStats {
     pub aborted_dcs: u32,
     /// OSC 8 links dropped because the hyperlink or extras table was full.
     pub hyperlink_table_exhausted: u32,
-    /// SGR states that fell back to the default style because the style table was full.
+    /// SGR states that fell back to the default style because the styles in use filled the
+    /// table.
     pub style_table_exhausted: u32,
     /// Clusters cut at 16 scalars.
     pub grapheme_truncated: u32,

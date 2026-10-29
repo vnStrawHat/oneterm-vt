@@ -31,8 +31,8 @@ impl State {
         if !self.interner.extras.needs_sweep() {
             return;
         }
-        self.grid.live_extras_ids(&mut self.live_extras);
-        self.interner.extras.sweep_unreferenced(&self.live_extras);
+        self.grid.live_extras_ids(&mut self.live_ids);
+        self.interner.extras.sweep_unreferenced(&self.live_ids);
     }
 }
 

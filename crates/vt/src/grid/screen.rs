@@ -1005,6 +1005,30 @@ impl Screen {
             })
     }
 
+    /// Adds to `out` the style ids this screen holds: every cell of the rows flagged `STYLED`
+    /// (history included; the hint has no false negatives) and the pen and erase cell of both
+    /// cursors.
+    pub(crate) fn collect_style_ids(&self, out: &mut FxHashSet<u16>) {
+        for row in self
+            .slots
+            .iter()
+            .flatten()
+            .filter(|row| row.header().flags.contains(RowFlags::STYLED))
+        {
+            // Most cells of a flagged row hold the default style; skipping id 0 saves the hashing.
+            for cell in row.cells() {
+                let id = cell.style_id().0;
+                if id != 0 {
+                    out.insert(id);
+                }
+            }
+        }
+        for cursor in [&self.cursor, &self.saved_cursor] {
+            out.insert(cursor.template().style_id().0);
+            out.insert(cursor.erase().style_id().0);
+        }
+    }
+
     /// Adds to `out` the extras ids this screen holds: every cell of the rows flagged
     /// `HAS_EXTRAS` (history included; the hint has no false negatives) and both cursors' pens.
     pub(crate) fn collect_extras_ids(&self, out: &mut FxHashSet<u16>) {

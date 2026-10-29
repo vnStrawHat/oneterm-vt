@@ -137,8 +137,8 @@ struct State {
     /// `CSI 14 t` read the effective cell.
     cell_pixels: (u16, u16),
     graphics: GraphicsState,
-    /// Scratch for the extras sweep, kept for its capacity.
-    live_extras: FxHashSet<u16>,
+    /// Scratch for the style and extras sweeps, kept for its capacity.
+    live_ids: FxHashSet<u16>,
     stats: FeedStats,
     dispatched: bool,
 }
@@ -326,7 +326,7 @@ impl Terminal {
             lines_produced: 0,
             cell_pixels: (0, 0),
             graphics: GraphicsState::new(),
-            live_extras: FxHashSet::default(),
+            live_ids: FxHashSet::default(),
             stats: FeedStats::default(),
             dispatched: false,
         };
@@ -460,7 +460,7 @@ impl Terminal {
     /// The intern tables, mutably: mint the ids a hand-written cell carries.
     ///
     /// - Ids minted here stay valid while a cell in the grid carries them: `feed` sweeps
-    ///   graphemes and extras no row uses (a live grapheme id may be renumbered, its cells
+    ///   graphemes, styles and extras no row uses (a live grapheme id may be renumbered, its cells
     ///   rewritten). Mint and write in one step, before the next `feed`.
     /// - A full table answers with its fallback id (`StyleId::DEFAULT`, `ExtrasId::NONE`,
     ///   grapheme id 0; `hyperlinks.intern` answers `None`) and counts it in the table's own

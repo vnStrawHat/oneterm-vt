@@ -565,3 +565,20 @@ fn check_reports_a_swept_extras_id() {
         Err(Violation::UnknownExtras { id: ID, col: 0 })
     );
 }
+
+#[test]
+fn a_freed_style_id_is_unknown() {
+    let mut interner = Interner::default();
+    let style = Style {
+        attrs: crate::cell::Attrs::BOLD,
+        ..Style::DEFAULT
+    };
+    let id = interner.style(style);
+    let cell = Cell::EMPTY.with_style(id);
+    assert!(check_cell_ids(cell, &interner).is_ok());
+    interner.styles.sweep_unreferenced(&Default::default());
+    assert!(matches!(
+        check_cell_ids(cell, &interner),
+        Err(UnknownId::Style)
+    ));
+}

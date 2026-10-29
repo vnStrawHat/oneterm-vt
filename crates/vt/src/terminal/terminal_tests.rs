@@ -1997,3 +1997,72 @@ fn scroll_to_bottom_through_grid_mut_matches_scroll_viewport_max() {
     by_call.term.scroll_viewport(i32::MAX);
     assert_eq!(by_hand.term.viewport(), by_call.term.viewport());
 }
+
+// ---- style reclamation ----
+
+/// `n` distinct background colours (`CSI 48:2::r:g:b m`), each followed by `after`.
+fn distinct_backgrounds(count: u32, after: &str) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    for n in 1..=count {
+        let (r, g, b) = (n >> 16, (n >> 8) & 0xFF, n & 0xFF);
+        bytes.extend_from_slice(format!("\x1b[48:2::{r}:{g}:{b}m{after}").as_bytes());
+    }
+    bytes
+}
+
+fn rgb_bg(n: u32) -> Color {
+    Color::Rgb(Rgb {
+        r: (n >> 16) as u8,
+        g: (n >> 8) as u8,
+        b: n as u8,
+    })
+}
+
+#[test]
+fn styles_are_reclaimed_when_the_table_fills() {
+    let mut s = Session::sized(
+        80,
+        4,
+        Config {
+            scrollback_limit: 0,
+            ..Config::default()
+        },
+    );
+    let stats = s.feed(&distinct_backgrounds(70_000, "x\r\n"));
+    assert_eq!(stats.style_table_exhausted, 0);
+    // The last `x` sits on the row above the cursor.
+    assert_eq!(s.style_at(2, 0).bg, rgb_bg(70_000));
+}
+
+#[test]
+fn pens_survive_a_style_sweep() {
+    let red = Color::Named(NamedColor::Red);
+    let blue = Color::Named(NamedColor::Blue);
+    let mut s = Session::new(10, 3);
+    // A on the primary screen, saved by DECSC and by the alternate-screen switch; B saved on
+    // the alternate screen.
+    s.feed(b"\x1b[41m\x1b7\x1b[?1049h\x1b[44m\x1b7");
+    let stats = s.feed(&distinct_backgrounds(70_000, ""));
+    assert_eq!(stats.style_table_exhausted, 0);
+    s.feed(b"\x1b8");
+    assert_eq!(s.term.style().bg, blue);
+    s.feed(b"\x1b[?1049l");
+    assert_eq!(s.term.style().bg, red);
+    s.feed(b"\x1b[2K");
+    assert_eq!(s.style_at(0, 0).bg, red);
+}
+
+#[test]
+fn a_full_live_set_still_falls_back() {
+    let mut s = Session::sized(
+        160,
+        45,
+        Config {
+            scrollback_limit: 500,
+            ..Config::default()
+        },
+    );
+    // 87,200 cells of screen and history, each with its own style: more than the table holds.
+    let stats = s.feed(&distinct_backgrounds(70_000, "x"));
+    assert!(stats.style_table_exhausted > 0);
+}

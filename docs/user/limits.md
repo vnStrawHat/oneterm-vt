@@ -45,7 +45,7 @@ assert_eq!(stats.bytes, 10);
 | `?2027` cluster carried across chunks | 32 scalars | not carried; the next chunk starts a new cluster | `dropped_cluster_carries` |
 | cluster in a cell | 16 scalars | cut | `grapheme_truncated` |
 | grapheme arena | 262,144 entries, 1,048,576 scalars; swept after each feed | stored as a blank | `grapheme_table_exhausted` |
-| styles / extras | 65,536 each; an extras entry is freed once no cell names it (sweep every 4,096 new entries) | the default style / no link or image | `style_table_exhausted` / `hyperlink_table_exhausted` |
+| styles / extras | 65,536 each; an entry is freed once no cell names it (extras: sweep every 4,096 new entries; styles: swept when the table is full, at most once per 4,096 new styles) | the default style / no link or image | `style_table_exhausted` / `hyperlink_table_exhausted` |
 | image side | 4096 px per axis | pixels past it are dropped | - |
 | image decode buffer | 64 MiB (4096 x 4096 RGBA) | cannot be exceeded | - |
 | images waiting for `take_graphics` | 128 MiB of pixels (each image counts at least its struct size) | the oldest is dropped and released | `graphics_dropped` |
@@ -70,7 +70,7 @@ The meaning of every field is part of the API; counting something else is a majo
 | `truncated_osc` | OSC strings that lost bytes to the size cap, also those you do not route |
 | `aborted_dcs` | DCS strings ended by `CAN`/`SUB` or by the 16 MiB cap |
 | `hyperlink_table_exhausted` | OSC 8 links dropped because a table was full |
-| `style_table_exhausted` | SGR states that fell back to the default style |
+| `style_table_exhausted` | SGR states that fell back to the default style because the styles in use filled the table |
 | `grapheme_truncated` | clusters cut at 16 scalars |
 | `grapheme_table_exhausted` | clusters stored as a blank because the arena was full |
 | `dropped_cluster_carries` | `?2027` clusters over 32 scalars |

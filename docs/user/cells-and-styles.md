@@ -103,5 +103,6 @@ assert_eq!(remap.get(drop), GraphemeId(0)); // not kept: resolves to a space
 | grapheme arena | 262,144 clusters or 1,048,576 scalars | new cluster gets id 0 (a space); `exhausted()` grows |
 | hyperlinks | 65,536 links or 4 MiB of id and URI text | `intern` returns `None`: print the text, drop the link |
 
-Ids already issued never change meaning, except grapheme ids at a sweep. The counters only
-grow; compare them before and after a feed to see what was dropped.
+Ids already issued never change meaning, except grapheme ids at a sweep; an unused style or
+extras id may be reused. The counters only grow; compare them before and after a feed to see
+what was dropped.
