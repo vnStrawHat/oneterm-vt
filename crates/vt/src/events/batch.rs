@@ -6,9 +6,12 @@ use crate::parser::{MAX_OSC_PARAMS, OscParams, StringTerm};
 
 /// Arena bytes kept past [`EventBatch::clear`]; a larger capacity is shrunk back to this.
 pub(crate) const EVENT_ARENA_SOFT: usize = 1 << 20;
-/// Event and parameter-span entries kept past [`EventBatch::clear`]; a larger capacity is
-/// shrunk back to this.
-pub(crate) const EVENT_LIST_SOFT: usize = 4096;
+/// Events kept past [`EventBatch::clear`]; a larger capacity is shrunk back to this. 1 MiB at
+/// 32 bytes an event, the budget the arena has: a feed of short lines pushes one scroll event
+/// per line, and a smaller cap made every feed regrow the list.
+pub(crate) const EVENT_LIST_SOFT: usize = 1 << 15;
+/// OSC parameter spans kept past [`EventBatch::clear`]; a larger capacity is shrunk back to this.
+pub(crate) const PARAM_LIST_SOFT: usize = 4096;
 
 /// The events one `feed` produced, in byte order, with the bytes their payloads point into.
 ///
@@ -17,8 +20,9 @@ pub(crate) const EVENT_LIST_SOFT: usize = 4096;
 /// batch that produced them. A span is an index, not a borrow: kept past the next `feed` it
 /// reads other bytes (still valid UTF-8 for [`EventBatch::str`]), never anything unsafe.
 ///
-/// Every `feed` clears the batch first, and a batch that grew past 1 MiB of payload or 4096
-/// events shrinks back on that clear, so one hostile feed cannot pin its peak for the session.
+/// Every `feed` clears the batch first, and a batch that grew past 1 MiB of payload, 32,768
+/// events or 4,096 parameter spans shrinks back on that clear, so one hostile feed cannot pin
+/// its peak for the session.
 #[derive(Debug, Default)]
 pub struct EventBatch {
     events: Vec<VtEvent>,
@@ -114,8 +118,8 @@ impl EventBatch {
         if self.events.capacity() > EVENT_LIST_SOFT {
             self.events.shrink_to(EVENT_LIST_SOFT);
         }
-        if self.params.capacity() > EVENT_LIST_SOFT {
-            self.params.shrink_to(EVENT_LIST_SOFT);
+        if self.params.capacity() > PARAM_LIST_SOFT {
+            self.params.shrink_to(PARAM_LIST_SOFT);
         }
     }
 

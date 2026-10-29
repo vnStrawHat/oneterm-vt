@@ -113,19 +113,19 @@ fn finish_lossy_repairs_invalid_utf8() {
 fn clear_shrinks_past_the_soft_caps() {
     let mut batch = EventBatch::new();
     batch.push_reply(&vec![b'x'; 2 << 20]);
-    for _ in 0..10_000 {
+    for _ in 0..=EVENT_LIST_SOFT {
         batch.push(VtEvent::Bell);
     }
-    let parts: Vec<&[u8]> = vec![b"x"; 10_000];
+    let parts: Vec<&[u8]> = vec![b"x"; PARAM_LIST_SOFT + 1];
     batch.push_osc(1, &parts, StringTerm::Bel, false);
     assert!(batch.arena_capacity() > EVENT_ARENA_SOFT);
     assert!(batch.event_capacity() > EVENT_LIST_SOFT);
-    assert!(batch.param_capacity() > EVENT_LIST_SOFT);
+    assert!(batch.param_capacity() > PARAM_LIST_SOFT);
     batch.clear();
     assert!(batch.is_empty());
     assert!(batch.arena_capacity() <= EVENT_ARENA_SOFT);
     assert!(batch.event_capacity() <= EVENT_LIST_SOFT);
-    assert!(batch.param_capacity() <= EVENT_LIST_SOFT);
+    assert!(batch.param_capacity() <= PARAM_LIST_SOFT);
 }
 
 #[test]

@@ -271,7 +271,7 @@ fn a_hundred_thousand_bells_in_one_feed_do_not_pin_the_event_list() {
             .all(|event| *event == VtEvent::Bell)
     );
     feed(&mut term, &mut batch, b"a");
-    assert!(batch.event_capacity() <= 4096);
+    assert!(batch.event_capacity() <= 32_768);
 }
 
 #[test]

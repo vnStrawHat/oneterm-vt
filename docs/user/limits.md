@@ -55,7 +55,7 @@ assert_eq!(stats.bytes, 10);
 | product name | 64 bytes after dropping control characters | cut at a character | - |
 | scrollback | 10,000 default, 1,000,000 max | oldest rows trimmed (`RowsTrimmed`) | `rows_scrolled` counts entries |
 | screen size | 1024 rows x 2048 columns | clamped | - |
-| event arena and lists | shrink to 1 MiB / 4096 entries on the next `feed` | one feed's peak is never kept | - |
+| event arena and lists | shrink to 1 MiB of payload, 32,768 events or 4,096 parameter spans on the next `feed` | one feed's peak is never kept | - |
 
 ## What each counter means
 

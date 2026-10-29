@@ -7,7 +7,7 @@ mod event_tests;
 
 pub use batch::{ByteSpan, EventBatch, ParamSpans, StrSpan};
 #[cfg(test)]
-pub(crate) use batch::{EVENT_ARENA_SOFT, EVENT_LIST_SOFT};
+pub(crate) use batch::{EVENT_ARENA_SOFT, EVENT_LIST_SOFT, PARAM_LIST_SOFT};
 
 use crate::grid::RowsScrolled;
 use crate::intern::GraphicId;

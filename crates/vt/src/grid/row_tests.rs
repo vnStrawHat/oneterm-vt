@@ -637,3 +637,25 @@ fn write_ascii_keeps_a_space_blank() {
     assert_eq!(row.cells()[2], Cell::EMPTY);
     assert_eq!(text(&row), "wa b");
 }
+
+#[test]
+fn recycle_same_width_equals_new() {
+    let template = Cell::EMPTY.with_style(StyleId(4));
+    let mut spare = row_with(6, "abc");
+    RowMut::new(&mut spare, SEQ).set_wrapped(true);
+    let recycled = Row::recycle(Some(spare), ID, 6, SeqNo(9), template);
+    assert_eq!(recycled, Row::new(ID, 6, SeqNo(9), template));
+}
+
+#[test]
+fn recycle_other_width_equals_new() {
+    let spare = row_with(4, "abcd");
+    assert_eq!(
+        Row::recycle(Some(spare), ID, 7, SeqNo(9), Cell::EMPTY),
+        Row::new(ID, 7, SeqNo(9), Cell::EMPTY)
+    );
+    assert_eq!(
+        Row::recycle(None, ID, 3, SeqNo(9), Cell::EMPTY),
+        Row::new(ID, 3, SeqNo(9), Cell::EMPTY)
+    );
+}
