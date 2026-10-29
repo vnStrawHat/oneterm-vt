@@ -351,3 +351,20 @@ fn blank_cells_are_blanks_clusters_of_nothing_and_spacers() {
             .is_blank()
     );
 }
+
+#[test]
+fn with_ascii_keeps_blank_encoding() {
+    let base = Cell::EMPTY
+        .with_style(StyleId(7))
+        .with_width(CellWidth::Narrow);
+    assert_eq!(base.with_ascii(b' '), base);
+    assert_eq!(
+        base.with_ascii(b' '),
+        base.with_content(CellContent::Scalar(' '))
+    );
+    let letter = base.with_ascii(b'a');
+    assert_eq!(letter.content(), CellContent::Scalar('a'));
+    assert_eq!(letter, base.with_content(CellContent::Scalar('a')));
+    assert_eq!(letter.style_id(), StyleId(7));
+    assert_eq!(letter.width(), CellWidth::Narrow);
+}

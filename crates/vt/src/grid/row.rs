@@ -542,6 +542,29 @@ impl<'a> RowMut<'a> {
         self.changed_up_to(end, template);
     }
 
+    /// Writes the printable-ASCII `bytes` from `col` on with the pen's style, extras and zone.
+    ///
+    /// Only the two edges can split a wide pair; every cell between them is overwritten whole.
+    /// The caller keeps `col + bytes.len()` within the row and `bytes` non-empty.
+    pub(crate) fn write_ascii(&mut self, col: u16, bytes: &[u8], pen: Cell) {
+        let start = usize::from(col);
+        let end = (start + bytes.len()).min(self.row.cells.len());
+        if start >= end {
+            return;
+        }
+        self.release_pair(start);
+        self.release_pair(end - 1);
+        let base = pen
+            .with_width(CellWidth::Narrow)
+            .with_content(CellContent::Scalar(' '));
+        if let Some(cells) = self.row.cells.get_mut(start..end) {
+            for (slot, &byte) in cells.iter_mut().zip(bytes) {
+                *slot = base.with_ascii(byte);
+            }
+        }
+        self.changed_up_to(end, base);
+    }
+
     /// Records that cells up to `end` changed to `template`.
     fn changed_up_to(&mut self, end: usize, template: Cell) {
         // `end <= cols <= MAX_COLS`.

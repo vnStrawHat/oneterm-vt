@@ -152,6 +152,14 @@ impl Cell {
         self.with_field(CONTENT_MASK | GRAPHEME_BIT, 0, bits)
     }
 
+    /// Returns the cell with ASCII byte `b` as its content, for a cell whose content is blank.
+    /// A space keeps the blank encoding, so the result equals one built by `with_content`.
+    #[must_use]
+    #[inline]
+    pub(crate) fn with_ascii(self, b: u8) -> Cell {
+        Cell(self.0 | (u64::from(b) * u64::from(b != b' ')))
+    }
+
     /// Returns the cell with a new column role.
     #[must_use]
     pub fn with_width(self, width: CellWidth) -> Cell {

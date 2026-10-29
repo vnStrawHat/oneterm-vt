@@ -127,7 +127,7 @@ impl Handler<'_> {
         let mut try_run = true;
         while !text.is_empty() {
             if try_run {
-                let run = self.state.grid.print_narrow_run(text, mode, narrow);
+                let run = self.state.grid.print_run(text, mode, charset, narrow);
                 text = &text[run..];
             }
             let Some(c) = text.chars().next() else {

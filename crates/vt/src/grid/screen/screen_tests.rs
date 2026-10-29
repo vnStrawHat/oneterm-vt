@@ -1358,7 +1358,7 @@ fn narrow(c: char) -> Option<char> {
 }
 
 fn print_run(f: &mut Fixture, mode: PrintMode, text: &str) -> usize {
-    let consumed = f.grid.print_narrow_run(text, mode, narrow);
+    let consumed = f.grid.print_run(text, mode, Charset::Ascii, narrow);
     f.check();
     consumed
 }
@@ -1426,4 +1426,43 @@ fn a_narrow_run_at_a_wide_half_in_column_zero_is_left_to_the_general_path() {
     f.print(WIDE_A);
     f.goto(1, 0);
     assert_eq!(print_run(&mut f, PrintMode::default(), "x"), 0);
+}
+
+#[test]
+fn ascii_run_stops_at_the_row_end() {
+    let mut f = fixture(2, 4);
+    assert_eq!(print_run(&mut f, PrintMode::default(), "abcdef"), 4);
+    assert!(screen(&f).cursor().pending_wrap);
+    f.print("e");
+    assert_eq!(f.index_text(0), "abcd");
+    assert_eq!(f.index_text(1).trim_end(), "e");
+}
+
+#[test]
+fn ascii_run_bails_on_a_wide_half_at_col_0_or_1() {
+    // A wide glyph that wrapped leaves a filler above; the per-scalar path releases it.
+    for col in [0, 1] {
+        let mut f = fixture(3, 4);
+        f.goto(0, 3);
+        f.print(WIDE_A);
+        f.goto(1, col);
+        assert_eq!(
+            print_run(&mut f, PrintMode::default(), "xy"),
+            0,
+            "col {col}"
+        );
+        f.print("xy");
+        let top = screen(&f).row(screen(&f).row_of_index(0));
+        assert_eq!(top.cell(3).width(), CellWidth::Narrow, "col {col}");
+    }
+}
+
+#[test]
+fn ascii_run_after_col_1_ignores_a_wide_half_further_right() {
+    let mut f = fixture(2, 8);
+    f.goto(0, 4);
+    f.print(WIDE_A);
+    f.goto(0, 2);
+    assert_eq!(print_run(&mut f, PrintMode::default(), "abc"), 3);
+    assert_eq!(f.index_text(0).trim_end(), "  abc");
 }

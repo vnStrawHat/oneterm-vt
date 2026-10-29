@@ -1,7 +1,7 @@
 use super::*;
 use crate::cell::Style;
 use crate::grid::integrity::IntegrityViolation as Violation;
-use crate::intern::GraphemeId;
+use crate::intern::{ExtrasId, GraphemeId, StyleId};
 
 const SEQ: SeqNo = SeqNo(5);
 const ID: RowId = RowId(7);
@@ -581,4 +581,59 @@ fn a_freed_style_id_is_unknown() {
         check_cell_ids(cell, &interner),
         Err(UnknownId::Style)
     ));
+}
+
+#[test]
+fn write_ascii_releases_both_edges() {
+    let pen = Cell::EMPTY.with_style(StyleId(3)).with_extras(ExtrasId(2));
+    let mut row = Row::new(ID, 8, SeqNo(1), Cell::EMPTY);
+    {
+        let mut view = RowMut::new(&mut row, SEQ);
+        view.set(0, wide('A'));
+        view.set(2, wide('B'));
+        view.set(4, wide('C'));
+        view.set(6, wide('D'));
+    }
+    // Columns 1..7: the left edge is the spacer of A, the right edge the wide half of D.
+    RowMut::new(&mut row, SEQ).write_ascii(1, b"abcdef", pen);
+    assert_eq!(text(&row), " abcdef ");
+    assert!(
+        row.cells()
+            .iter()
+            .all(|cell| cell.width() == CellWidth::Narrow)
+    );
+    let cell = row.cells()[3];
+    assert_eq!(
+        (cell.style_id(), cell.extras_id()),
+        (StyleId(3), ExtrasId(2))
+    );
+    assert_eq!(row.cells()[0], Cell::EMPTY);
+    assert_eq!(row.cells()[7], Cell::EMPTY);
+    // `occ` only grows: the wide D set it to 8 before.
+    assert_eq!(row.header.occ, 8);
+    assert!(
+        row.header
+            .flags
+            .contains(RowFlags::STYLED | RowFlags::HAS_EXTRAS)
+    );
+}
+
+#[test]
+fn write_ascii_clears_wrapped_at_the_last_column_only() {
+    let mut row = Row::new(ID, 4, SeqNo(1), Cell::EMPTY);
+    let mut view = RowMut::new(&mut row, SEQ);
+    view.set_wrapped(true);
+    view.write_ascii(0, b"ab", Cell::EMPTY);
+    assert!(row.header.flags.contains(RowFlags::WRAPPED));
+    RowMut::new(&mut row, SEQ).write_ascii(2, b"cd", Cell::EMPTY);
+    assert!(!row.header.flags.contains(RowFlags::WRAPPED));
+    assert_eq!(text(&row), "abcd");
+}
+
+#[test]
+fn write_ascii_keeps_a_space_blank() {
+    let mut row = row_with(4, "wxyz");
+    RowMut::new(&mut row, SEQ).write_ascii(1, b"a b", Cell::EMPTY);
+    assert_eq!(row.cells()[2], Cell::EMPTY);
+    assert_eq!(text(&row), "wa b");
 }

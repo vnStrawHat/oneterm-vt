@@ -2066,3 +2066,10 @@ fn a_full_live_set_still_falls_back() {
     let stats = s.feed(&distinct_backgrounds(70_000, "x"));
     assert!(stats.style_table_exhausted > 0);
 }
+
+#[test]
+fn line_drawing_set_skips_the_ascii_path() {
+    let mut s = Session::new(10, 2);
+    s.feed(b"\x1b(0qqq");
+    assert_eq!(s.row(0).trim_end(), "───");
+}

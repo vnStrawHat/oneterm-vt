@@ -11,7 +11,7 @@ use rustc_hash::FxHashSet;
 use crate::grid::anchor::Anchors;
 use crate::grid::integrity::IntegrityViolation;
 use crate::grid::row::{Row, SeqNo};
-use crate::grid::screen::{DisplayClear, PrintMode, Screen, ScreenKind, ScrollReport};
+use crate::grid::screen::{Charset, DisplayClear, PrintMode, Screen, ScreenKind, ScrollReport};
 use crate::grid::{RowId, ScrollRegion, Size};
 use crate::intern::{GraphemeArena, Interner};
 
@@ -269,13 +269,14 @@ impl TerminalGrid {
         screen.print(c, width, mode, interner, anchors)
     }
 
-    pub(crate) fn print_narrow_run(
+    pub(crate) fn print_run(
         &mut self,
         text: &str,
         mode: PrintMode,
+        charset: Charset,
         narrow: impl Fn(char) -> Option<char>,
     ) -> usize {
-        self.active().0.print_narrow_run(text, mode, narrow)
+        self.active().0.print_run(text, mode, charset, narrow)
     }
 
     pub(crate) fn put_tab(&mut self, count: u16, mode: PrintMode) -> Option<ScrollReport> {

@@ -6,7 +6,7 @@
 use crate::cell::{Cell, CellContent, CellWidth};
 use crate::grid::anchor::Anchors;
 use crate::grid::row::blank_of;
-use crate::grid::screen::{Screen, ScrollReport};
+use crate::grid::screen::{Charset, Screen, ScrollReport};
 use crate::grid::{Pos, RowId};
 use crate::intern::Interner;
 
@@ -59,17 +59,27 @@ impl Screen {
     /// Prints the leading run of `text` whose scalars `narrow` maps to a single-column glyph,
     /// under one row borrow. Returns the bytes consumed.
     ///
+    /// `charset` is the set `narrow` maps through; under [`Charset::Ascii`] printable ASCII
+    /// bypasses `narrow` and is written in bulk.
+    ///
     /// It stops before anything the general path must decide: insert mode, a pending wrap that
     /// autowrap performs, a scalar `narrow` rejects, a wide-pair half at column 0 or 1 (the
     /// filler above may need releasing), and after filling the last column.
-    pub(crate) fn print_narrow_run(
+    pub(crate) fn print_run(
         &mut self,
         text: &str,
         mode: PrintMode,
+        charset: Charset,
         narrow: impl Fn(char) -> Option<char>,
     ) -> usize {
         if mode.insert || (self.cursor.pending_wrap && mode.autowrap) {
             return 0;
+        }
+        if charset == Charset::Ascii {
+            let written = self.print_ascii(text.as_bytes());
+            if written > 0 {
+                return written;
+            }
         }
         if text.chars().next().is_none_or(|c| narrow(c).is_none()) {
             return 0;
@@ -111,6 +121,44 @@ impl Screen {
         self.cursor.pending_wrap = pending_wrap;
         self.debug_check();
         consumed
+    }
+
+    /// Writes the leading printable-ASCII bytes of `bytes` that fit the cursor's row, in one
+    /// pass. Returns how many it wrote; 0 leaves everything untouched.
+    ///
+    /// The scan stops at the row end: a longer scan would re-read the rest of a long run at
+    /// every row it wraps through.
+    fn print_ascii(&mut self, bytes: &[u8]) -> usize {
+        let Pos { row, col } = self.cursor.pos;
+        let room = usize::from(self.cols - col);
+        let head = bytes.get(..room).unwrap_or(bytes);
+        let count = head
+            .iter()
+            .take_while(|byte| (0x20..=0x7E).contains(*byte))
+            .count();
+        // A wide-pair half at column 0 or 1 may have a filler on the row above that only the
+        // per-scalar path releases.
+        let first = usize::from(col);
+        if count == 0
+            || (first..(first + count).min(2)).any(|c| is_wide_half(self.row(row).cell(c as u16)))
+        {
+            return 0;
+        }
+        let pen = self.cursor.template;
+        let Some(mut target) = self.row_mut(row) else {
+            return 0;
+        };
+        target.write_ascii(col, &head[..count], pen);
+        // `count <= room`, so the sum fits the row.
+        let end = col + count as u16;
+        if end < self.cols {
+            self.cursor.pos.col = end;
+        } else {
+            self.cursor.pos.col = self.cols - 1;
+            self.cursor.pending_wrap = true;
+        }
+        self.debug_check();
+        count
     }
 
     fn print_glyph(
