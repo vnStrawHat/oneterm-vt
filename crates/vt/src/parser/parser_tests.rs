@@ -808,3 +808,66 @@ mod props {
         }
     }
 }
+
+// ---- printable-ASCII blocks ----
+
+#[test]
+fn ascii_prefix_block_edges() {
+    for len in [0, 1, 15, 16, 17, 31, 32, 33] {
+        let word = "a".repeat(len);
+        // A control, DEL, a lone C1 byte and a two-byte C1 at the end of the word.
+        for (bad, action) in [
+            (&b"\x1f"[..], Action::Execute(0x1F)),
+            (b"\x7f", Action::Execute(0x7F)),
+            (b"\x80", Action::Execute(0x80)),
+            (b"\xc2\x85", Action::Execute(0x85)),
+        ] {
+            let mut bytes = word.clone().into_bytes();
+            bytes.extend_from_slice(bad);
+            bytes.push(b'b');
+            let expected = concat(vec![prints(&word), vec![action], prints("b")]);
+            assert_eq!(feed_both_ways(&bytes), expected, "len {len}, {bad:x?}");
+        }
+        assert_eq!(feed_both_ways(word.as_bytes()), prints(&word), "len {len}");
+    }
+}
+
+#[test]
+fn every_offset_of_a_block_can_hold_the_stop_byte() {
+    for offset in 0..40 {
+        for stop in [0x00_u8, 0x1F, 0x7F] {
+            let mut bytes = vec![b'x'; 40];
+            bytes[offset] = stop;
+            let expected = concat(vec![
+                prints(&"x".repeat(offset)),
+                vec![Action::Execute(stop)],
+                prints(&"x".repeat(39 - offset)),
+            ]);
+            assert_eq!(feed(&bytes), expected, "offset {offset}, byte {stop:#x}");
+        }
+    }
+}
+
+#[test]
+fn mixed_runs_split_at_c0() {
+    let text = "ab\u{e9}c\r\u{85}d";
+    let expected = concat(vec![
+        prints("ab\u{e9}c"),
+        vec![Action::Execute(0x0D), Action::Execute(0x85)],
+        prints("d"),
+    ]);
+    assert_eq!(feed_both_ways(text.as_bytes()), expected);
+    // A character cut at the end of the chunk is finished by the next one.
+    let bytes = "ab\u{e9}c".as_bytes();
+    assert_eq!(feed_split(&[&bytes[..3], &bytes[3..]]), prints("ab\u{e9}c"));
+    // A character cut before a C0 byte is malformed, not carried.
+    let broken = feed(b"a\xe4\xb8\rb");
+    assert_eq!(
+        broken,
+        concat(vec![
+            prints("a\u{FFFD}"),
+            vec![Action::Execute(0x0D)],
+            prints("b")
+        ])
+    );
+}

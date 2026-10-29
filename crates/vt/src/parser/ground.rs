@@ -34,10 +34,53 @@ impl Parser {
         tail.get(1..).unwrap_or_default()
     }
 
-    /// Decodes a run without `ESC`. Valid text goes to `print_str`; each maximal invalid
-    /// subpart becomes one replacement character, except a lone `0x80..=0x9F`, which is an
-    /// 8-bit C1 control. Linear in the run length: every byte is examined once.
+    /// Prints a run without `ESC`: printable ASCII in blocks, a C0 byte or `DEL` as a control,
+    /// and anything from `0x80` on, up to the next C0 byte, through [`Self::print_run_general`].
+    ///
+    /// A C0 byte never sits inside a valid UTF-8 sequence, so cutting the run there changes no
+    /// decoding. Only the segment that reaches the run end may leave a character cut by the
+    /// chunk, so only it gets the caller's `end`.
     fn print_run<D: Dispatch + ?Sized>(&mut self, dispatch: &mut D, run: &[u8], end: RunEnd) {
+        let mut rest = run;
+        loop {
+            let ascii = ascii_prefix(rest);
+            if let Some(text) = rest.get(..ascii).and_then(|head| str::from_utf8(head).ok())
+                && !text.is_empty()
+            {
+                dispatch.print_str(text);
+            }
+            rest = rest.get(ascii..).unwrap_or_default();
+            let Some(&byte) = rest.first() else {
+                return;
+            };
+            if byte < 0x20 || byte == 0x7F {
+                dispatch.execute(byte);
+                rest = rest.get(1..).unwrap_or_default();
+                continue;
+            }
+            let stop = rest
+                .iter()
+                .position(|&byte| byte < 0x20)
+                .unwrap_or(rest.len());
+            let segment_end = if stop == rest.len() {
+                end
+            } else {
+                RunEnd::Byte
+            };
+            self.print_run_general(dispatch, rest.get(..stop).unwrap_or_default(), segment_end);
+            rest = rest.get(stop..).unwrap_or_default();
+        }
+    }
+
+    /// Decodes a run without `ESC` or C0 bytes. Valid text goes to `print_text`; each maximal
+    /// invalid subpart becomes one replacement character, except a lone `0x80..=0x9F`, which is
+    /// an 8-bit C1 control. Linear in the run length: every byte is examined once.
+    fn print_run_general<D: Dispatch + ?Sized>(
+        &mut self,
+        dispatch: &mut D,
+        run: &[u8],
+        end: RunEnd,
+    ) {
         let mut offset = 0;
         for chunk in run.utf8_chunks() {
             let invalid = chunk.invalid();
@@ -148,4 +191,26 @@ fn print_text<D: Dispatch + ?Sized>(dispatch: &mut D, text: &str) {
         dispatch.execute(control);
         rest = rest.get(index + width..).unwrap_or_default();
     }
+}
+
+/// Length of the leading run of printable ASCII (`0x20..=0x7E`) in `bytes`.
+///
+/// Whole 16-byte blocks are tested without a branch per byte so the test vectorises; the first
+/// block with a byte outside the range is finished byte by byte.
+fn ascii_prefix(bytes: &[u8]) -> usize {
+    let mut done = 0;
+    for block in bytes.chunks_exact(16) {
+        let outside = block
+            .iter()
+            .fold(false, |bad, &byte| bad | (byte.wrapping_sub(0x20) >= 0x5F));
+        if outside {
+            break;
+        }
+        done += 16;
+    }
+    let rest = bytes.get(done..).unwrap_or_default();
+    done + rest
+        .iter()
+        .position(|&byte| byte.wrapping_sub(0x20) >= 0x5F)
+        .unwrap_or(rest.len())
 }
