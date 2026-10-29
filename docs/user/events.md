@@ -112,7 +112,8 @@ assert_eq!(words, [&b"7501"[..], b"a", b"b"]); // one span per `;`, parameter 0 
 ```
 
 A payload over 2 KiB is cut and `truncated` is set; `OscRoutes::large(code, true)` raises that
-ceiling to 8 MiB for one number (only while its route is not `Drop`).
+ceiling to 8 MiB for one number (only while its route is not `Drop`). A truncated OSC 8 opens no
+link and closes the open one (it counts as unhandled); call `large(8, true)` to link URIs over 2 KiB.
 
 ## Embedder checklist
 

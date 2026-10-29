@@ -95,6 +95,10 @@ pty.deregister(&poller)?;
 Writes may be short; `Err(WouldBlock)` means no room (`write_all` fails under back-pressure): keep the
 rest, retry on a writable event. POSIX `read()`/`write()` semantics, on every platform.
 
+Read output is never dropped: if you read slower than the child writes, the child is blocked (kernel
+pty buffer on Unix; the 1 MiB output ring waits on Windows). Bytes are discarded only after the reader
+is dropped.
+
 ## Platforms
 
 | | Unix | Windows (10 1809+) |

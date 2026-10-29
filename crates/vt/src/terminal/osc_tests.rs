@@ -511,6 +511,57 @@ fn a_hyperlink_keeps_the_style_and_a_style_keeps_the_hyperlink() {
     );
 }
 
+fn linked_cells(session: &Session, cols: u16) -> usize {
+    let screen = session.term.screen();
+    let row = screen.row(screen.row_of_index(0));
+    (0..cols)
+        .filter(|&col| {
+            let id = row.cell(col).extras_id();
+            session
+                .term
+                .interner()
+                .resolve_extras(id)
+                .hyperlink
+                .is_some()
+        })
+        .count()
+}
+
+#[test]
+fn a_truncated_osc_8_opens_no_link_and_closes_the_open_one() {
+    let uri = format!("http://x.test/{}", "a".repeat(3000));
+    let mut session = Session::new(20, 2);
+    let stats = session.feed(format!("]8;;http://ok]8;;{uri}ab").as_bytes());
+    assert_eq!((stats.truncated_osc, stats.unhandled_sequences), (1, 1));
+    assert_eq!(linked_cells(&session, 2), 0);
+}
+
+#[test]
+fn a_large_osc_8_keeps_the_full_uri() {
+    let uri = format!("http://x.test/{}", "a".repeat(3000));
+    let mut config = Config::default();
+    config.osc_routes.large(8, true);
+    let mut session = Session::sized(20, 2, config);
+    let stats = session.feed(format!("]8;;{uri}ab").as_bytes());
+    assert_eq!((stats.truncated_osc, stats.unhandled_sequences), (0, 0));
+    assert_eq!(linked_cells(&session, 2), 2);
+    let screen = session.term.screen();
+    let id = screen.row(screen.row_of_index(0)).cell(0).extras_id();
+    let link = session
+        .term
+        .interner()
+        .resolve_extras(id)
+        .hyperlink
+        .expect("linked");
+    let resolved = session
+        .term
+        .interner()
+        .hyperlinks
+        .resolve(link)
+        .expect("stored");
+    assert_eq!(&*resolved.uri, uri);
+}
+
 #[test]
 fn osc_8_with_too_few_parameters_is_unhandled() {
     let (_, stats) = run("8;");

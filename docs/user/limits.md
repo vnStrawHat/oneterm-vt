@@ -36,7 +36,7 @@ assert_eq!(stats.bytes, 10);
 | CSI/DCS parameters (sub-parameters included) | 32 | the sequence is ignored | `unhandled_sequences` |
 | intermediates | 2 | the sequence is ignored | `unhandled_sequences` |
 | a parameter value | 65,535 | saturates; each consumer clamps | - |
-| OSC payload | 2 KiB; 8 MiB for a number given `OscRoutes::large` and not `Drop` | tail dropped, `truncated` set | `truncated_osc` |
+| OSC payload | 2 KiB; 8 MiB for a number given `OscRoutes::large` and not `Drop` | tail dropped, `truncated` set; a truncated OSC 8 or OSC 7 is rejected, so no link opens | `truncated_osc` |
 | OSC parameters | 16 from the parser, the last re-split on `;` | one span per `;` for builtins and forwarded OSCs; at most payload bytes + 1 spans, plus up to 15 for the separators the parser already split | - |
 | DCS / APC payload | 16 MiB | aborted, no answer | `aborted_dcs` (DCS) |
 | DECRQSS / XTGETTCAP payload | 8 KiB | no answer | `unhandled_sequences` (once) |

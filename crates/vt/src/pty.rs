@@ -34,6 +34,10 @@
 //!
 //! A write may be short, and fails with `WouldBlock` when there is no room at all; keep the rest
 //! and retry on a writable event. `write_all` therefore fails under back-pressure.
+//!
+//! Read output is never dropped: when the embedder reads slower than the child writes, the child
+//! is blocked (the kernel pty buffer on Unix, the 1 MiB output ring on Windows). Bytes are only
+//! discarded after the reader is dropped.
 
 use std::collections::HashMap;
 use std::io;

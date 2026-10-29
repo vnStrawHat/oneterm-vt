@@ -51,7 +51,7 @@ impl Handler<'_> {
             1 => self.osc_icon_name(params),
             4 => self.osc_palette(params, term),
             7 => self.osc_cwd(params, truncated),
-            8 => self.osc_hyperlink(params),
+            8 => self.osc_hyperlink(params, truncated),
             9 => self.osc_notification(params, truncated),
             10..=12 => self.osc_dynamic(code, params, term),
             17 => self.osc_selection_color(ColorKey::SelectionBackground, params, term),
@@ -154,8 +154,14 @@ impl Handler<'_> {
         self.out.push(VtEvent::Cwd { host, path });
     }
 
-    /// OSC 8.
-    fn osc_hyperlink(&mut self, params: &OscParams<'_>) {
+    /// OSC 8. A truncated URI would link to a cut-off prefix, so it opens no link and closes any
+    /// open one.
+    fn osc_hyperlink(&mut self, params: &OscParams<'_>, truncated: bool) {
+        if truncated {
+            self.set_pen_hyperlink(None);
+            self.unhandled();
+            return;
+        }
         if params.len() <= 2 {
             self.unhandled();
             return;
