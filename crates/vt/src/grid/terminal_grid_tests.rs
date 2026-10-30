@@ -529,3 +529,46 @@ fn live_extras_ids_skips_unhinted_rows() {
         "only the empty entry is held: {live:?}"
     );
 }
+
+#[test]
+fn live_extras_ids_read_only_the_used_prefix() {
+    use crate::intern::ExtrasId;
+    use rustc_hash::FxHashSet;
+
+    let mut f = fixture(3, 10);
+    let held = linked(&mut f, 1);
+    let stale = linked(&mut f, 2);
+    f.print("ab");
+    pen(&mut f, held);
+    f.print("c");
+    pen(&mut f, ExtrasId::NONE);
+    f.check();
+    let row = f.grid.screen().row(f.grid.screen().row_of_index(0));
+    assert_eq!(row.occ(), 3);
+    let mut live = FxHashSet::default();
+    f.grid.live_extras_ids(&mut live);
+    assert!(live.contains(&held.0));
+    assert!(!live.contains(&stale.0));
+}
+
+#[test]
+fn live_style_ids_read_an_erased_tail() {
+    use rustc_hash::FxHashSet;
+
+    let mut f = fixture(3, 10);
+    f.print("abc");
+    // Rows scrolled in under a styled pen are reset to the erase cell: `occ` 0, every cell red.
+    red_pen(&mut f);
+    for _ in 0..3 {
+        f.newline();
+    }
+    // Only the row holds the red style now: the pen and the erase cell are back to default.
+    f.set_style(Style::DEFAULT);
+    let row = f.grid.screen().row(f.grid.screen().row_of_index(2));
+    assert_eq!(row.occ(), 0, "every red cell is in the uniform tail");
+    let red = row.cell(5).style_id().0;
+    assert_ne!(red, 0);
+    let mut live = FxHashSet::default();
+    f.grid.live_style_ids(&mut live);
+    assert!(live.contains(&red), "{live:?}");
+}

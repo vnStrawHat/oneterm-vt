@@ -1135,8 +1135,17 @@ impl Screen {
             .flatten()
             .filter(|row| row.header().flags.contains(RowFlags::STYLED))
         {
-            // Most cells of a flagged row hold the default style; skipping id 0 saves the hashing.
-            for cell in row.cells() {
+            // Cells from `occ` on equal the last one, so the prefix and the last cell hold
+            // every id of the row. Most cells hold the default style; skipping id 0 saves the
+            // hashing.
+            let cells = row.cells();
+            let used = usize::from(row.header().occ).min(cells.len());
+            for cell in cells
+                .get(..used)
+                .unwrap_or_default()
+                .iter()
+                .chain(cells.last())
+            {
                 let id = cell.style_id().0;
                 if id != 0 {
                     out.insert(id);
@@ -1158,8 +1167,16 @@ impl Screen {
             .flatten()
             .filter(|row| row.header().flags.contains(RowFlags::HAS_EXTRAS))
         {
-            // Most cells of a flagged row hold none; skipping id 0 saves the hashing.
-            for cell in row.cells() {
+            // Cells from `occ` on equal the last one, so the prefix and the last cell hold
+            // every id of the row. Most cells hold none; skipping id 0 saves the hashing.
+            let cells = row.cells();
+            let used = usize::from(row.header().occ).min(cells.len());
+            for cell in cells
+                .get(..used)
+                .unwrap_or_default()
+                .iter()
+                .chain(cells.last())
+            {
                 let id = cell.extras_id().0;
                 if id != 0 {
                     out.insert(id);
