@@ -20,12 +20,12 @@ changing the corpus, goldens or harness. What stays behind and why: end of evide
 
 ## Acceptance criteria
 
-- [ ] Steps S1-S8 landed in order (files.md), gate green after each, one commit each
-- [ ] Every per-step threshold in files.md met (pinned `vt-bench grid`, median of 5, 32 MiB)
-- [ ] No guard fixture below 0.95 x its value before the step; `vt-bench grid --check` passes
-- [ ] `compare verify --engine oneterm`: the 21 golden fixtures still ok
-- [ ] Public API snapshot unchanged (`scripts/public-api.sh check`, CI)
-- [ ] `docs/user/events.md` updated in S8
+- [x] Steps S1-S8 landed in order (files.md), gate green after each, one commit each
+- [x] Every per-step threshold in files.md met (pinned `vt-bench grid`, median of 5, 32 MiB)
+- [x] No guard fixture below 0.95 x its value before the step; `vt-bench grid --check` passes
+- [x] `compare verify --engine oneterm`: the 21 golden fixtures still ok (21/21)
+- [x] Public API snapshot unchanged (`scripts/public-api.sh check`, CI)
+- [x] `docs/user/events.md` updated in S8
 - [ ] `compare run --machine i7-12700-win11` re-run and committed; `acceptance.md` filled
 
 ## Steps and expected gains (prototype, pinned MiB/s; best engine from the compare run)
@@ -52,9 +52,9 @@ HEAD -> S8 elsewhere: `heavy_sgr` 266 -> 306, `plain_ascii` 671 -> 776, `scrolli
 2. Clusters need no raw-entry table: a hash-to-id map plus a chain in the spans (S4).
 3. No `unsafe`, no new dependency, no public API change in any step.
 
-## Owner decision (open)
+## Owner decision (approved)
 
-- **S8 changes what the alternate screen reports for a partial region at its top** (vim and
+- **S8 (owner approved, landed last) changes what the alternate screen reports for a partial region at its top** (vim and
   less with a status line): one `RowsScrolled` over the region (delta -n) instead of
   `RowsScrolled` below it (+n) plus `RowsTrimmed`, and alternate row ids stop advancing on
   such scrolls. Counters keep their meaning. Gain: `scroll_region_small` 33.0 -> 58.5 MiB/s

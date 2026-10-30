@@ -628,6 +628,112 @@ fn rep_of_a_mark_attaches_each_copy() {
 }
 
 #[test]
+fn alt_partial_top_region_scrolls_in_place() {
+    let mut s = Session::new(10, 24);
+    s.feed(b"\x1b[?1049h\x1b[1;22r\x1b[22;1H");
+    let newest = s.term.screen().newest();
+    let top = s.term.screen().screen_top();
+    let lines = s.term.lines_produced();
+    let stats = s.feed("y\r\n".repeat(30).as_bytes());
+    assert_eq!(stats.rows_scrolled, 30);
+    assert_eq!(s.term.lines_produced(), lines + 30);
+    assert_eq!(s.term.screen().newest(), newest);
+    assert_eq!(s.term.screen().screen_top(), top);
+    let scrolls = s.events();
+    assert!(!scrolls.is_empty());
+    for event in scrolls {
+        assert_eq!(
+            *event,
+            VtEvent::RowsScrolled(crate::grid::RowsScrolled {
+                top,
+                bottom: top + 21,
+                delta: -1,
+            })
+        );
+    }
+    assert_eq!(s.row(21).trim_end(), "");
+    assert_eq!(s.row(20).trim_end(), "y");
+    s.feed(b"\x1b[2S");
+    assert_eq!(s.term.lines_produced(), lines + 32);
+}
+
+#[test]
+fn alt_full_screen_scroll_still_pushes() {
+    let mut s = Session::new(10, 24);
+    s.feed(b"\x1b[?1049h\x1b[24;1H");
+    let newest = s.term.screen().newest();
+    let stats = s.feed("\n".repeat(50).as_bytes());
+    assert_eq!(stats.rows_scrolled, 50);
+    assert_eq!(s.term.screen().newest(), newest + 50);
+    let trims = s
+        .events()
+        .into_iter()
+        .filter(|event| matches!(event, VtEvent::RowsTrimmed { .. }))
+        .count();
+    assert_eq!(trims, 50);
+}
+
+#[test]
+fn alt_full_region_set_explicitly_still_pushes() {
+    let mut s = Session::new(10, 24);
+    s.feed(b"\x1b[?1049h\x1b[1;24r\x1b[24;1H");
+    let newest = s.term.screen().newest();
+    let stats = s.feed("\n".repeat(10).as_bytes());
+    assert_eq!(stats.rows_scrolled, 10);
+    assert_eq!(s.term.screen().newest(), newest + 10);
+    let trims = s
+        .events()
+        .into_iter()
+        .filter(|event| matches!(event, VtEvent::RowsTrimmed { .. }))
+        .count();
+    assert_eq!(trims, 10);
+}
+
+#[test]
+fn alt_delete_lines_at_the_top_of_a_partial_region_moves_rows() {
+    let mut s = Session::new(10, 6);
+    s.feed(b"\x1b[?1049h");
+    for (index, letter) in "abcdef".chars().enumerate() {
+        s.feed(format!("\x1b[{};1H{letter}", index + 1).as_bytes());
+    }
+    let newest = s.term.screen().newest();
+    let lines = s.term.lines_produced();
+    let stats = s.feed(b"\x1b[1;4r\x1b[1;1H\x1b[M");
+    assert_eq!(stats.rows_scrolled, 1);
+    assert_eq!(s.term.lines_produced(), lines + 1);
+    assert_eq!(s.term.screen().newest(), newest);
+    let text: Vec<String> = (0..6)
+        .map(|index| s.row(index).trim_end().to_string())
+        .collect();
+    assert_eq!(text, ["b", "c", "d", "", "e", "f"]);
+    assert!(
+        s.events()
+            .iter()
+            .all(|event| !matches!(event, VtEvent::RowsTrimmed { .. }))
+    );
+}
+
+#[test]
+fn leaving_the_alternate_screen_after_in_place_scrolls_keeps_the_primary_ids() {
+    let mut s = Session::new(10, 8);
+    s.feed(b"one\r\ntwo\r\nthree\r\n");
+    let (oldest, newest, top) = {
+        let screen = s.term.screen();
+        (screen.oldest(), screen.newest(), screen.screen_top())
+    };
+    s.feed(b"\x1b[?1049h\x1b[1;5r\x1b[5;1H");
+    s.feed("y\r\n".repeat(40).as_bytes());
+    s.feed(b"\x1b[?1049l");
+    let screen = s.term.screen();
+    assert_eq!(
+        (screen.oldest(), screen.newest(), screen.screen_top()),
+        (oldest, newest, top)
+    );
+    assert_eq!(s.row(0).trim_end(), "one");
+    assert_eq!(s.row(2).trim_end(), "three");
+}
+
+#[test]
 fn a_background_only_pen_is_its_own_erase_style() {
     use crate::intern::StyleId;
     let styles = |s: &Session| s.term.interner().styles.entries();

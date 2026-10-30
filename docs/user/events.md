@@ -52,7 +52,7 @@ redraw, not damage.
 | `GraphicReleased(GraphicId)` | a Sixel image left the grid (see [graphics](graphics.md)) | free the texture made from that id; ids never return |
 | `CursorStyleChanged` | `Terminal::cursor_style()` differs now | redraw the cursor |
 | `ScreenCleared` | ED 2, ED 3 or RIS (before their scroll events) | drop caches of the screen |
-| `RowsScrolled(..)` / `RowsTrimmed { oldest }` | content moved ids / history rows fell off | move or drop caches keyed on `RowId` |
+| `RowsScrolled(..)` / `RowsTrimmed { oldest }` | content moved ids / history rows fell off; a partial region at the top of the alternate screen moves its rows (`RowsScrolled`), nothing is trimmed | move or drop caches keyed on `RowId` |
 | `Osc { code, params, terminator, truncated }` | an OSC you routed to yourself | see below |
 | `Repaint` | the feed made at least one dispatch call | draw |
 

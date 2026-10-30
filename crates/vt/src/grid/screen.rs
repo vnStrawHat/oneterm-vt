@@ -843,8 +843,10 @@ impl Screen {
 
     /// Scrolls `region` up by `n` rows, blanking the rows opened at its bottom.
     ///
-    /// A region that starts at the top of the screen feeds the scrolled-out rows to the
-    /// history; rows below such a region keep their screen index. Any other region drops them.
+    /// A region that starts at the top of the primary screen, or covers the whole alternate
+    /// screen, feeds the scrolled-out rows to the history; rows below such a region keep their
+    /// screen index. Any other region drops them and rotates in place; the alternate screen still
+    /// counts the rows leaving its top as history rows, which it drops at once.
     #[cfg_attr(feature = "hotpath-profiling", hotpath::measure(impl_type = "Screen"))]
     pub(crate) fn scroll_up(
         &mut self,
@@ -855,7 +857,8 @@ impl Screen {
         let Some((region, n)) = self.clamp_scroll(region, n) else {
             return ScrollReport::NONE;
         };
-        let report = if region.top == 0 {
+        let in_place = self.kind == ScreenKind::Alternate && region.bottom < self.rows;
+        let report = if region.top == 0 && !in_place {
             self.scroll_up_into_history(region, n, anchors)
         } else {
             let lo = self.screen_top() + u64::from(region.top);
@@ -869,6 +872,8 @@ impl Screen {
                     bottom: lo + (len - 1),
                     delta: -i32::from(n),
                 }),
+                // The alternate screen's top rows still leave the top of the screen.
+                history_rows: if region.top == 0 { n } else { 0 },
                 ..ScrollReport::NONE
             }
         };
