@@ -32,6 +32,26 @@ impl Default for PrintMode {
     }
 }
 
+/// Length of the leading printable ASCII (`0x20..=0x7E`) of `bytes`: whole 16-byte blocks
+/// with a branch-free test, then bytes. Text from the parser's ASCII path is all printable.
+fn printable_ascii_prefix(bytes: &[u8]) -> usize {
+    let mut done = 0;
+    for block in bytes.chunks_exact(16) {
+        let outside = block
+            .iter()
+            .fold(false, |bad, &byte| bad | (byte.wrapping_sub(0x20) >= 0x5F));
+        if outside {
+            break;
+        }
+        done += 16;
+    }
+    let rest = bytes.get(done..).unwrap_or_default();
+    done + rest
+        .iter()
+        .position(|&byte| byte.wrapping_sub(0x20) >= 0x5F)
+        .unwrap_or(rest.len())
+}
+
 /// Whether `cell` is half of a wide glyph.
 fn is_wide_half(cell: Cell) -> bool {
     matches!(cell.width(), CellWidth::Wide | CellWidth::WideSpacer)
@@ -83,11 +103,24 @@ impl Screen {
                 return written;
             }
         }
-        if text.chars().next().is_none_or(|c| glyph(c).is_none()) {
+        self.print_glyph_run(text, glyph)
+    }
+
+    /// The general part of [`print_run`](Self::print_run): one glyph at a time, writing the run
+    /// with one pair release at each edge and one `occ` and hint update.
+    ///
+    /// Kept out of line: inlined, its frame slowed the ASCII path of short prints.
+    #[inline(never)]
+    fn print_glyph_run(&mut self, text: &str, glyph: impl Fn(char) -> Option<(char, u8)>) -> usize {
+        let Some((_, first_width)) = text.chars().next().and_then(&glyph) else {
             return 0;
-        }
+        };
         let Pos { row, mut col } = self.cursor.pos;
         if col <= 1 && is_wide_half(self.row(row).cell(col)) {
+            return 0;
+        }
+        // A wide glyph that needs the last column is the general path's (filler and wrap).
+        if first_width == 2 && col + 1 >= self.cols {
             return 0;
         }
         let (pen, cols) = (self.cursor.template, self.cols);
@@ -96,6 +129,9 @@ impl Screen {
         let Some(mut target) = self.row_mut(row) else {
             return 0;
         };
+        let start = col;
+        let mut orphan = false;
+        target.begin_run(start);
         for c in text.chars() {
             let Some((mapped, width)) = glyph(c) else {
                 break;
@@ -112,9 +148,8 @@ impl Screen {
                 if col + 1 >= cols {
                     break;
                 }
-                // `set` writes the spacer too and releases the pairs it overwrites.
-                target.set(
-                    col,
+                orphan = target.put_glyph(
+                    usize::from(col),
                     pen.with_content(CellContent::Scalar(mapped))
                         .with_width(CellWidth::Wide),
                 );
@@ -127,8 +162,8 @@ impl Screen {
                 pending_wrap = true;
                 break;
             }
-            target.set(
-                col,
+            orphan = target.put_glyph(
+                usize::from(col),
                 pen.with_content(CellContent::Scalar(mapped))
                     .with_width(CellWidth::Narrow),
             );
@@ -139,6 +174,10 @@ impl Screen {
                 pending_wrap = true;
                 break;
             }
+        }
+        let end = if pending_wrap { cols } else { col };
+        if end > start {
+            target.finish_run(end, pen, orphan);
         }
         self.cursor.pos.col = col;
         self.cursor.pending_wrap = pending_wrap;
@@ -155,10 +194,7 @@ impl Screen {
         let Pos { row, col } = self.cursor.pos;
         let room = usize::from(self.cols - col);
         let head = bytes.get(..room).unwrap_or(bytes);
-        let count = head
-            .iter()
-            .take_while(|byte| (0x20..=0x7E).contains(*byte))
-            .count();
+        let count = printable_ascii_prefix(head);
         // A wide-pair half at column 0 or 1 may have a filler on the row above that only the
         // per-scalar path releases.
         let first = usize::from(col);

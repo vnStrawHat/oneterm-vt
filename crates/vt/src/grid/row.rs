@@ -507,9 +507,13 @@ impl<'a> RowMut<'a> {
         let end = match cell.width() {
             CellWidth::Wide if index + 1 < len => {
                 self.release_pair(index + 1);
-                self.store(index, cell);
-                self.store(index + 1, spacer_of(cell));
-                index + 2
+                if let Some([left, right]) = self.row.cells.get_mut(index..index + 2) {
+                    *left = cell;
+                    *right = spacer_of(cell);
+                }
+                // The spacer carries the wide cell's style and extras, so one update covers both.
+                self.changed_up_to(index + 2, cell);
+                return;
             }
             CellWidth::Narrow => {
                 self.store(index, cell);
@@ -574,6 +578,46 @@ impl<'a> RowMut<'a> {
             }
         }
         self.changed_up_to(end, base);
+    }
+
+    /// Writes one glyph of a print run at `index` (`Wide` also writes its spacer) without
+    /// releasing pairs or updating `occ` and the hints: the caller released the run's left edge
+    /// first and calls [`finish_run`](Self::finish_run) after the last glyph. Returns whether
+    /// the last cell it overwrote was a `Wide`, whose spacer the run may leave orphaned.
+    pub(crate) fn put_glyph(&mut self, index: usize, cell: Cell) -> bool {
+        let span = if cell.width() == CellWidth::Wide {
+            2
+        } else {
+            1
+        };
+        let Some(slots) = self.row.cells.get_mut(index..index + span) else {
+            return false;
+        };
+        let was_wide = slots
+            .last()
+            .is_some_and(|old| old.width() == CellWidth::Wide);
+        if let [left, right] = slots {
+            *left = cell;
+            *right = spacer_of(cell);
+        } else if let [only] = slots {
+            *only = cell;
+        }
+        was_wide
+    }
+
+    /// Starts a print run at `col`: releases the pair the run's first cell splits.
+    pub(crate) fn begin_run(&mut self, col: u16) {
+        self.release_pair(usize::from(col));
+    }
+
+    /// Ends a print run of `pen` glyphs over `start..end`: blanks the spacer a last overwritten
+    /// `Wide` left at `end`, then records the change once.
+    pub(crate) fn finish_run(&mut self, end: u16, pen: Cell, orphan: bool) {
+        let end = usize::from(end);
+        if orphan && self.width_at(end) == Some(CellWidth::WideSpacer) {
+            self.blank_cell(end);
+        }
+        self.changed_up_to(end, pen);
     }
 
     /// Records that cells up to `end` changed to `template`.

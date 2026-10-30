@@ -659,3 +659,14 @@ fn recycle_other_width_equals_new() {
         Row::new(ID, 3, SeqNo(9), Cell::EMPTY)
     );
 }
+
+#[test]
+fn set_wide_updates_occ_and_hints_once() {
+    let mut row = Row::new(ID, 8, SeqNo(1), Cell::EMPTY);
+    let mut view = RowMut::new(&mut row, SEQ);
+    view.set(3, wide('W').with_style(StyleId(2)));
+    assert_eq!(view.row.header.occ, 5);
+    assert!(view.row.header.flags.contains(RowFlags::STYLED));
+    assert_eq!(view.cells()[4].width(), CellWidth::WideSpacer);
+    assert_eq!(view.cells()[4].style_id(), StyleId(2));
+}

@@ -1530,6 +1530,131 @@ fn wide_glyph_overwrites_pairs_in_run() {
     f.check();
 }
 
+/// A 1-row-visible fixture whose first row holds `prefill` (printed from column 0).
+fn row_filled_with(cols: u16, prefill: &str) -> Fixture {
+    let mut f = fixture(2, cols);
+    f.print(prefill);
+    f
+}
+
+/// What the run must equal: each glyph of `text[..consumed]` written with `RowMut::set`.
+fn write_glyph_by_glyph(f: &mut Fixture, col: u16, text: &str) -> (u16, bool) {
+    let (pen, cols) = (screen(f).cursor().template, screen(f).cols());
+    let row = screen(f).cursor().pos.row;
+    let (mut col, mut pending_wrap) = (col, false);
+    let mut target = f.grid.screen_mut().row_mut(row).expect("live row");
+    for c in text.chars() {
+        let width = crate::width::scalar_width(c);
+        let kind = if width == 2 {
+            CellWidth::Wide
+        } else {
+            CellWidth::Narrow
+        };
+        target.set(
+            col,
+            pen.with_content(CellContent::Scalar(c)).with_width(kind),
+        );
+        if col + u16::from(width) < cols {
+            col += u16::from(width);
+        } else {
+            pending_wrap = true;
+            col = cols - 1;
+            break;
+        }
+    }
+    (col, pending_wrap)
+}
+
+#[test]
+fn glyph_run_releases_only_its_edges() {
+    // Row [n W S n W S W S]; the run "a" + wide starts on the spacer at 2 and ends on the Wide
+    // at 4, so the Wide at 1 (left edge) and the spacer at 5 (right edge) are blanked, and
+    // the pair at 6-7 is not touched.
+    let mut f = row_filled_with(10, "n\u{4E2D}n\u{4E2D}\u{4E2D}");
+    f.goto(0, 2);
+    let text = "a\u{4E2D}";
+    let consumed = f.grid.print_run(
+        text,
+        PrintMode::default(),
+        Charset::SpecialCharacterAndLineDrawing,
+        narrow,
+    );
+    assert_eq!(consumed, text.len());
+    f.check();
+    assert_eq!(f.index_text(0).trim_end(), "n a\u{4E2D} \u{4E2D}");
+}
+
+#[test]
+fn glyph_run_blanks_the_spacer_it_orphans_at_its_end() {
+    // Wide pair at 2-3; a run of two narrow glyphs over 1..3 leaves the spacer at 3 orphaned.
+    let mut f = row_filled_with(10, "ab\u{4E2D}");
+    f.goto(0, 1);
+    let consumed = f.grid.print_run(
+        "xy",
+        PrintMode::default(),
+        Charset::SpecialCharacterAndLineDrawing,
+        narrow,
+    );
+    assert_eq!(consumed, 2);
+    f.check();
+    assert_eq!(f.index_text(0).trim_end(), "axy");
+}
+
+#[test]
+fn wide_glyph_at_the_last_column_keeps_the_pair_under_nowrap() {
+    let mut f = row_filled_with(10, "01234567\u{4E2D}");
+    let no_wrap = PrintMode {
+        autowrap: false,
+        ..PrintMode::default()
+    };
+    f.goto(0, 9);
+    let consumed = f.grid.print_run(
+        "\u{4E2D}",
+        no_wrap,
+        Charset::SpecialCharacterAndLineDrawing,
+        narrow,
+    );
+    assert_eq!(consumed, 0);
+    f.check();
+    assert_eq!(
+        screen(&f).row(screen(&f).row_of_index(0)).cell(8).width(),
+        CellWidth::Wide
+    );
+    assert_eq!(f.index_text(0).trim_end(), "01234567\u{4E2D}");
+}
+
+proptest::proptest! {
+    #[test]
+    fn glyph_run_equals_glyph_by_glyph(
+        cols in 4u16..12,
+        prefill in "[ab\u{4E2D}\u{FF21}]{0,12}",
+        text in "[xy\u{4E2D}\u{FF22}]{1,14}",
+        col in 0u16..12,
+    ) {
+        let col = col % cols;
+        let mut run = row_filled_with(cols, &prefill);
+        let mut expected = row_filled_with(cols, &prefill);
+        run.goto(0, col);
+        expected.goto(0, col);
+        let consumed = run
+            .grid
+            .print_run(&text, PrintMode::default(), Charset::SpecialCharacterAndLineDrawing, narrow);
+        run.check();
+        let (ref_col, ref_wrap) = write_glyph_by_glyph(&mut expected, col, &text[..consumed]);
+        if consumed > 0 {
+            for index in 0..2 {
+                let a = screen(&run).row(screen(&run).row_of_index(index));
+                let b = screen(&expected).row(screen(&expected).row_of_index(index));
+                proptest::prop_assert_eq!(a.cells(), b.cells());
+                proptest::prop_assert_eq!(a.occ(), b.occ());
+                proptest::prop_assert_eq!(a.flags(), b.flags());
+            }
+            proptest::prop_assert_eq!(screen(&run).cursor().pos.col, ref_col);
+            proptest::prop_assert_eq!(screen(&run).cursor().pending_wrap, ref_wrap);
+        }
+    }
+}
+
 // ---- region rotation ----
 
 /// A 6x6 grid without history whose region rows 1..6 sit in ring slots that wrap the end of the

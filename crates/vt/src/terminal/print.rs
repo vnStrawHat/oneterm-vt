@@ -65,7 +65,7 @@ pub(super) fn map_charset(charset: Charset, c: char) -> char {
 
 /// What a print run needs of a scalar under `charset`: the mapped scalar and its width, or
 /// `None` for a width-0 scalar or a control.
-fn mapped_glyph(charset: Charset) -> impl Fn(char) -> Option<(char, u8)> {
+fn mapped_glyph(charset: Charset) -> impl Fn(char) -> Option<(char, u8)> + Copy {
     move |c| {
         let mapped = map_charset(charset, c);
         let width = scalar_width(mapped);
@@ -133,7 +133,7 @@ impl Handler<'_> {
         let mut try_run = true;
         while !text.is_empty() {
             if try_run {
-                let run = self.state.grid.print_run(text, mode, charset, &glyph);
+                let run = self.state.grid.print_run(text, mode, charset, glyph);
                 text = &text[run..];
             }
             let Some(c) = text.chars().next() else {
@@ -228,7 +228,7 @@ impl Handler<'_> {
         let glyph = mapped_glyph(charset);
         let mut rest = word;
         while !rest.is_empty() {
-            let run = self.state.grid.print_run(rest, mode, charset, &glyph);
+            let run = self.state.grid.print_run(rest, mode, charset, glyph);
             if run > 0 {
                 rest = rest.get(run..).unwrap_or_default();
                 continue;
