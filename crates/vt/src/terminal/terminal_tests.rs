@@ -545,6 +545,88 @@ fn rep_uses_the_scalar_before_charset_mapping() {
     assert_eq!(s.row(0).trim_end(), "───");
 }
 
+/// Rows, cursor and pending wrap, which two feeds must agree on.
+fn screen_signature(s: &Session) -> (Vec<String>, (u16, u16), bool) {
+    let rows = (0..5).map(|index| s.row(index)).collect();
+    (rows, s.cursor(), s.term.screen().cursor().pending_wrap)
+}
+
+#[test]
+fn rep_equals_sending_the_copies() {
+    for (glyph, prefix) in [("a", ""), ("\u{4E2D}", ""), ("q", "\x1b(0")] {
+        for n in [0usize, 1, 7, 255, 256, 300, 65535] {
+            for insert in ["", "\x1b[4h"] {
+                for autowrap in ["", "\x1b[?7l"] {
+                    let setup = format!("{prefix}{insert}{autowrap}x");
+                    let mut repeated = Session::new(10, 5);
+                    repeated.feed(format!("{setup}{glyph}\x1b[{n}b").as_bytes());
+                    let mut sent = Session::new(10, 5);
+                    sent.feed(format!("{setup}{}", glyph.repeat(n.max(1) + 1)).as_bytes());
+                    assert_eq!(
+                        screen_signature(&repeated),
+                        screen_signature(&sent),
+                        "{glyph:?} x {n}, insert {insert:?}, autowrap {autowrap:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn rep_single_shift_applies_to_the_first_copy_only() {
+    // G2 and G3 are line drawing; the shift reaches the first copy, GL the rest.
+    for (designate, shift) in [("\x1b*0", "\x1bN"), ("\x1b+0", "\x1bO")] {
+        let mut repeated = Session::new(10, 2);
+        repeated.feed(format!("{designate}q{shift}\x1b[3b").as_bytes());
+        assert_eq!(repeated.row(0).trim_end(), "q\u{2500}qq");
+        let mut sent = Session::new(10, 2);
+        sent.feed(format!("{designate}q{shift}qqq").as_bytes());
+        assert_eq!(screen_signature(&repeated), screen_signature(&sent));
+    }
+    // A shift consumed by the glyph before REP does not reach the copies.
+    let mut repeated = Session::new(10, 2);
+    repeated.feed(b"\x1b*0\x1bNq\x1b[3b");
+    assert_eq!(repeated.row(0).trim_end(), "\u{2500}qqq");
+}
+
+#[test]
+fn rep_copies_wrap_like_sent_ones() {
+    for setup in ["\x1b[?7h", "\x1b[?7l", "\x1b[?2027h", "\x1b[?2027h\x1b[?7l"] {
+        for glyph in ["a", "\u{4E2D}"] {
+            let mut repeated = Session::new(4, 3);
+            repeated.feed(format!("{setup}{glyph}\x1b[6b").as_bytes());
+            let mut sent = Session::new(4, 3);
+            sent.feed(format!("{setup}{}", glyph.repeat(7)).as_bytes());
+            assert_eq!(
+                screen_signature(&repeated),
+                screen_signature(&sent),
+                "{setup:?} {glyph:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn rep_after_a_wide_glyph_at_the_last_column_under_nowrap() {
+    // The glyph does not fit and is dropped; its copies are dropped the same way.
+    let mut repeated = Session::new(10, 2);
+    repeated.feed("\x1b[?7l012345678\u{4E2D}\x1b[3b".as_bytes());
+    let mut sent = Session::new(10, 2);
+    sent.feed("\x1b[?7l012345678\u{4E2D}\u{4E2D}\u{4E2D}\u{4E2D}".as_bytes());
+    assert_eq!(screen_signature(&repeated), screen_signature(&sent));
+}
+
+#[test]
+fn rep_of_a_mark_attaches_each_copy() {
+    let mut repeated = Session::new(10, 2);
+    repeated.feed("e\u{301}\x1b[2b".as_bytes());
+    let mut sent = Session::new(10, 2);
+    sent.feed("e\u{301}\u{301}\u{301}".as_bytes());
+    assert_eq!(repeated.row(0), sent.row(0));
+    assert_eq!(repeated.row(0).trim_end(), "e\u{301}\u{301}\u{301}");
+}
+
 // ---- ?2027 ----
 
 const FAMILY: &str = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";

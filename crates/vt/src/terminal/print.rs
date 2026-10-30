@@ -290,11 +290,30 @@ impl Handler<'_> {
         }
     }
 
-    /// REP: prints the last printed scalar `n` more times through the scalar path.
+    /// REP: prints the last printed scalar `n` more times, as if the copies had been sent.
     pub(super) fn repeat_preceding(&mut self, n: u16) {
         let Some(c) = self.state.preceding_char else {
             return;
         };
+        // A glyph of width 1 or 2 repeats through the text path in runs; a pending single
+        // shift applies to the first copy only, as it would to the first of the copies sent.
+        if scalar_width(c) > 0 {
+            let mut buffer = [0u8; 256];
+            let width = c.len_utf8();
+            let fit = buffer.len() / width;
+            for slot in buffer.chunks_exact_mut(width) {
+                c.encode_utf8(slot);
+            }
+            let mut left = usize::from(n);
+            while left > 0 {
+                let take = left.min(fit);
+                if let Ok(text) = str::from_utf8(buffer.get(..take * width).unwrap_or_default()) {
+                    self.print_scalars(text);
+                }
+                left -= take;
+            }
+            return;
+        }
         for _ in 0..n {
             self.print_scalar(c);
         }
