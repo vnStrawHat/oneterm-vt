@@ -26,9 +26,9 @@
 //! | [`HyperlinkTable`] links | 65,536 | `intern` returns `None`; counted |
 //! | [`HyperlinkTable`] text | 4 MiB of id and URI bytes | same |
 
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 
 use crate::cell::{CellContent, Style};
 
@@ -241,6 +241,17 @@ impl<T: Copy + Eq + Hash + Default> InternTable<T> {
 struct Span {
     start: u32,
     len: u8,
+    /// The previous cluster with the same key hash, or `NO_CLUSTER`.
+    next: u32,
+}
+
+/// The end of a hash chain.
+const NO_CLUSTER: u32 = u32::MAX;
+
+fn cluster_hash(cluster: &str) -> u64 {
+    let mut hasher = FxHasher::default();
+    hasher.write(cluster.as_bytes());
+    hasher.finish()
 }
 
 /// Storage for grapheme clusters too long for one cell, addressed by [`GraphemeId`].
@@ -252,7 +263,9 @@ struct Span {
 pub struct GraphemeArena {
     text: String,
     spans: Vec<Span>,
-    index: FxHashMap<Box<str>, u32>,
+    /// Key hash to the newest cluster with that hash; older ones chain through `Span::next`.
+    /// The text lives once, in `text`: no key is allocated per cluster.
+    index: FxHashMap<u64, u32>,
     chars: usize,
     kept_entries: usize,
     kept_chars: usize,
@@ -281,10 +294,14 @@ fn sweep_trigger(base: usize, kept: usize, cap: usize) -> usize {
 impl GraphemeArena {
     fn with_limits(max_entries: usize, max_chars: usize) -> Self {
         let mut index = FxHashMap::default();
-        index.insert(Box::<str>::from(" "), 0);
+        index.insert(cluster_hash(" "), 0);
         GraphemeArena {
             text: String::from(" "),
-            spans: vec![Span { start: 0, len: 1 }],
+            spans: vec![Span {
+                start: 0,
+                len: 1,
+                next: NO_CLUSTER,
+            }],
             index,
             chars: 1,
             kept_entries: 1,
@@ -313,8 +330,17 @@ impl GraphemeArena {
         if cluster.is_empty() {
             return GraphemeId(0);
         }
-        if let Some(&id) = self.index.get(cluster) {
-            return GraphemeId(id);
+        let hash = cluster_hash(cluster);
+        let head = self.index.get(&hash).copied().unwrap_or(NO_CLUSTER);
+        let mut probe = head;
+        while probe != NO_CLUSTER {
+            if self.resolve(GraphemeId(probe)) == cluster {
+                return GraphemeId(probe);
+            }
+            probe = self
+                .spans
+                .get(probe as usize)
+                .map_or(NO_CLUSTER, |span| span.next);
         }
         let scalars = cluster.chars().count();
         if self.spans.len() >= self.max_entries || self.chars + scalars > self.max_chars {
@@ -326,12 +352,13 @@ impl GraphemeArena {
         let span = Span {
             start: self.text.len() as u32,
             len: cluster.len() as u8,
+            next: head,
         };
         // `spans.len() <= max_entries <= GRAPHEME_ID_LIMIT`, so the id fits 32 bits.
         let id = self.spans.len() as u32;
         self.text.push_str(cluster);
         self.spans.push(span);
-        self.index.insert(Box::from(cluster), id);
+        self.index.insert(hash, id);
         self.chars += scalars;
         GraphemeId(id)
     }

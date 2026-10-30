@@ -556,3 +556,44 @@ fn sweep_sizes_the_index_once() {
     }
     assert_eq!(arena.index.capacity(), capacity);
 }
+
+#[test]
+fn colliding_hashes_chain() {
+    let mut arena = GraphemeArena::default();
+    let x = arena.intern("x\u{301}");
+    // Force `y` onto `x`'s hash bucket, as a 64-bit collision would.
+    arena.index.insert(cluster_hash("y\u{301}"), x.0);
+    let y = arena.intern("y\u{301}");
+    assert_ne!(x, y);
+    assert_eq!(arena.spans[y.0 as usize].next, x.0);
+    assert_eq!(arena.intern("x\u{301}"), x);
+    assert_eq!(arena.intern("y\u{301}"), y);
+    assert_eq!(arena.resolve(x), "x\u{301}");
+    assert_eq!(arena.resolve(y), "y\u{301}");
+}
+
+#[test]
+fn many_unique_clusters_round_trip() {
+    let mut arena = GraphemeArena::default();
+    let clusters: Vec<String> = (0..100_000).map(|n| unique_cluster(n, 4)).collect();
+    let ids: Vec<GraphemeId> = clusters.iter().map(|c| arena.intern(c)).collect();
+    let distinct: FxHashSet<u32> = ids.iter().map(|id| id.0).collect();
+    assert_eq!(distinct.len(), clusters.len());
+    for (cluster, id) in clusters.iter().zip(&ids) {
+        assert_eq!(arena.resolve(*id), cluster);
+        assert_eq!(arena.intern(cluster), *id);
+    }
+}
+
+#[test]
+fn sweep_keeps_lookups_working() {
+    let mut arena = GraphemeArena::default();
+    let clusters: Vec<String> = (0..50).map(|n| unique_cluster(n, 3)).collect();
+    let ids: Vec<GraphemeId> = clusters.iter().map(|c| arena.intern(c)).collect();
+    let remap = arena.sweep(ids.iter().copied().skip(10));
+    let entries = arena.entries();
+    for (cluster, old) in clusters.iter().zip(&ids).skip(10) {
+        assert_eq!(arena.intern(cluster), remap.get(*old));
+    }
+    assert_eq!(arena.entries(), entries);
+}
