@@ -115,6 +115,25 @@ impl OscBuffer {
         self.payload.push(byte);
     }
 
+    /// Appends payload bytes up to the cap; bytes past it set `truncated`.
+    pub(super) fn extend(&mut self, bytes: &[u8]) {
+        let len = self.payload.len();
+        let room = self.cap.saturating_sub(len);
+        let take = bytes.len().min(room);
+        if take < bytes.len() {
+            self.truncated = true;
+        }
+        let Some(kept) = bytes.get(..take).filter(|kept| !kept.is_empty()) else {
+            return;
+        };
+        if len + take > self.payload.capacity() {
+            // Doubling, never past the cap, so capacity stays within `OSC_LARGE`.
+            let want = (len + take).max(len.saturating_mul(2)).min(self.cap);
+            self.payload.reserve_exact(want - len);
+        }
+        self.payload.extend_from_slice(kept);
+    }
+
     /// Handles a `;`. Returns `true` when it closed the first parameter.
     pub(super) fn semicolon(&mut self) -> bool {
         if self.truncated || self.count + 1 >= MAX_OSC_PARAMS {
@@ -198,6 +217,40 @@ mod tests {
         assert!(!buffer.truncated());
     }
 
+    #[test]
+    fn extend_never_grows_an_unclaimed_osc() {
+        let mut buffer = OscBuffer::new();
+        buffer.start();
+        buffer.push(b'0');
+        buffer.semicolon();
+        let slice = vec![b'A'; 64 * 1024];
+        for _ in 0..20 {
+            buffer.extend(&slice);
+            assert_eq!(buffer.payload.capacity(), OSC_INLINE);
+        }
+        assert_eq!(buffer.payload.len(), OSC_INLINE);
+        assert!(buffer.truncated());
+    }
+
+    #[test]
+    fn extend_grows_a_claimed_osc_by_doubling_to_large() {
+        let mut buffer = OscBuffer::new();
+        buffer.start();
+        buffer.push(b'5');
+        buffer.push(b'2');
+        assert!(buffer.semicolon());
+        buffer.resolve_code(|code| code == 52);
+        let slice = vec![b'A'; 1024 * 1024];
+        for _ in 0..9 {
+            buffer.extend(&slice);
+        }
+        assert_eq!(buffer.payload.len(), OSC_LARGE);
+        assert!(buffer.payload.capacity() <= OSC_LARGE);
+        assert!(buffer.truncated());
+        buffer.start();
+        assert_eq!(buffer.payload.capacity(), OSC_INLINE);
+        assert!(!buffer.truncated());
+    }
     #[test]
     fn semicolons_stop_closing_after_the_last_param() {
         let mut buffer = OscBuffer::new();

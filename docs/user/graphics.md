@@ -60,7 +60,9 @@ an image cell. Text printed over an image cell replaces that cell only.
   even one released before you took it (the release that follows frees it).
 - Call `Terminal::set_cell_pixels(width, height)` on every font or DPI change.
 - Key textures by `GraphicId`. Ids start at 1 and are never reused, not even after RIS.
-- `GraphicReleased` arrives in the next `feed`, an empty one included, and before `Repaint`.
+- `GraphicReleased` arrives in the next `feed`, an empty one included, and before `Repaint`. Which
+  images are released, and in which `feed`, can depend on where the input was split: the pending
+  ceiling and the sweep both run per `feed`.
 
 ## Geometry
 

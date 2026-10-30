@@ -156,9 +156,27 @@ impl Parser {
                     continue;
                 }
             }
+            if self.state == State::OscString {
+                rest = self.osc_run(dispatch, rest);
+                if rest.is_empty() {
+                    continue;
+                }
+            }
+            if self.state == State::DcsPassthrough {
+                rest = self.dcs_run(dispatch, rest);
+                if rest.is_empty() {
+                    continue;
+                }
+            }
 
             let mut iter = rest.iter();
-            while self.state != State::Ground {
+            let mut first = true;
+            // A string state reached from a header leaves the loop for its bulk run; the
+            // byte the run stopped at (`first`) is the per-byte table's.
+            while self.state != State::Ground
+                && (first || !matches!(self.state, State::DcsPassthrough | State::OscString))
+            {
+                first = false;
                 let Some(&byte) = iter.next() else { break };
                 // Parameter bytes are most of a CSI; they skip the full transition table.
                 if matches!(self.state, State::CsiEntry | State::CsiParam)

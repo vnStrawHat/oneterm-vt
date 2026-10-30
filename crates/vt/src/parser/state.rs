@@ -239,6 +239,60 @@ impl Parser {
         &[]
     }
 
+    /// Consumes OSC payload bytes while the state is `OscString`: runs of `0x20..=0xFF` other
+    /// than `;` are appended in one copy, a `;` splits. The run stops before any C0 byte, which
+    /// the per-byte table then takes (terminators, `CAN`/`SUB`, ignored controls).
+    pub(super) fn osc_run<'a, D: Dispatch + ?Sized>(
+        &mut self,
+        dispatch: &mut D,
+        bytes: &'a [u8],
+    ) -> &'a [u8] {
+        let mut rest = bytes;
+        loop {
+            let run = osc_payload_len(rest);
+            if let Some(payload) = rest.get(..run) {
+                self.osc.extend(payload);
+            }
+            rest = rest.get(run..).unwrap_or_default();
+            match rest.first() {
+                Some(b';') => {
+                    self.osc_semicolon(dispatch);
+                    rest = rest.get(1..).unwrap_or_default();
+                }
+                _ => return rest,
+            }
+        }
+    }
+
+    /// Consumes DCS payload bytes while the state is `DcsPassthrough`: every byte `dcs_put`
+    /// takes, counted against the cap in one step. The run stops before `CAN`, `SUB`, `ESC`
+    /// and `DEL` or a high byte, which the per-byte table then takes.
+    pub(super) fn dcs_run<'a, D: Dispatch + ?Sized>(
+        &mut self,
+        dispatch: &mut D,
+        bytes: &'a [u8],
+    ) -> &'a [u8] {
+        let run = bytes
+            .iter()
+            .position(|&byte| matches!(byte, 0x18 | 0x1A | 0x1B | 0x7F..=0xFF))
+            .unwrap_or(bytes.len());
+        let (payload, rest) = bytes.split_at(run);
+        if self.string_aborted {
+            return rest;
+        }
+        let room = DCS_MAX_BYTES - self.string_bytes.min(DCS_MAX_BYTES);
+        let (passed, over) = payload.split_at(payload.len().min(room));
+        for &byte in passed {
+            dispatch.dcs_put(byte);
+        }
+        self.string_bytes += passed.len();
+        if !over.is_empty() {
+            self.string_aborted = true;
+            dispatch.dcs_unhook(true);
+        }
+        rest
+    }
+
     /// A digit or separator (`0x30..=0x3B`) in a CSI header that has not seen an intermediate:
     /// the same transition `header` makes, without its dispatch on family and phase.
     pub(super) fn csi_parameter(&mut self, byte: u8) {
@@ -347,4 +401,25 @@ impl Parser {
         self.string_bytes += 1;
         StringByte::Pass
     }
+}
+
+/// Length of the leading run of OSC payload bytes other than `;`: no byte below `0x20`.
+///
+/// Whole 16-byte blocks are tested without a branch per byte so the test vectorises.
+fn osc_payload_len(bytes: &[u8]) -> usize {
+    let mut done = 0;
+    for block in bytes.chunks_exact(16) {
+        let stop = block
+            .iter()
+            .fold(false, |stop, &byte| stop | (byte < 0x20) | (byte == b';'));
+        if stop {
+            break;
+        }
+        done += 16;
+    }
+    let rest = bytes.get(done..).unwrap_or_default();
+    done + rest
+        .iter()
+        .position(|&byte| byte < 0x20 || byte == b';')
+        .unwrap_or(rest.len())
 }

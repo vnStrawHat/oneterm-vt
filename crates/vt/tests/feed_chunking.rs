@@ -25,6 +25,9 @@ fn piece() -> impl Strategy<Value = Vec<u8>> {
             bytes("\u{300}\u{301}\u{302}"), bytes("x\x1b[300b"),
             bytes("a\u{300}\u{301}\u{302}"), bytes("\x1b[48;5;9m"),
             bytes("\x1b[?1;2:3h"), bytes("\x1b["),
+            bytes("\x1b]8;id=a;http://x/y\x07"), bytes("\x1b]9;7;s=1;t=b\x07"),
+            bytes("\x1b]2;a\x01b\x07"), bytes("\x1bPq\"1;1;4;2#1~~-~\x1b\\"),
+            bytes("\x1bPq#0;2;0;0;0!5~\x1b\\"), bytes("\x1b]"), bytes("\x1bP"),
             bytes("\u{4E2D}\u{4E2D}a\u{4E2D}"), bytes("\x1b[?1049h\x1b[1;5r"),
         ]),
         1 => any::<u8>().prop_map(|byte| vec![byte]),
@@ -39,6 +42,9 @@ fn stream() -> impl Strategy<Value = Vec<u8>> {
 fn describe(event: &VtEvent, batch: &EventBatch) -> Option<String> {
     Some(match event {
         VtEvent::Repaint => return None,
+        // Which feed reports a release follows the chunking (the pending ceiling and the sweep
+        // both run per feed); `released` compares the ids instead.
+        VtEvent::GraphicReleased(_) => return None,
         VtEvent::Title(span) => format!("Title({})", batch.str(*span)),
         VtEvent::IconName(span) => format!("IconName({})", batch.str(*span)),
         VtEvent::Reply(span) => format!("Reply({:?})", batch.bytes(*span)),
@@ -79,6 +85,44 @@ fn state(term: &Terminal) -> (Vec<String>, String, Option<String>, u64) {
     )
 }
 
+/// The ids of the `GraphicReleased` events in `batch`.
+fn released(batch: &EventBatch) -> Vec<u64> {
+    batch
+        .iter()
+        .filter_map(|event| match event {
+            VtEvent::GraphicReleased(id) => Some(id.0),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Ends a run with an empty feed (it drains the last sweep), then returns every released id
+/// and every live placement id, each released id once, none of them live.
+fn finish_images(term: &mut Terminal, batch: &mut EventBatch, mut released: Vec<u64>) -> Vec<u64> {
+    term.feed(&[], batch, Instant::now());
+    released.extend(self::released(batch));
+    let live: Vec<u64> = term
+        .placements()
+        .iter()
+        .map(|placement| placement.id.0)
+        .collect();
+    let mut unique = released.clone();
+    unique.sort_unstable();
+    unique.dedup();
+    assert_eq!(
+        unique.len(),
+        released.len(),
+        "a release repeated: {released:?}"
+    );
+    assert!(
+        live.iter().all(|id| !unique.contains(id)),
+        "{released:?} vs {live:?}"
+    );
+    unique.extend(live);
+    unique.sort_unstable();
+    unique
+}
+
 fn new_terminal() -> Terminal {
     let config = Config {
         scrollback_limit: 50,
@@ -100,9 +144,11 @@ proptest! {
             .filter_map(|event| describe(event, &batch))
             .collect();
         let whole_stats = whole.stats();
+        let whole_released = released(&batch);
 
         let mut split = new_terminal();
         let mut events = Vec::new();
+        let mut split_released = Vec::new();
         let mut unhandled = 0u32;
         let mut rest = bytes.as_slice();
         let mut sizes = sizes.iter().cycle();
@@ -113,10 +159,15 @@ proptest! {
             let stats = split.feed(chunk, &mut batch, Instant::now());
             unhandled = unhandled.saturating_add(stats.unhandled_sequences);
             events.extend(batch.iter().filter_map(|event| describe(event, &batch)));
+            split_released.extend(released(&batch));
         }
 
         prop_assert_eq!(state(&split), state(&whole));
         prop_assert_eq!(events, expected);
+        prop_assert_eq!(
+            finish_images(&mut split, &mut batch, split_released),
+            finish_images(&mut whole, &mut batch, whole_released)
+        );
         prop_assert_eq!(unhandled, whole_stats.unhandled_sequences);
     }
 }

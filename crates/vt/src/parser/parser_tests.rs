@@ -342,6 +342,139 @@ fn escape_bracket_at_the_chunk_end() {
     assert_eq!(feed_split(&[b"\x1b[1", b"m"]), expected);
 }
 
+#[test]
+fn escape_bracket_osc_at_the_chunk_end() {
+    let expected = vec![osc(Some(0), &[b"0", b"t"], StringTerm::Bel)];
+    assert_eq!(feed_split(&[b"\x1b", b"]0;t\x07"]), expected);
+    assert_eq!(feed_split(&[b"\x1b]", b"0;t\x07"]), expected);
+    assert_eq!(feed_split(&[b"\x1b]0;", b"t\x07"]), expected);
+}
+
+/// Feeds `bytes` whole and split at every point; every split must give the whole log.
+fn assert_split_invariant(bytes: &[u8], claims: &[u32]) -> Vec<Action> {
+    let run = |pieces: &[&[u8]]| {
+        let mut parser = Parser::new();
+        let mut recorder = Recorder {
+            claims: claims.to_vec(),
+            ..Recorder::default()
+        };
+        for piece in pieces {
+            parser.advance(&mut recorder, piece);
+        }
+        recorder.actions
+    };
+    let whole = run(&[bytes]);
+    for at in 0..=bytes.len() {
+        let (head, tail) = bytes.split_at(at);
+        assert_eq!(run(&[head, tail]), whole, "{bytes:?} split at {at}");
+    }
+    whole
+}
+
+#[test]
+fn osc_split_at_every_byte() {
+    let twenty = format!(
+        "\x1b]{}\x07",
+        (0..20).map(|n| n.to_string()).collect::<Vec<_>>().join(";")
+    );
+    let long = format!("\x1b]0;{}\x07", "x".repeat(3000));
+    let large = format!("\x1b]52;c;{}\x07", "Q".repeat(3 * 1024));
+    let sequences: [&[u8]; 9] = [
+        b"\x1b]8;id=x;http://a;b\x07",
+        b"\x1b]0;t\x1b\\",
+        b"\x1b]2;a\x01b\x07",
+        twenty.as_bytes(),
+        long.as_bytes(),
+        large.as_bytes(),
+        b"\x1b]2;x\x18y",
+        b"\x1b]0;t\xC3\xA9\x9c\x7f\xE4\xB8\xAD\x07",
+        b"\x1b]2;abc\x1bZ",
+    ];
+    for bytes in sequences {
+        assert_split_invariant(bytes, &[52]);
+    }
+    let log = assert_split_invariant(long.as_bytes(), &[52]);
+    let [
+        Action::Osc {
+            params, truncated, ..
+        },
+    ] = log.as_slice()
+    else {
+        panic!("expected one Osc, got {log:?}");
+    };
+    assert!(*truncated);
+    assert_eq!(params[1].len(), OSC_INLINE - 1);
+    let log = assert_split_invariant(large.as_bytes(), &[52]);
+    let [
+        Action::Osc {
+            params, truncated, ..
+        },
+    ] = log.as_slice()
+    else {
+        panic!("expected one Osc, got {log:?}");
+    };
+    assert!(!*truncated);
+    assert_eq!(params[2].len(), 3 * 1024);
+}
+
+#[test]
+fn dcs_split_at_every_byte() {
+    let sequences: [&[u8]; 4] = [
+        b"\x1bPq#0;2;0;0;0~~-~\x1b\\",
+        b"\x1bPq#0;\x7f2;0~~\x85-~\x1b\\",
+        b"\x1bPq#0;2~~\x18-~",
+        b"\x1bPq~~\x1a~~",
+    ];
+    for bytes in sequences {
+        assert_split_invariant(bytes, &[]);
+    }
+    let log = assert_split_invariant(sequences[1], &[]);
+    let puts_only: Vec<u8> = log
+        .iter()
+        .filter_map(|action| match action {
+            Action::Put(byte) => Some(*byte),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(puts_only, b"#0;2;0~~-~");
+    assert!(log.contains(&Action::Unhook(false)));
+    assert!(assert_split_invariant(sequences[2], &[]).contains(&Action::Unhook(true)));
+}
+
+/// Counts DCS payload bytes and unhooks, for the cap without a 16 MiB log.
+#[derive(Default)]
+struct DcsCounter {
+    puts: usize,
+    unhooks: Vec<bool>,
+}
+
+impl Dispatch for DcsCounter {
+    fn print_str(&mut self, _text: &str) {}
+    fn execute(&mut self, _byte: u8) {}
+    fn dcs_put(&mut self, _byte: u8) {
+        self.puts += 1;
+    }
+    fn dcs_unhook(&mut self, aborted: bool) {
+        self.unhooks.push(aborted);
+    }
+}
+
+#[test]
+fn dcs_payload_past_the_cap_aborts_once() {
+    let mut bytes = b"\x1bPq".to_vec();
+    bytes.extend(std::iter::repeat_n(b'~', DCS_MAX_BYTES + 10));
+    bytes.extend_from_slice(b"\x1b\\");
+    for size in [bytes.len(), 4096] {
+        let mut parser = Parser::new();
+        let mut counter = DcsCounter::default();
+        for chunk in bytes.chunks(size) {
+            parser.advance(&mut counter, chunk);
+        }
+        assert_eq!(counter.puts, DCS_MAX_BYTES, "chunk size {size}");
+        assert_eq!(counter.unhooks, vec![true], "chunk size {size}");
+    }
+}
+
 /// Counts `print_str` calls and sequences, to show where a text run is cut.
 #[derive(Default)]
 struct RunCounter {

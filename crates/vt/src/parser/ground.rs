@@ -45,6 +45,12 @@ impl Parser {
             self.state = State::CsiEntry;
             return tail.get(2..).unwrap_or_default();
         }
+        // `ESC ]` goes straight to the OSC payload run.
+        if tail.get(1) == Some(&b']') {
+            self.osc.start();
+            self.state = State::OscString;
+            return tail.get(2..).unwrap_or_default();
+        }
         self.state = State::Escape;
         tail.get(1..).unwrap_or_default()
     }
