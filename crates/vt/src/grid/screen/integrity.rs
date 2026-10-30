@@ -73,7 +73,7 @@ impl Screen {
             let Some(row) = self.slots.get(self.slot_index(id)).and_then(Option::as_ref) else {
                 continue;
             };
-            if row.id() != id {
+            if row.id() != id && !self.moved.contains(&id) {
                 return Err(Violation::RowIdMismatch { id });
             }
             row.check(self.cols, interner)?;
@@ -95,6 +95,11 @@ impl Screen {
     fn check_stale_slots(&self) -> Result<(), Violation> {
         for (slot, row) in self.slots.iter().enumerate() {
             let Some(row) = row else { continue };
+            // The live id of this slot, if a rotation left the row's header behind.
+            let slot_id = self.newest - (self.newest.0.wrapping_sub(slot as u64) & self.mask);
+            if slot_id >= self.oldest && self.moved.contains(&slot_id) {
+                continue;
+            }
             let id = row.id();
             let live = id >= self.oldest && id <= self.newest;
             if !live || self.slot_index(id) != slot {

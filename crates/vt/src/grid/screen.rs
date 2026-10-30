@@ -237,6 +237,11 @@ pub struct Screen {
     batch_lo: RowId,
     /// The last row a trim dropped, kept for its allocation; never read as content.
     spare: Option<Row>,
+    /// Ids whose rows a rotation moved in this batch without rewriting their headers: the slot
+    /// of a live id in this range holds that id's row (or nothing), whatever id its header
+    /// says, changed at `seq`. [`restamp_moved`](Self::restamp_moved) rewrites the headers.
+    /// Always among the live ids: trimming drops the ids it passes.
+    moved: Range<RowId>,
     dropped_wide: u32,
     cursor_anchor: AnchorId,
     saved_cursor_anchor: AnchorId,
@@ -293,6 +298,7 @@ impl Screen {
             seq: SeqNo(1),
             batch_lo: oldest,
             spare: None,
+            moved: oldest..oldest,
             dropped_wide: 0,
             cursor_anchor: anchors.register(AnchorKind::Cursor, origin_pos),
             saved_cursor_anchor: anchors.register(AnchorKind::SavedCursor, origin_pos),
@@ -379,12 +385,33 @@ impl Screen {
         (id.0 & self.mask) as usize
     }
 
-    /// The row stored for `id`, if its slot holds exactly that id.
+    /// The row stored for `id`, if its slot holds exactly that id (or a row a rotation moved
+    /// there, whose header is not rewritten yet).
     fn stored(&self, id: RowId) -> Option<&Row> {
         self.slots
             .get(self.slot_index(id))?
             .as_ref()
-            .filter(|row| row.id() == id)
+            .filter(|row| row.id() == id || self.moved.contains(&id))
+    }
+
+    /// Rewrites the headers of the rows the rotations of this batch moved: their ids and the
+    /// batch stamp. Rows outside the live ids are left alone (their slots may hold other ids).
+    pub(crate) fn restamp_moved(&mut self) {
+        let lo = self.moved.start.max(self.oldest);
+        let hi = self.moved.end.min(self.newest + 1);
+        let seq = self.seq;
+        let mut id = lo;
+        while id < hi {
+            // A blank row a rotation moved (an empty slot) is built, so its stamp outlives the
+            // batch: the content it replaced is gone.
+            if self.materialise(id).is_some()
+                && let Some(row) = self.slot_row_mut(id)
+            {
+                row.rehome(id, seq);
+            }
+            id = id + 1;
+        }
+        self.moved = self.oldest..self.oldest;
     }
 
     /// The row in the slot of `id`, whatever id it carries.
@@ -396,7 +423,9 @@ impl Screen {
     /// Reads a row: the stored row, or blanks if the id's slot holds no such row.
     pub fn row(&self, id: RowId) -> RowRef<'_> {
         match self.stored(id) {
+            Some(row) if self.moved.contains(&id) => RowRef::moved(row, id, self.seq),
             Some(row) => RowRef::allocated(row),
+            None if self.moved.contains(&id) => RowRef::blank(id, self.cols).moved_at(self.seq),
             None => RowRef::blank(id, self.cols),
         }
     }
@@ -414,11 +443,10 @@ impl Screen {
     /// Makes the slot of live `id` hold its row, built blank from the spare allocation.
     fn materialise(&mut self, id: RowId) -> Option<&mut Row> {
         let index = self.slot_index(id);
-        let missing = self
-            .slots
-            .get(index)?
-            .as_ref()
-            .is_none_or(|row| row.id() != id);
+        let missing = match self.slots.get(index)? {
+            Some(row) => row.id() != id && !self.moved.contains(&id),
+            None => true,
+        };
         // ponytail: a slot holding a different id is unreachable today (trim and clear_history
         // take the slot first, push_row overwrites); if it were reached this would allocate.
         if missing {
@@ -589,6 +617,7 @@ impl Screen {
 
     /// Opens a batch: later changes carry `seq`.
     pub(crate) fn set_seq(&mut self, seq: SeqNo) {
+        self.restamp_moved();
         self.seq = seq;
         self.batch_lo = self.screen_top();
     }
@@ -656,6 +685,14 @@ impl Screen {
         self.reset_rows(top + u64::from(first)..top + u64::from(end.min(self.rows)));
     }
 
+    /// Keeps `moved` among the live ids: a trimmed id's slot may already hold a newer row, which
+    /// must not read as the trimmed id's moved row.
+    fn forget_moved_below_oldest(&mut self) {
+        if self.moved.start < self.oldest {
+            self.moved.start = self.oldest;
+        }
+    }
+
     /// Drops the oldest ids over the scrollback limit; returns how many.
     fn trim_history(&mut self) -> u32 {
         let mut trimmed = 0u32;
@@ -666,6 +703,9 @@ impl Screen {
             }
             self.oldest = self.oldest + 1;
             trimmed = trimmed.saturating_add(1);
+        }
+        if trimmed > 0 {
+            self.forget_moved_below_oldest();
         }
         trimmed
     }
@@ -710,6 +750,12 @@ impl Screen {
         if end > self.slots.len() {
             return self.rotate_by_swaps(lo, len, shift, n);
         }
+        // A window apart from the ones already moved would widen `moved` over the rows between
+        // them, which then read as changed: settle the earlier ones first.
+        let hi = lo + len;
+        if !self.moved.is_empty() && (lo > self.moved.end || hi < self.moved.start) {
+            self.restamp_moved();
+        }
         let (seq, erase, cols) = (self.seq, self.cursor.erase, self.cols);
         let Screen { slots, spare, .. } = self;
         let Some(window) = slots.get_mut(start..end) else {
@@ -726,39 +772,33 @@ impl Screen {
                 0..shifted
             }
         };
-        // One pass: every row of the window moved or was vacated, so each is restamped. A slot
-        // never written, or holding a row of another id (as `materialise` and `row` see it), is
-        // built here (blank, or `erase` when vacated) from the spare allocation.
-        // `from` walks the pre-rotation position of the row now in slot `k`.
-        let mut from = match shift {
-            Shift::Up => shifted % count.max(1),
-            Shift::Down if shifted == 0 => 0,
-            Shift::Down => count - shifted,
-        };
-        for (k, (id, slot)) in (lo.0..).zip(window.iter_mut()).enumerate() {
-            let is_vacated = vacated.contains(&k);
-            let expected = RowId(lo.0 + from as u64);
-            from += 1;
-            if from == count {
-                from = 0;
-            }
+        // Only the vacated rows are written; the moved ones keep their old headers until
+        // `restamp_moved` (an empty slot is a blank row wherever it lands).
+        let start_k = vacated.start;
+        let taken = vacated.len();
+        for (k, slot) in window.iter_mut().enumerate().skip(start_k).take(taken) {
+            let id = lo + k as u64;
             match slot {
-                Some(row) if row.id() == expected => {
-                    row.rehome(RowId(id), seq);
-                    if is_vacated {
-                        row.reset(erase, seq);
-                    }
+                Some(row) => {
+                    row.rehome(id, seq);
+                    row.reset(erase, seq);
                 }
-                _ => {
-                    let template = if is_vacated { erase } else { Cell::EMPTY };
-                    *slot = Some(Row::recycle(spare.take(), RowId(id), cols, seq, template));
+                None if erase != Cell::EMPTY => {
+                    *slot = Some(Row::recycle(spare.take(), id, cols, seq, erase));
                 }
+                None => {}
             }
         }
+        self.moved = if self.moved.is_empty() {
+            lo..hi
+        } else {
+            self.moved.start.min(lo)..self.moved.end.max(hi)
+        };
     }
 
     /// The swap-by-swap form of [`rotate`](Self::rotate), for a window that wraps the ring end.
     fn rotate_by_swaps(&mut self, lo: RowId, len: u64, shift: Shift, n: u64) {
+        self.restamp_moved();
         for k in 0..len {
             self.materialise(lo + k);
         }
@@ -985,6 +1025,7 @@ impl Screen {
             id = id + 1;
         }
         self.oldest = top;
+        self.forget_moved_below_oldest();
         if had_history {
             anchors.trim(self.kind.origin(), top);
         }
@@ -1010,6 +1051,7 @@ impl Screen {
     /// `RIS` for this screen: clears the history and the screen, homes both cursors with plain
     /// pens, restores the full region and the default tab stops. Ids are not reset.
     pub fn reset(&mut self, anchors: &mut Anchors) {
+        self.restamp_moved();
         self.clear_history(anchors);
         let home = Cursor::home(self.screen_top());
         self.cursor = home;
@@ -1031,6 +1073,7 @@ impl Screen {
         if limit == self.scrollback_limit {
             return;
         }
+        self.restamp_moved();
         self.scrollback_limit = limit;
         if self.trim_history() > 0 {
             anchors.trim(self.kind.origin(), self.oldest);

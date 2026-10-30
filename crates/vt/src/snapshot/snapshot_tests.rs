@@ -176,6 +176,40 @@ fn two_line_scroll() {
 }
 
 #[test]
+fn region_scroll_between_updates_copies_moved_rows() {
+    let mut s = Session::new();
+    s.fill_rows();
+    s.update();
+    // Region rows 2..9 scroll up by one while a snapshot is outstanding.
+    s.feed(b"\x1b[2;9r\x1b[9;1H\n");
+    assert!(matches!(s.update(), SnapshotUpdate::Partial { .. }));
+    assert_eq!(s.state.changed(), indices(1..9));
+    for (index, row) in (0u16..).zip(s.state.rows()) {
+        let shown: String = row
+            .cells
+            .iter()
+            .map(|cell| match cell.content {
+                SnapshotContent::Scalar(c) => c,
+                SnapshotContent::Cluster { .. } => '?',
+            })
+            .collect();
+        let screen = s.term.screen();
+        let expected = s.term.row_text(screen.row_of_index(index));
+        assert_eq!(shown.trim_end(), expected.trim_end(), "row {index}");
+    }
+}
+
+#[test]
+fn two_disjoint_region_scrolls_copy_only_their_rows() {
+    let mut s = Session::sized(24, 20);
+    s.update();
+    s.feed(b"\x1b[2;4r\x1b[4;1H\n\x1b[20;24r\x1b[24;1H\n");
+    assert!(matches!(s.update(), SnapshotUpdate::Partial { .. }));
+    let expected: Vec<u16> = (1..4).chain(19..24).collect();
+    assert_eq!(s.state.changed(), expected);
+}
+
+#[test]
 fn scroll_past_the_viewport_is_full() {
     let mut s = Session::settled();
     s.line_feeds(15);

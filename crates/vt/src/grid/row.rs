@@ -344,6 +344,8 @@ pub struct RowRef<'a> {
     id: RowId,
     header: Option<&'a RowHeader>,
     cells: &'a [Cell],
+    /// The stamp of a row a rotation moved: its header is not rewritten yet.
+    moved_at: SeqNo,
 }
 
 impl<'a> RowRef<'a> {
@@ -352,6 +354,25 @@ impl<'a> RowRef<'a> {
             id: row.header.id,
             header: Some(&row.header),
             cells: &row.cells,
+            moved_at: SeqNo(0),
+        }
+    }
+
+    /// The same row, reported as changed at `seq` at the latest: a blank a rotation moved.
+    pub(crate) fn moved_at(self, seq: SeqNo) -> RowRef<'a> {
+        RowRef {
+            moved_at: seq,
+            ..self
+        }
+    }
+
+    /// A row a rotation moved to `id` at `seq`, before its header is rewritten.
+    pub(crate) fn moved(row: &'a Row, id: RowId, seq: SeqNo) -> RowRef<'a> {
+        RowRef {
+            id,
+            header: Some(&row.header),
+            cells: &row.cells,
+            moved_at: seq,
         }
     }
 
@@ -360,6 +381,7 @@ impl<'a> RowRef<'a> {
             id,
             header: None,
             cells: BLANK_CELLS.get(..usize::from(cols)).unwrap_or(&[]),
+            moved_at: SeqNo(0),
         }
     }
 
@@ -383,7 +405,13 @@ impl<'a> RowRef<'a> {
 
     /// The row's flags; empty for a row never written.
     pub fn flags(&self) -> RowFlags {
-        self.header.map_or(RowFlags::empty(), |header| header.flags)
+        // A blank a rotation moved changed in this batch, as every row does when it is written.
+        let blank = if self.moved_at > SeqNo(0) {
+            RowFlags::DIRTY
+        } else {
+            RowFlags::empty()
+        };
+        self.header.map_or(blank, |header| header.flags)
     }
 
     /// Whether the row continues on the next row.
@@ -420,7 +448,9 @@ impl<'a> RowRef<'a> {
 
     /// The stamp of the last batch that changed the row; `SeqNo(0)` for a row never written.
     pub(crate) fn seq(&self) -> SeqNo {
-        self.header.map_or(SeqNo(0), |header| header.seq)
+        self.header
+            .map_or(SeqNo(0), |header| header.seq)
+            .max(self.moved_at)
     }
 }
 

@@ -1740,27 +1740,199 @@ fn slice_rotation_builds_rows_never_written() {
     }
 }
 
+/// The id and stored header of the slot of screen row `index`, or `None` for an empty slot.
+fn stored_header(f: &Fixture, index: u16) -> Option<(RowId, crate::grid::row::SeqNo)> {
+    let id = screen(f).row_of_index(index);
+    let slot = screen(f).slot_index(id);
+    screen(f).slots[slot]
+        .as_ref()
+        .map(|row| (row.id(), row.header().seq))
+}
+
 #[test]
-fn slice_rotation_never_revives_a_stale_row() {
+fn moved_rows_read_the_batch_stamp_before_the_restamp() {
     let mut f = fixture_with(6, 6, 0);
     f.label_rows();
-    // A row of another id sitting in the slot of screen row 3, as `row` and `materialise`
-    // would treat it: not that row.
+    let batch = f.grid.begin_batch();
+    scroll_up(&mut f, ScrollRegion { top: 1, bottom: 6 }, 1);
+    assert_eq!(f.screen_text(), "r0|r2|r3|r4|r5|");
+    for index in 1..6 {
+        let id = screen(&f).row_of_index(index);
+        let row = screen(&f).row(id);
+        assert_eq!((row.id(), row.seq()), (id, batch), "row {index}");
+    }
+    // The moved rows still carry the ids they had: only the vacated row was rewritten.
+    for index in 1..5 {
+        let (header_id, _) = stored_header(&f, index).expect("moved row");
+        assert_eq!(header_id, screen(&f).row_of_index(index + 1), "row {index}");
+    }
+    let (vacated_id, vacated_seq) = stored_header(&f, 5).expect("vacated row");
+    assert_eq!(
+        (vacated_id, vacated_seq),
+        (screen(&f).row_of_index(5), batch)
+    );
+}
+
+#[test]
+fn the_next_batch_restamps_moved_rows() {
+    let mut f = fixture_with(6, 6, 0);
+    f.label_rows();
+    let batch = f.grid.begin_batch();
+    scroll_up(&mut f, ScrollRegion { top: 1, bottom: 6 }, 1);
+    assert!(!screen(&f).moved.is_empty());
+    f.grid.begin_batch();
+    assert!(screen(&f).moved.is_empty());
+    for index in 1..6 {
+        let id = screen(&f).row_of_index(index);
+        assert_eq!(stored_header(&f, index), Some((id, batch)), "row {index}");
+    }
+    f.check();
+}
+
+#[test]
+fn a_moved_blank_row_reads_changed() {
+    let mut f = fixture_with(6, 6, 0);
+    f.goto(3, 0);
+    f.print("x");
+    let batch = f.grid.begin_batch();
+    // Rows 1..3 and 4..6 were never written: the blank arriving at row 3 is an empty slot.
+    scroll_up(&mut f, ScrollRegion { top: 1, bottom: 6 }, 2);
+    assert_eq!(f.screen_text(), "|x||||");
+    let id = screen(&f).row_of_index(3);
+    assert!(screen(&f).slots[screen(&f).slot_index(id)].is_none());
+    let row = screen(&f).row(id);
+    assert_eq!(row.seq(), batch);
+    assert!(row.flags().contains(RowFlags::DIRTY));
+    f.grid.begin_batch();
+    assert_eq!(stored_header(&f, 3), Some((id, batch)));
+}
+
+#[test]
+fn print_into_a_moved_row_writes_that_row() {
+    let mut f = fixture_with(6, 6, 0);
+    f.label_rows();
+    let batch = f.grid.begin_batch();
+    scroll_up(&mut f, ScrollRegion { top: 1, bottom: 6 }, 1);
+    f.goto(5, 0);
+    f.print("new");
+    f.goto(2, 0);
+    f.print("M");
+    assert_eq!(f.screen_text(), "r0|r2|M3|r4|r5|new");
+    for index in [2, 5] {
+        let row = screen(&f).row(screen(&f).row_of_index(index));
+        assert_eq!(row.seq(), batch, "row {index}");
+    }
+    f.grid.begin_batch();
+    f.check();
+    assert_eq!(f.screen_text(), "r0|r2|M3|r4|r5|new");
+}
+
+#[test]
+fn integrity_flags_a_row_of_another_id_in_a_live_slot() {
+    let mut f = fixture_with(6, 6, 0);
+    f.label_rows();
     let ring = screen(&f).slots.len() as u64;
     let id = screen(&f).row_of_index(3);
-    let mut stale = crate::grid::row::Row::new(
+    let planted = crate::grid::row::Row::new(
         id + ring,
         6,
         crate::grid::row::SeqNo(1),
         Cell::EMPTY.with_content(CellContent::Scalar('S')),
     );
-    stale.rehome(id + ring, crate::grid::row::SeqNo(1));
     let index = screen(&f).slot_index(id);
-    f.grid.screen_mut().slots[index] = Some(stale);
-    f.grid.scroll_up(ScrollRegion { top: 1, bottom: 6 }, 1);
+    f.grid.screen_mut().slots[index] = Some(planted);
+    assert_eq!(
+        screen(&f).check_rows(None),
+        Err(IntegrityViolation::RowIdMismatch { id })
+    );
+}
+
+#[test]
+fn set_scrollback_limit_restamps_first() {
+    let mut f = fixture_with(6, 6, 1024);
+    f.label_rows();
+    f.grid.begin_batch();
+    scroll_up(&mut f, ScrollRegion { top: 1, bottom: 6 }, 2);
+    f.grid.set_scrollback_limit(0);
     f.check();
-    // Rows 1..6 moved up by one; the stale row's slot reads as a blank row, not as 'S'.
-    assert_eq!(f.screen_text(), "r0|r2||r4|r5|");
+    assert_eq!(f.screen_text(), "r0|r3|r4|r5||");
+    for index in 0..6 {
+        let id = screen(&f).row_of_index(index);
+        assert!(
+            stored_header(&f, index).is_none_or(|(header_id, _)| header_id == id),
+            "row {index}"
+        );
+    }
+}
+
+#[test]
+fn two_disjoint_region_scrolls_leave_the_rows_between_untouched() {
+    let mut f = fixture_with(24, 6, 100);
+    f.grid.begin_batch();
+    scroll_up(&mut f, ScrollRegion { top: 1, bottom: 4 }, 1);
+    scroll_up(
+        &mut f,
+        ScrollRegion {
+            top: 19,
+            bottom: 24,
+        },
+        1,
+    );
+    for index in 4..19 {
+        let row = screen(&f).row(screen(&f).row_of_index(index));
+        assert!(row.flags().is_empty(), "row {index}");
+        assert_eq!(row.seq(), crate::grid::row::SeqNo(0), "row {index}");
+    }
+    f.grid.begin_batch();
+    for index in 4..19 {
+        assert_eq!(stored_header(&f, index), None, "row {index} allocated");
+    }
+}
+
+#[test]
+fn a_trimmed_moved_id_reads_as_a_plain_blank() {
+    let mut f = fixture_with(6, 6, 0);
+    f.label_rows();
+    let dead = screen(&f).row_of_index(1);
+    let batch = f.grid.begin_batch();
+    scroll_up(&mut f, ScrollRegion { top: 1, bottom: 6 }, 1);
+    assert_eq!(screen(&f).row(dead).seq(), batch);
+    // Enough full-screen line feeds in the same batch to trim `dead` and reuse its slot.
+    let ring = screen(&f).slots.len();
+    newlines(&mut f, ring + 8);
+    assert!(dead < screen(&f).oldest());
+    let row = screen(&f).row(dead);
+    assert_eq!(row.seq(), crate::grid::row::SeqNo(0));
+    assert!(row.flags().is_empty());
+    f.check();
+}
+
+#[test]
+fn erasing_the_history_after_a_region_scroll_keeps_the_rows() {
+    let mut f = fixture_with(6, 6, 100);
+    newlines(&mut f, 4);
+    f.label_rows();
+    f.grid.begin_batch();
+    scroll_up(&mut f, ScrollRegion { top: 1, bottom: 6 }, 1);
+    erase_display(&mut f, DisplayClear::Saved);
+    assert_eq!(f.screen_text(), "r0|r2|r3|r4|r5|");
+    f.grid.begin_batch();
+    f.check();
+    assert_eq!(f.screen_text(), "r0|r2|r3|r4|r5|");
+}
+
+#[test]
+fn a_slice_rotation_then_a_ring_end_rotation_in_one_batch() {
+    let mut f = region_across_the_ring_end();
+    f.grid.begin_batch();
+    // The first window ends exactly at the ring end (a slice), the second crosses it.
+    scroll_up(&mut f, ScrollRegion { top: 1, bottom: 3 }, 1);
+    assert_eq!(f.screen_text(), "r0|r2||r3|r4|r5");
+    scroll_up(&mut f, ScrollRegion { top: 1, bottom: 6 }, 1);
+    assert_eq!(f.screen_text(), "r0||r3|r4|r5|");
+    f.grid.begin_batch();
+    f.check();
+    assert_eq!(f.screen_text(), "r0||r3|r4|r5|");
 }
 
 #[test]
