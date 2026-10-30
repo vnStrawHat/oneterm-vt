@@ -248,6 +248,139 @@ fn random_bytes_stay_within_the_caps() {
 }
 
 #[test]
+fn raster_first_image_hands_over_its_buffer() {
+    let image = image("\"1;1;5;3#1~");
+    assert_eq!((image.width, image.height), (5, 3));
+    assert_eq!(image.rgba.len(), 60);
+    assert_eq!(image.rgba.capacity(), 60);
+    for y in 0..3 {
+        assert_ne!(pixel(&image, 0, y), CLEAR);
+        for x in 1..5 {
+            assert_eq!(pixel(&image, x, y), CLEAR);
+        }
+    }
+}
+
+#[test]
+fn paint_wider_than_the_stride_narrows() {
+    // One column fixes the stride at 64; 70 more columns double it to 128, and the image is 71.
+    let image = image("#0;2;100;0;0#0~!70~");
+    assert_eq!((image.width, image.height), (71, 6));
+    for y in 0..6 {
+        for x in 0..71 {
+            assert_eq!(pixel(&image, x, y), RED, "({x}, {y})");
+        }
+    }
+}
+
+#[test]
+fn paint_past_the_raster_is_cut() {
+    let image = image("\"1;1;4;6#0;2;100;0;0#0!10~-!10~-!10~");
+    assert_eq!((image.width, image.height), (4, 6));
+    assert_eq!(image.rgba.len(), 4 * 6 * 4);
+    for y in 0..6 {
+        for x in 0..4 {
+            assert_eq!(pixel(&image, x, y), RED, "({x}, {y})");
+        }
+    }
+}
+
+#[test]
+fn raster_after_paint_widens() {
+    let image = image("#0;2;100;0;0#0!3~\"1;1;100;6");
+    assert_eq!((image.width, image.height), (100, 6));
+    for y in 0..6 {
+        for x in 0..100 {
+            let expected = if x < 3 { RED } else { CLEAR };
+            assert_eq!(pixel(&image, x, y), expected, "({x}, {y})");
+        }
+    }
+}
+
+#[test]
+fn a_raster_alone_allocates_nothing() {
+    let mut decoder = SixelDecoder::new();
+    for byte in "\"1;1;4096;4096$".bytes() {
+        decoder.put(byte);
+    }
+    assert_eq!(decoder.raster, Some((4096, 4096)));
+    assert_eq!(decoder.pixels.capacity(), 0);
+}
+
+#[test]
+fn a_second_raster_after_the_buffer_exists_resizes_the_image() {
+    let image = image("\"1;1;10;6#1~~\"1;1;4;3");
+    assert_eq!((image.width, image.height), (4, 3));
+    assert_eq!(image.rgba.len(), 4 * 3 * 4);
+    for y in 0..3 {
+        for x in 0..4 {
+            let painted = x < 2;
+            assert_eq!(pixel(&image, x, y) != CLEAR, painted, "({x}, {y})");
+        }
+    }
+}
+
+/// The image the old `finish` built: a zeroed buffer filled by copying `min(width, stride)`
+/// columns of the first `height` rows.
+fn copied_image(input: &str) -> Option<DecodedSixel> {
+    let mut decoder = SixelDecoder::new();
+    for byte in input.bytes() {
+        decoder.put(byte);
+    }
+    match decoder.phase {
+        Phase::Color => decoder.define_color(),
+        Phase::Raster => decoder.declare_raster(),
+        Phase::Ground | Phase::Repeat => {}
+    }
+    let (width, height) = decoder.raster.unwrap_or((decoder.width, decoder.height));
+    if width == 0 || height == 0 {
+        return None;
+    }
+    let mut rgba = vec![0u8; width as usize * height as usize * 4];
+    let stride = decoder.stride as usize;
+    let copied = (width as usize).min(stride);
+    if copied > 0 {
+        let rows = decoder.pixels.chunks_exact(stride);
+        for (target, source) in rgba.chunks_exact_mut(width as usize * 4).zip(rows) {
+            for (out, pixel) in target.chunks_exact_mut(4).zip(source.iter().take(copied)) {
+                out.copy_from_slice(pixel);
+            }
+        }
+    }
+    Some(DecodedSixel {
+        width,
+        height,
+        rgba,
+        band_pixels: decoder.band.saturating_mul(6).min(MAX_DIMENSION),
+    })
+}
+
+mod finish_properties {
+    use proptest::prelude::*;
+
+    use super::*;
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(128))]
+
+        #[test]
+        fn finish_equals_the_copy_loop(
+            input in prop::string::string_regex("[0-9;#!\"$\\-?-~]{0,120}").expect("regex"),
+        ) {
+            let expected = copied_image(&input);
+            let actual = decode(input.as_bytes());
+            prop_assert_eq!(actual.is_some(), expected.is_some());
+            if let (Some(actual), Some(expected)) = (actual, expected) {
+                prop_assert_eq!(actual.width, expected.width);
+                prop_assert_eq!(actual.height, expected.height);
+                prop_assert_eq!(actual.band_pixels, expected.band_pixels);
+                prop_assert!(actual.rgba == expected.rgba);
+            }
+        }
+    }
+}
+
+#[test]
 fn debug_names_the_type_only() {
     assert_eq!(format!("{:?}", SixelDecoder::new()), "SixelDecoder");
 }

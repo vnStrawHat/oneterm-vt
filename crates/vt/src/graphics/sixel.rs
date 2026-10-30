@@ -160,23 +160,22 @@ impl SixelDecoder {
         if width == 0 || height == 0 {
             return None;
         }
-        // At most 4096 x 4096 x 4: 64 MiB.
-        let mut rgba = vec![0u8; width as usize * height as usize * 4];
-        let stride = self.stride as usize;
-        let copied = (width as usize).min(stride);
-        if copied > 0 {
-            let rows = self.pixels.chunks_exact(stride);
-            for (target, source) in rgba.chunks_exact_mut(width as usize * 4).zip(rows) {
-                for (out, pixel) in target.chunks_exact_mut(4).zip(source.iter().take(copied)) {
-                    out.copy_from_slice(pixel);
-                }
-            }
+        // The buffer becomes the image: rows re-laid to `width` pixels, then cut or padded to
+        // `height` rows. At most 4096 x 4096 x 4: 64 MiB.
+        if width > self.stride {
+            self.widen(width);
+        } else if width < self.stride {
+            self.narrow(width);
         }
+        let band_pixels = self.band.saturating_mul(6).min(MAX_DIMENSION);
+        let mut pixels = std::mem::take(&mut self.pixels);
+        pixels.resize(width as usize * height as usize, TRANSPARENT);
+        pixels.shrink_to_fit();
         Some(DecodedSixel {
             width,
             height,
-            rgba,
-            band_pixels: self.band.saturating_mul(6).min(MAX_DIMENSION),
+            rgba: pixels.into_flattened(),
+            band_pixels,
         })
     }
 
@@ -293,7 +292,17 @@ impl SixelDecoder {
     /// Makes the buffer cover `columns` x `rows`. The row length doubles when it must grow,
     /// so the copies are amortised; it never passes [`MAX_DIMENSION`], which keeps the buffer
     /// within `MAX_DIMENSION^2` pixels (64 MiB).
+    ///
+    /// Nothing painted yet and a raster declared: the declared size is the image, so the buffer
+    /// starts at it (zeroed by the allocator) and `finish` hands it over without a copy. The
+    /// allocation waits for the first painted pixel, so a raster alone costs nothing.
     fn reserve(&mut self, columns: u32, rows: u32) {
+        if self.pixels.is_empty()
+            && let Some((width, height)) = self.raster
+        {
+            self.pixels = vec![TRANSPARENT; width as usize * height as usize];
+            self.stride = width;
+        }
         if columns > self.stride {
             let stride = columns
                 .max(self.stride.saturating_mul(2))
@@ -305,6 +314,18 @@ impl SixelDecoder {
             self.pixels.resize(needed, TRANSPARENT);
         }
         debug_assert!(self.pixels.len() <= (MAX_DIMENSION * MAX_DIMENSION) as usize);
+    }
+
+    /// Re-lays the buffer out with rows of `stride` pixels, fewer than now, in place.
+    fn narrow(&mut self, stride: u32) {
+        let (old, new) = (self.stride as usize, stride as usize);
+        let rows = self.pixels.len().checked_div(old).unwrap_or(0);
+        for row in 1..rows {
+            self.pixels
+                .copy_within(row * old..row * old + new, row * new);
+        }
+        self.pixels.truncate(rows * new);
+        self.stride = stride;
     }
 
     /// Re-lays the buffer out with rows of `stride` pixels.
