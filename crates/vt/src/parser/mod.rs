@@ -150,6 +150,13 @@ impl Parser {
                 rest = self.ground(dispatch, rest);
                 continue;
             }
+            if matches!(self.state, State::CsiEntry | State::CsiParam) {
+                rest = self.csi_run(dispatch, rest);
+                if self.state == State::Ground || rest.is_empty() {
+                    continue;
+                }
+            }
+
             let mut iter = rest.iter();
             while self.state != State::Ground {
                 let Some(&byte) = iter.next() else { break };

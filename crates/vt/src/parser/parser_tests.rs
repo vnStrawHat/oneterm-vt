@@ -308,6 +308,72 @@ fn csi_param_after_intermediate_dispatches_ignored() {
 }
 
 #[test]
+fn csi_split_at_every_byte() {
+    let too_many = format!("\x1b[{}m", "1;".repeat(MAX_PARAMS + 8));
+    let sequences: [&[u8]; 13] = [
+        b"\x1b[?1;2:3h",
+        b"\x1b[38;2;1;2;3m",
+        b"\x1b[1\x082H",
+        b"\x1b[1?2h",
+        b"\x1b[1$p",
+        too_many.as_bytes(),
+        b"\x1b[99999A",
+        b"ab\x1b[1;2Hcd\x1b[m",
+        b"\x1b[1\x1b[2m",
+        b"\x1b[1\x18ab",
+        b"\x1b[1\x7f2m",
+        b"\x1b[??h",
+        b"\x1b[1\xc3\xa9m",
+    ];
+    for bytes in sequences {
+        let whole = feed(bytes);
+        for at in 0..=bytes.len() {
+            let (head, tail) = bytes.split_at(at);
+            assert_eq!(feed_split(&[head, tail]), whole, "{bytes:?} split at {at}");
+        }
+    }
+}
+
+#[test]
+fn escape_bracket_at_the_chunk_end() {
+    let expected = vec![csi(&[&[1]], b"", false, b'm')];
+    assert_eq!(feed_split(&[b"\x1b", b"[1m"]), expected);
+    assert_eq!(feed_split(&[b"\x1b[", b"1m"]), expected);
+    assert_eq!(feed_split(&[b"\x1b[1", b"m"]), expected);
+}
+
+/// Counts `print_str` calls and sequences, to show where a text run is cut.
+#[derive(Default)]
+struct RunCounter {
+    texts: Vec<String>,
+    csis: usize,
+}
+
+impl Dispatch for RunCounter {
+    fn print_str(&mut self, text: &str) {
+        self.texts.push(text.to_string());
+    }
+
+    fn execute(&mut self, _byte: u8) {}
+
+    fn csi(&mut self, _params: &Params, _intermediates: &[u8], _ignore: bool, _byte: u8) {
+        self.csis += 1;
+    }
+}
+
+#[test]
+fn short_run_before_escape_prints_once() {
+    // 2 bytes: found by the look-ahead; 10 bytes: past it, found by `memchr`.
+    for text in ["ab", "abcdefghij"] {
+        let mut parser = Parser::new();
+        let mut counter = RunCounter::default();
+        parser.advance(&mut counter, format!("{text}\x1b[m").as_bytes());
+        assert_eq!(counter.texts, [text]);
+        assert_eq!(counter.csis, 1);
+    }
+}
+
+#[test]
 fn csi_marker_after_param_dispatches_ignored() {
     assert_eq!(
         feed_both_ways(b"\x1b[1?m"),

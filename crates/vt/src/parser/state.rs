@@ -182,6 +182,63 @@ impl Parser {
         }
     }
 
+    /// Consumes CSI header bytes while the state is `CsiEntry` or `CsiParam`: a private marker
+    /// right after the introducer, digits and separators, with the value being read kept in a
+    /// local. The final byte dispatches; the run stops before any other byte, which the
+    /// per-byte table then takes.
+    pub(super) fn csi_run<'a, D: Dispatch + ?Sized>(
+        &mut self,
+        dispatch: &mut D,
+        bytes: &'a [u8],
+    ) -> &'a [u8] {
+        let mut index = 0;
+        if self.state == State::CsiEntry
+            && let Some(&marker @ 0x3C..=0x3F) = bytes.first()
+        {
+            self.collect(marker);
+            self.state = State::CsiParam;
+            index = 1;
+        }
+        let mut value = self.pending_value;
+        while let Some(&byte) = bytes.get(index) {
+            index += 1;
+            match byte {
+                b'0'..=b'9' => {
+                    if self.params.is_full() {
+                        self.params.mark_ignored();
+                    } else {
+                        value = value
+                            .saturating_mul(10)
+                            .saturating_add(u16::from(byte - b'0'));
+                    }
+                }
+                b';' | b':' => {
+                    self.params.push(value, self.pending_sep);
+                    value = 0;
+                    self.pending_sep = if byte == b':' {
+                        ParamSep::Colon
+                    } else {
+                        ParamSep::Semicolon
+                    };
+                }
+                0x40..=0x7E => {
+                    self.pending_value = value;
+                    self.dispatch_csi(dispatch, byte);
+                    return bytes.get(index..).unwrap_or_default();
+                }
+                _ => {
+                    // Left to the per-byte table, so `step` keeps a single call site (it is
+                    // inlined into the string states' loop; a second caller un-inlined it).
+                    self.pending_value = value;
+                    return bytes.get(index - 1..).unwrap_or_default();
+                }
+            }
+            self.state = State::CsiParam;
+        }
+        self.pending_value = value;
+        &[]
+    }
+
     /// A digit or separator (`0x30..=0x3B`) in a CSI header that has not seen an intermediate:
     /// the same transition `header` makes, without its dispatch on family and phase.
     pub(super) fn csi_parameter(&mut self, byte: u8) {

@@ -23,13 +23,28 @@ impl Parser {
         dispatch: &mut D,
         bytes: &'a [u8],
     ) -> &'a [u8] {
-        let Some(index) = memchr::memchr(ESC, bytes) else {
+        // Short runs between sequences are the common case in TUI output: look a few bytes
+        // ahead before paying for the vectorised search.
+        let near = bytes.iter().take(8).position(|&byte| byte == ESC);
+        let found = match near {
+            Some(index) => Some(index),
+            None if bytes.len() <= 8 => None,
+            None => memchr::memchr(ESC, bytes),
+        };
+        let Some(index) = found else {
             self.print_run(dispatch, bytes, RunEnd::Chunk);
             return &[];
         };
         let (run, tail) = bytes.split_at(index);
-        self.print_run(dispatch, run, RunEnd::Byte);
+        if !run.is_empty() {
+            self.print_run(dispatch, run, RunEnd::Byte);
+        }
         self.clear();
+        // `ESC [` goes straight to the CSI header.
+        if tail.get(1) == Some(&b'[') {
+            self.state = State::CsiEntry;
+            return tail.get(2..).unwrap_or_default();
+        }
         self.state = State::Escape;
         tail.get(1..).unwrap_or_default()
     }
