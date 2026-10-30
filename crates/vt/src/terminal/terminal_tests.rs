@@ -627,6 +627,55 @@ fn rep_of_a_mark_attaches_each_copy() {
     assert_eq!(repeated.row(0).trim_end(), "e\u{301}\u{301}\u{301}");
 }
 
+#[test]
+fn a_background_only_pen_is_its_own_erase_style() {
+    use crate::intern::StyleId;
+    let styles = |s: &Session| s.term.interner().styles.entries();
+    let first_cell_style = |s: &Session| {
+        let screen = s.term.screen();
+        screen.row(screen.row_of_index(0)).cell(0).style_id()
+    };
+    let pen_and_erase = |s: &Session| {
+        let cursor = s.term.screen().cursor();
+        (cursor.template().style_id(), cursor.erase().style_id())
+    };
+    let mut s = Session::new(10, 2);
+    let before = styles(&s);
+    s.feed(b"\x1b[48;5;3m");
+    assert_eq!(styles(&s), before + 1);
+    let (pen_style, erase_style) = pen_and_erase(&s);
+    assert_eq!(erase_style, pen_style);
+    assert_ne!(erase_style, StyleId::DEFAULT);
+    s.feed(b"x\x1b[2K");
+    assert_eq!(
+        first_cell_style(&s),
+        pen_style,
+        "the erase fills with the pen"
+    );
+    assert_eq!(styles(&s), before + 1, "the erase reuses the pen");
+    // A pen with more than a background has its own style, and the erase style is the
+    // background alone.
+    for sgr in ["1;48;5;3", "38;5;4;48;5;3", "58;5;2;48;5;3"] {
+        let mut s = Session::new(10, 2);
+        let before = styles(&s);
+        s.feed(format!("\x1b[{sgr}m").as_bytes());
+        assert_eq!(styles(&s), before + 2, "{sgr}");
+        let (pen_style, erase_style) = pen_and_erase(&s);
+        assert_ne!(erase_style, pen_style, "{sgr}");
+        let bg = s.term.interner().resolve_style(pen_style).bg;
+        assert_eq!(
+            *s.term.interner().resolve_style(erase_style),
+            Style {
+                bg,
+                ..Style::DEFAULT
+            },
+            "{sgr}"
+        );
+    }
+    s.feed(b"\x1b[49m");
+    assert_eq!(pen_and_erase(&s).1, StyleId::DEFAULT);
+}
+
 // ---- ?2027 ----
 
 const FAMILY: &str = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";

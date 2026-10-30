@@ -486,13 +486,17 @@ impl Screen {
         if interner.resolve_style(self.cursor.erase.style_id()).bg == bg {
             return;
         }
+        let bg_only = Style {
+            bg,
+            ..Style::DEFAULT
+        };
         let erase_style = if bg == Style::DEFAULT.bg {
             StyleId::DEFAULT
+        } else if *interner.resolve_style(template.style_id()) == bg_only {
+            // The pen sets only a background: it is its own erase style, no second lookup.
+            template.style_id()
         } else {
-            interner.style(Style {
-                bg,
-                ..Style::DEFAULT
-            })
+            interner.style(bg_only)
         };
         self.cursor.erase = Cell::EMPTY.with_style(erase_style);
     }
