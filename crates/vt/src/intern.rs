@@ -387,6 +387,11 @@ impl GraphemeArena {
     pub fn sweep(&mut self, live: impl IntoIterator<Item = GraphemeId>) -> GraphemeRemap {
         let mut fresh = GraphemeArena::with_limits(self.max_entries, self.max_chars);
         let (keep_clusters, keep_chars) = (self.max_entries / 2, self.max_chars / 2);
+        // Sized once for what the sweep can keep plus as many new ones: no rehash while it
+        // rebuilds, none before the next sweep.
+        let room = self.spans.len().min(keep_clusters).saturating_mul(2);
+        fresh.index.reserve(room);
+        fresh.spans.reserve(room);
         let mut map = vec![UNLISTED; self.spans.len()];
         let mut kept = 0;
         let mut full = false;
@@ -413,8 +418,6 @@ impl GraphemeArena {
         fresh.scratch = std::mem::take(&mut self.scratch);
         fresh.kept_entries = fresh.spans.len();
         fresh.kept_chars = fresh.chars;
-        // The arena grows by about as many entries as it kept before the next sweep.
-        fresh.index.reserve(fresh.index.len());
         *self = fresh;
         GraphemeRemap(map)
     }

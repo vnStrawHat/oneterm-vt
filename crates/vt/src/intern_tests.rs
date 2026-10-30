@@ -540,3 +540,19 @@ fn intern_joined_equals_intern_of_the_concatenation() {
     assert_eq!(arena.truncated(), before + 1);
     assert_eq!(arena.resolve(cut).chars().count(), 16);
 }
+
+#[test]
+fn sweep_sizes_the_index_once() {
+    let mut arena = GraphemeArena::default();
+    let ids: Vec<GraphemeId> = (0..1_000)
+        .map(|n| arena.intern(&unique_cluster(n, 2)))
+        .collect();
+    let kept = 400;
+    arena.sweep(ids.iter().copied().take(kept));
+    let capacity = arena.index.capacity();
+    assert!(capacity >= 2 * kept, "capacity {capacity}");
+    for n in 1_000..1_000 + kept as u32 {
+        arena.intern(&unique_cluster(n, 2));
+    }
+    assert_eq!(arena.index.capacity(), capacity);
+}
