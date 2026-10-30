@@ -65,10 +65,24 @@ struct Entry {
 }
 
 /// The list of anchors of one terminal.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Anchors {
     entries: Vec<Entry>,
     free: Vec<AnchorId>,
+    /// No live anchor that is not screen-owned sits on a lower row (`RowId::MAX`: none). A
+    /// lower bound: `register` and `set` lower it, the walks of `trim` and `shift_region`
+    /// make it exact. Screen-owned anchors are left out: their screen writes them back.
+    lowest_follower: RowId,
+}
+
+impl Default for Anchors {
+    fn default() -> Anchors {
+        Anchors {
+            entries: Vec::new(),
+            free: Vec::new(),
+            lowest_follower: RowId(u64::MAX),
+        }
+    }
 }
 
 impl Anchors {
@@ -128,6 +142,9 @@ impl Anchors {
             },
             released: false,
         };
+        if !kind.is_screen_owned() {
+            self.lowest_follower = self.lowest_follower.min(pos.row);
+        }
         if let Some(id) = self.free.pop() {
             if let Some(entry) = self.entries.get_mut(id.0 as usize) {
                 *entry = fresh;
@@ -149,6 +166,9 @@ impl Anchors {
         {
             entry.anchor.pos = pos;
             entry.anchor.alive = true;
+            if !entry.anchor.kind.is_screen_owned() {
+                self.lowest_follower = self.lowest_follower.min(pos.row);
+            }
         }
     }
 
@@ -185,6 +205,10 @@ impl Anchors {
     ///
     /// Screen-owned anchors are skipped: their screen writes them back.
     pub(crate) fn shift_region(&mut self, rows: Range<RowId>, delta: i32, kill: Range<RowId>) {
+        if self.lowest_follower >= rows.end.max(kill.end) {
+            return;
+        }
+        let mut lowest = RowId(u64::MAX);
         let step = u64::from(delta.unsigned_abs());
         for entry in &mut self.entries {
             let anchor = &mut entry.anchor;
@@ -200,18 +224,32 @@ impl Anchors {
                     anchor.pos.row - step
                 };
             }
+            if anchor.alive {
+                lowest = lowest.min(anchor.pos.row);
+            }
         }
+        self.lowest_follower = lowest;
     }
 
     /// Kills live anchors with a row in `origin..oldest`: the part of one lane that left the ring.
     ///
     /// Lane-scoped on purpose: a lane-blind "below oldest" would kill the other lane.
     pub(crate) fn trim(&mut self, origin: RowId, oldest: RowId) {
+        // Screen-owned anchors never sit below the oldest row, and their screen writes them
+        // back after every trim.
+        if oldest <= self.lowest_follower {
+            return;
+        }
+        let mut lowest = RowId(u64::MAX);
         for entry in &mut self.entries {
             if entry.anchor.alive && (origin..oldest).contains(&entry.anchor.pos.row) {
                 entry.anchor.alive = false;
             }
+            if entry.anchor.alive && !entry.anchor.kind.is_screen_owned() {
+                lowest = lowest.min(entry.anchor.pos.row);
+            }
         }
+        self.lowest_follower = lowest;
     }
 
     pub(crate) fn heap_bytes(&self) -> usize {

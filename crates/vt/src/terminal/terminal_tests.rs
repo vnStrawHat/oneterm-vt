@@ -658,6 +658,43 @@ fn alt_partial_top_region_scrolls_in_place() {
 }
 
 #[test]
+fn linefeed_with_a_scrolled_viewport_keeps_its_offset() {
+    let config = Config {
+        scrollback_limit: 100,
+        ..Config::default()
+    };
+    let mut s = Session::sized(10, 3, config);
+    s.feed("\n".repeat(12).as_bytes());
+    s.term.scroll_viewport(-3);
+    let top = s.term.screen().visible_top();
+    s.feed("\n".repeat(10).as_bytes());
+    assert_eq!(s.term.screen().visible_top(), top);
+    assert_eq!(s.term.screen().scroll_offset(), 13);
+    assert!(
+        s.events()
+            .iter()
+            .all(|e| !matches!(e, VtEvent::RowsTrimmed { .. }))
+    );
+}
+
+#[test]
+fn linefeed_once_history_is_full_reports_one_trim_per_line() {
+    let config = Config {
+        scrollback_limit: 4,
+        ..Config::default()
+    };
+    let mut s = Session::sized(10, 3, config);
+    s.feed("\n".repeat(8).as_bytes());
+    s.feed("\n".repeat(10).as_bytes());
+    let trims = s
+        .events()
+        .into_iter()
+        .filter(|event| matches!(event, VtEvent::RowsTrimmed { .. }))
+        .count();
+    assert_eq!(trims, 10);
+}
+
+#[test]
 fn alt_full_screen_scroll_still_pushes() {
     let mut s = Session::new(10, 24);
     s.feed(b"\x1b[?1049h\x1b[24;1H");

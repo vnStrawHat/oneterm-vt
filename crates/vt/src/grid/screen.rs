@@ -965,6 +965,9 @@ impl Screen {
     pub(crate) fn linefeed(&mut self, anchors: &mut Anchors) -> Option<ScrollReport> {
         let index = self.cursor_row_index();
         if index + 1 == self.region.bottom {
+            if self.region.top == 0 && self.region.bottom == self.rows && self.offset == 0 {
+                return Some(self.linefeed_into_history(anchors));
+            }
             return Some(self.scroll_up(self.region, 1, anchors));
         }
         if index + 1 < self.rows {
@@ -973,6 +976,26 @@ impl Screen {
         self.sync_anchors(anchors);
         self.debug_check();
         None
+    }
+
+    /// `scroll_up_into_history` for one row of a whole-screen region and a live viewport.
+    #[cfg_attr(feature = "hotpath-profiling", hotpath::measure(impl_type = "Screen"))]
+    fn linefeed_into_history(&mut self, anchors: &mut Anchors) -> ScrollReport {
+        let oldest_before = self.oldest;
+        self.push_row(self.cursor.erase);
+        self.cursor.pos.row = self.cursor.pos.row + 1;
+        self.saved_cursor.pos.row = self.saved_cursor.pos.row + 1;
+        let trimmed = (self.oldest > oldest_before).then_some(self.oldest);
+        if trimmed.is_some() {
+            anchors.trim(self.kind.origin(), self.oldest);
+        }
+        self.sync_anchors(anchors);
+        self.debug_check();
+        ScrollReport {
+            scrolled: None,
+            trimmed,
+            history_rows: 1,
+        }
     }
 
     /// `RI`: up one row, scrolling the region down at its top. Returns the report of that
@@ -1240,6 +1263,13 @@ impl Screen {
     /// Tier 1 check after every mutating method of a debug build.
     fn debug_check(&self) {
         debug_assert_eq!(self.check_bounds(), Ok::<(), IntegrityViolation>(()));
+        // `Anchors::trim` and `shift_region` leave screen-owned anchors alone on this promise.
+        debug_assert!(
+            self.owned_anchors()
+                .iter()
+                .all(|(_, pos)| pos.row >= self.oldest),
+            "a screen-owned anchor sits below the oldest row"
+        );
     }
 }
 

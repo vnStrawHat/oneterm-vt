@@ -78,13 +78,42 @@ fn a_killed_anchor_can_still_be_released() {
 fn set_revives_but_leaves_released_ids_alone() {
     let mut anchors = Anchors::new();
     let a = anchors.register(AnchorKind::Cursor, pos(1, 0));
-    anchors.trim(RowId(0), RowId(5));
+    anchors.kill(a);
     assert_eq!(anchors.get(a), None);
     anchors.set(a, pos(7, 2));
     assert_eq!(anchors.get(a), Some(pos(7, 2)));
     anchors.release(a);
     anchors.set(a, pos(8, 0));
     assert_eq!(anchors.get(a), None);
+}
+
+#[test]
+fn trim_and_shift_skip_above_the_lowest_follower() {
+    let mut anchors = Anchors::new();
+    let cursor = anchors.register(AnchorKind::Cursor, pos(2, 0));
+    let viewport = anchors.register(AnchorKind::ViewportTop, pos(0, 0));
+    anchors.trim(RowId(0), RowId(5));
+    anchors.shift_region(RowId(0)..RowId(9), -5, RowId(0)..RowId(9));
+    assert_eq!(anchors.get(cursor), Some(pos(2, 0)));
+    assert_eq!(anchors.get(viewport), Some(pos(0, 0)));
+
+    let follower = mark(&mut anchors, 10);
+    anchors.trim(RowId(0), RowId(5));
+    assert_eq!(anchors.get(follower), Some(pos(10, 0)));
+    anchors.trim(RowId(0), RowId(11));
+    assert_eq!(anchors.get(follower), None);
+
+    // `set` revives it lower than the walk left the watermark.
+    anchors.set(follower, pos(3, 0));
+    anchors.trim(RowId(0), RowId(4));
+    assert_eq!(anchors.get(follower), None);
+
+    // A shift lowers the watermark with the anchor it moves.
+    anchors.set(follower, pos(10, 0));
+    anchors.shift_region(RowId(0)..RowId(20), -5, RowId(0)..RowId(0));
+    assert_eq!(anchors.get(follower), Some(pos(5, 0)));
+    anchors.trim(RowId(0), RowId(6));
+    assert_eq!(anchors.get(follower), None);
 }
 
 #[test]

@@ -247,6 +247,55 @@ fn linefeed_below_region_stops_at_bottom() {
 }
 
 #[test]
+fn full_screen_linefeed_equals_a_region_scroll() {
+    use crate::grid::Pos;
+    use crate::grid::anchor::AnchorKind;
+
+    let build = || {
+        let mut f = fixture_with(4, 6, 5);
+        f.label_rows();
+        let row = f.grid.screen().row_of_index(1);
+        f.grid
+            .anchors_mut()
+            .register(AnchorKind::Mark(3), Pos { row, col: 0 });
+        f.goto(3, 0);
+        f.grid.screen_mut().save_cursor();
+        f
+    };
+    let snapshot = |f: &Fixture| {
+        let screen = screen(f);
+        let rows: Vec<String> = (screen.oldest().0..=screen.newest().0)
+            .map(|id| f.row_text(RowId(id)))
+            .collect();
+        let anchors: Vec<String> = f
+            .grid
+            .anchors()
+            .iter()
+            .map(|(id, anchor)| format!("{id:?} {anchor:?}"))
+            .collect();
+        (
+            rows,
+            anchors,
+            *screen.cursor(),
+            *screen.saved_cursor(),
+            screen.oldest(),
+            screen.newest(),
+        )
+    };
+    let mut by_linefeed = build();
+    let mut by_scroll = build();
+    for step in 0..30 {
+        let fast = by_linefeed.grid.linefeed();
+        let region = ScrollRegion::full(by_scroll.grid.screen().rows());
+        let general = Some(by_scroll.grid.scroll_up(region, 1));
+        by_linefeed.check();
+        by_scroll.check();
+        assert_eq!(fast, general, "report at step {step}");
+        assert_eq!(snapshot(&by_linefeed), snapshot(&by_scroll), "step {step}");
+    }
+}
+
+#[test]
 fn linefeed_at_region_bottom_scrolls_the_region() {
     let mut f = fixture(5, 10);
     f.grid.screen_mut().set_region(1, 4, CursorOrigin::Screen);
