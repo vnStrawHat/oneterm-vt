@@ -1042,3 +1042,20 @@ fn overrides_survive_a_soft_reset() {
     session.feed(b"\x1b]10;#fff\x07\x1b[!p");
     assert!(session.term.color(ColorKey::Foreground).is_some());
 }
+
+#[test]
+fn invalid_utf8_in_a_link_and_a_notification_is_replaced() {
+    let mut session = Session::new(20, 2);
+    session.feed(b"\x1b]8;;http://a/\xFFb\x07x\x1b]9;n\xFFm\x07");
+    let link = session
+        .term
+        .interner()
+        .hyperlinks
+        .resolve(crate::intern::HyperlinkId(0))
+        .expect("stored");
+    assert_eq!(&*link.uri, "http://a/\u{FFFD}b");
+    let VtEvent::Notification { body, .. } = events_of(&session)[0] else {
+        panic!("notification");
+    };
+    assert_eq!(text(&session, *body), "n\u{FFFD}m");
+}

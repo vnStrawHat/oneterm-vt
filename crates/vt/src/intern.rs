@@ -527,7 +527,10 @@ pub struct Hyperlink {
 #[derive(Debug, Default)]
 pub struct HyperlinkTable {
     links: Vec<Hyperlink>,
-    explicit: FxHashMap<(Box<str>, Box<str>), u32>,
+    /// Explicit links by [`explicit_key`].
+    explicit: FxHashMap<Box<str>, u32>,
+    /// Reused buffer for the key of a lookup, so a known link costs no allocation.
+    key: String,
     implicit: FxHashMap<Box<str>, u32>,
     next_implicit: u32,
     bytes: usize,
@@ -542,9 +545,10 @@ impl HyperlinkTable {
     pub fn intern(&mut self, id: Option<&str>, uri: &str) -> Option<HyperlinkId> {
         let explicit_id = id.filter(|id| !id.is_empty());
         let known = match explicit_id {
-            // ponytail: one small allocation per lookup of an explicit link; a borrowed-key
-            // lookup would avoid it if profiling ever shows OSC 8 on a hot path.
-            Some(id) => self.explicit.get(&(Box::from(id), Box::from(uri))),
+            Some(id) => {
+                explicit_key(&mut self.key, id, uri);
+                self.explicit.get(self.key.as_str())
+            }
             None => self.implicit.get(uri),
         };
         if let Some(&index) = known {
@@ -571,8 +575,9 @@ impl HyperlinkTable {
             implicit: explicit_id.is_none(),
         });
         match explicit_id {
-            Some(id) => {
-                self.explicit.insert((Box::from(id), Box::from(uri)), index);
+            Some(_) => {
+                // `key` still holds this link's key from the lookup above.
+                self.explicit.insert(Box::from(self.key.as_str()), index);
             }
             None => {
                 self.next_implicit = self.next_implicit.saturating_add(1);
@@ -612,6 +617,16 @@ impl HyperlinkTable {
         self.next_implicit = 0;
         self.bytes = 0;
     }
+}
+
+/// The map key of an explicit link: the id's length, `:`, the id, the URI. The length prefix
+/// keeps `("a", "bc")` and `("ab", "c")` apart.
+fn explicit_key(key: &mut String, id: &str, uri: &str) {
+    key.clear();
+    key.push_str(&id.len().to_string());
+    key.push(':');
+    key.push_str(id);
+    key.push_str(uri);
 }
 
 /// All the tables one terminal's cells point into.

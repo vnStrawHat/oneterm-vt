@@ -243,6 +243,32 @@ fn hyperlink_identity() {
 }
 
 #[test]
+fn explicit_link_keys_keep_boundaries_apart() {
+    let mut table = HyperlinkTable::default();
+    let first = table.intern(Some("a"), "bc").unwrap();
+    let second = table.intern(Some("ab"), "c").unwrap();
+    assert_ne!(first, second);
+    assert_eq!(table.intern(Some("a"), "bc"), Some(first));
+    assert_eq!(table.intern(Some("ab"), "c"), Some(second));
+    assert_eq!(table.len(), 2);
+}
+
+#[test]
+fn a_known_explicit_link_adds_nothing() {
+    let mut table = HyperlinkTable::default();
+    let id = table.intern(Some("id"), "https://a").unwrap();
+    for _ in 0..1000 {
+        assert_eq!(table.intern(Some("id"), "https://a"), Some(id));
+    }
+    assert_eq!(table.len(), 1);
+    // The 4 MiB budget was charged once (2 + 9 bytes): the rest fits exactly, one more does not.
+    let rest = (4 << 20) - 11;
+    assert_eq!(table.intern(Some("x"), &"u".repeat(rest)), None);
+    assert!(table.intern(Some("x"), &"u".repeat(rest - 1)).is_some());
+    assert_eq!(table.exhausted(), 1);
+}
+
+#[test]
 fn hyperlink_full_by_count() {
     let mut table = HyperlinkTable::default();
     for n in 0..65_536 {

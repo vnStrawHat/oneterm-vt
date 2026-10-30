@@ -138,7 +138,11 @@ impl Handler<'_> {
             if index > from {
                 self.state.scratch.push(';');
             }
-            self.state.scratch.push_str(&String::from_utf8_lossy(param));
+            // The strict check has an ASCII fast path; the lossy decode only runs on bad bytes.
+            match std::str::from_utf8(param) {
+                Ok(text) => self.state.scratch.push_str(text),
+                Err(_) => self.state.scratch.push_str(&String::from_utf8_lossy(param)),
+            }
         }
     }
 

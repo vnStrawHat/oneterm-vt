@@ -315,25 +315,12 @@ impl EventBatch {
         })
     }
 
-    /// Ends a payload built since `mark`, replacing invalid UTF-8 with `U+FFFD`; allocates
-    /// only then.
-    pub(crate) fn finish_lossy(&mut self, mark: usize) -> StrSpan {
-        let built = self.arena.get(mark..).unwrap_or_default();
-        if let std::borrow::Cow::Owned(repaired) = String::from_utf8_lossy(built) {
-            self.arena.truncate(mark);
-            self.extend(repaired.as_bytes());
-        }
-        StrSpan {
-            start: u32::try_from(mark).unwrap_or(u32::MAX),
-            len: u32::try_from(self.arena.len().saturating_sub(mark)).unwrap_or(u32::MAX),
-        }
-    }
-
     /// Stores `text` as a payload.
     pub(crate) fn text_span(&mut self, text: &str) -> StrSpan {
-        let mark = self.mark();
-        self.extend(text.as_bytes());
-        self.finish_lossy(mark)
+        // `append` keeps all of `text` or nothing, so the stored bytes are valid UTF-8.
+        let mark = u32::try_from(self.mark()).unwrap_or(u32::MAX);
+        let (start, len) = self.append(text.as_bytes()).unwrap_or((mark, 0));
+        StrSpan { start, len }
     }
 
     /// Decodes canonical base64 into the arena: a length that is a multiple of 4, the alphabet

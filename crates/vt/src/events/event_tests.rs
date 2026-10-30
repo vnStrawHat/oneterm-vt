@@ -101,12 +101,13 @@ fn finish_trimmed_rewinds_on_invalid_utf8() {
 }
 
 #[test]
-fn finish_lossy_repairs_invalid_utf8() {
+fn text_span_returns_the_text() {
     let mut batch = EventBatch::new();
-    let mark = batch.mark();
-    batch.extend(b"a\xffb");
-    let span = batch.finish_lossy(mark);
-    assert_eq!(batch.str(span), "a\u{FFFD}b");
+    batch.extend(b"before");
+    let span = batch.text_span("é;x");
+    assert_eq!(batch.str(span), "é;x");
+    let empty = batch.text_span("");
+    assert_eq!(batch.str(empty), "");
 }
 
 #[test]
