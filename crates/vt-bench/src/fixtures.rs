@@ -1,4 +1,4 @@
-//! The deterministic benchmark streams: fourteen release generators and nine compare-only ones, no RNG state.
+//! The deterministic benchmark streams: sixteen release generators and nine compare-only ones, no RNG state.
 
 use std::fmt::Write as _;
 use std::fs;
@@ -20,7 +20,7 @@ const SIXEL_UNIT: &[u8] =
     b"\x1bPq\"1;1;12;12#0;2;100;0;0#1;2;0;100;0#0~~~~~~~~~~~~-#1~~~~~~~~~~~~\x1b\\\r\n";
 const OSC_UNIT: &[u8] = b"\x1b]9;7;state=running;title=build\x07building the workspace\r\n";
 
-pub(crate) const FIXTURES: [Fixture; 14] = [
+pub(crate) const FIXTURES: [Fixture; 16] = [
     Fixture {
         name: "plain_ascii",
         about: "plain ASCII log lines",
@@ -91,9 +91,20 @@ pub(crate) const FIXTURES: [Fixture; 14] = [
         about: "640x480 to 1024x768 Sixel images",
         make: sixel_large,
     },
+    Fixture {
+        name: "unique_styles",
+        about: "a 24-bit colour of its own for every cell: the style table at its ceiling",
+        make: unique_styles,
+    },
+    Fixture {
+        name: "unique_links",
+        about: "an OSC 8 link nobody opened before on every line: the link table swept",
+        make: unique_links,
+    },
 ];
 
-/// The nine streams only the cross-engine comparison runs (`compare/`, spec 0016). They stay
+/// The nine streams only the cross-engine comparison runs (`compare/`, spec 0016); its corpus
+/// is these plus the first fourteen release streams, by name. They stay
 /// out of `FIXTURES` so release tiers, the release bench, `grid --check` and the history
 /// charts never see them; `fixtures --compare` writes them and `--fixture NAME` finds them.
 pub(crate) const COMPARE_FIXTURES: [Fixture; 9] = [
@@ -635,10 +646,37 @@ fn vim_session(target: usize) -> Vec<u8> {
     })
 }
 
+/// A foreground of its own for every cell, in grid-width lines. Past 65,536 cells every style
+/// id is held by a cell still on the grid, so the engine runs with a full style table.
+fn unique_styles(target: usize) -> Vec<u8> {
+    build(target, b"", |i, out| {
+        for col in 0..COLUMNS {
+            let n = i * COLUMNS + col;
+            let (r, g, b) = ((n >> 16) & 255, (n >> 8) & 255, n & 255);
+            put(out, format_args!("\x1b[38;2;{r};{g};{b}m"));
+            out.push(letter(n));
+        }
+        out.extend_from_slice(b"\x1b[m\r\n");
+    })
+}
+
+/// One link per line that no earlier line named: the hyperlink table fills and the engine
+/// frees the links whose rows left the history.
+fn unique_links(target: usize) -> Vec<u8> {
+    build(target, b"", |i, out| {
+        put(
+            out,
+            format_args!(
+                "\x1b]8;;https://ci.example.com/job/{i}/log\x1b\\job {i}\x1b]8;;\x1b\\ done\r\n"
+            ),
+        );
+    })
+}
+
 /// Which streams `fixtures` writes.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum FixtureSet {
-    /// The fourteen release streams.
+    /// The sixteen release streams.
     Release,
     /// The release streams plus the compare-only ones, in corpus order.
     Corpus,
@@ -717,7 +755,9 @@ mod tests {
                 "grapheme_clusters",
                 "hyperlinks",
                 "mode_churn",
-                "sixel_large"
+                "sixel_large",
+                "unique_styles",
+                "unique_links"
             ]
         );
     }
@@ -882,6 +922,12 @@ mod tests {
         assert_eq!(large.hooks, large.linefeeds);
         assert!(tally("grapheme_clusters").printed > 1000);
         assert!(tally("mode_churn").csis > 100);
+        // One SGR per cell and one reset per line.
+        let styles = tally("unique_styles");
+        assert_eq!(styles.csis, styles.printed + styles.linefeeds);
+        // One link opened and closed per line.
+        let unique = tally("unique_links");
+        assert_eq!(unique.oscs, 2 * unique.linefeeds);
     }
 
     #[test]
@@ -890,6 +936,10 @@ mod tests {
         assert!(make("hyperlinks", 1).starts_with(b"see \x1b]8;"));
         assert!(make("mode_churn", 1).starts_with(b"\x1b[?1049h"));
         assert!(make("sixel_large", 1).starts_with(b"\x1bPq\"1;1;1024;768#0;2;"));
+        assert!(make("unique_styles", 1).starts_with(b"\x1b[38;2;0;0;0ma\x1b[38;2;0;0;1mb"));
+        assert!(
+            make("unique_links", 1).starts_with(b"\x1b]8;;https://ci.example.com/job/0/log\x1b\\")
+        );
     }
 
     #[test]
@@ -929,7 +979,7 @@ mod tests {
 
     #[test]
     fn select_none_stays_on_the_release_fixtures_and_names_find_both() {
-        assert_eq!(select(None).unwrap().len(), 14);
+        assert_eq!(select(None).unwrap().len(), 16);
         let compare = select(Some("csi_mix")).unwrap();
         assert_eq!(compare[0].name, "csi_mix");
         let release = select(Some("plain_ascii")).unwrap();
@@ -946,9 +996,9 @@ mod tests {
         let mut sorted = names.clone();
         sorted.sort_unstable();
         sorted.dedup();
-        assert_eq!(sorted.len(), 23);
+        assert_eq!(sorted.len(), 25);
         assert_eq!(
-            names[14..],
+            names[16..],
             [
                 "cursor_motion",
                 "light_cells",
@@ -1115,16 +1165,16 @@ mod tests {
             write_fixtures(&base.join("release"), 1, FixtureSet::Release)
                 .unwrap()
                 .len(),
-            14
+            16
         );
-        assert_eq!(count(&base.join("release")), 14);
+        assert_eq!(count(&base.join("release")), 16);
         assert_eq!(
             write_fixtures(&base.join("corpus"), 1, FixtureSet::Corpus)
                 .unwrap()
                 .len(),
-            23
+            25
         );
-        assert_eq!(count(&base.join("corpus")), 23);
+        assert_eq!(count(&base.join("corpus")), 25);
     }
 }
 

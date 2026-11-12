@@ -18,9 +18,9 @@ const MARGIN_BOTTOM: f64 = 40.0;
 
 /// One colour per fixture on the white chart: the first ten are the original set, the rest were
 /// added for the fixtures that followed. Keep it at least as long as the fixture table.
-const PALETTE: [&str; 14] = [
+const PALETTE: [&str; 16] = [
     "#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#ff7f0e", "#17becf", "#8c564b", "#e377c2",
-    "#7f7f7f", "#bcbd22", "#111111", "#003f5c", "#e6ab02", "#a0006b",
+    "#7f7f7f", "#bcbd22", "#111111", "#003f5c", "#e6ab02", "#a0006b", "#66a61e", "#7570b3",
 ];
 
 /// One fixture's points: `(release index, MiB/s, spread %)`.

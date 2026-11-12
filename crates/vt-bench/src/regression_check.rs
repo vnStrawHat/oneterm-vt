@@ -558,7 +558,9 @@ mod tests {
                 "grapheme_clusters",
                 "hyperlinks",
                 "mode_churn",
-                "sixel_large"
+                "sixel_large",
+                "unique_styles",
+                "unique_links"
             ]
         );
         assert!(rows.iter().all(|row| row.baseline.is_none() != row.slower));
@@ -571,7 +573,7 @@ mod tests {
         let text = render_check(&plan, &rows);
         assert!(text.contains("| `hyperlinks` | - | 1.0 | - | no baseline |\n"));
         assert!(text.contains(
-            "\nNot judged, no baseline: `grapheme_clusters`, `hyperlinks`, `mode_churn`, `sixel_large`\n"
+            "\nNot judged, no baseline: `grapheme_clusters`, `hyperlinks`, `mode_churn`, `sixel_large`, `unique_styles`, `unique_links`\n"
         ));
         assert!(text.ends_with("\nFAIL: 10 of 10 fixtures below 0.50 x baseline: `plain_ascii`, `long_lines`, `heavy_sgr`, `tui_redraw`, `scroll_region`, `cjk_wide`, `dense_cells`, `scrolling`, `sixel`, `osc_9_7`\n"));
     }

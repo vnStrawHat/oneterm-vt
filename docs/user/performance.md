@@ -14,14 +14,18 @@ The tool is `vt-bench` (`crates/vt-bench`, a developer binary that is not part o
 | 5 | `rss` | live heap after 10 000 scrollback rows of plain, unicode, styled and mixed text | bytes/row |
 
 Tier 2 is the headline: it is what every byte of terminal output costs an embedder. Tiers 1-3
-run fourteen deterministic streams at 160x45: `plain_ascii`, `long_lines`, `heavy_sgr`, `tui_redraw`,
-`scroll_region`, `cjk_wide`, `dense_cells`, `scrolling`, `sixel`, `osc_9_7`, and four newer ones,
+run sixteen deterministic streams at 160x45: `plain_ascii`, `long_lines`, `heavy_sgr`, `tui_redraw`,
+`scroll_region`, `cjk_wide`, `dense_cells`, `scrolling`, `sixel`, `osc_9_7`, and six newer ones,
 absent from the numbers below until a release records them:
 
 - `grapheme_clusters`: emoji ZWJ, VS16, skin tones, flags and combining marks under `?2027`.
 - `hyperlinks`: OSC 8 links with 200-1000 byte URIs, `ST` and `BEL` ends, repeats.
 - `mode_churn`: alt screen, mode toggles, DECSC, titles, regions: a TUI opening and closing.
 - `sixel_large`: 640x480 to 1024x768 images, so pixel painting dominates.
+- `unique_styles`: a 24-bit colour of its own for every cell; past 65,536 live styles new ones
+  fall back to the default style, and this stream measures the engine in that state.
+- `unique_links`: an `OSC 8` link nobody opened before on every line, so the link table fills
+  and is swept.
 
 ## What is not measured
 

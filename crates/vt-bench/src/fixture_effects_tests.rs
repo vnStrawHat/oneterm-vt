@@ -202,3 +202,23 @@ fn long_osc_leaves_the_status_text_and_no_title() {
     let last = rows.iter().rposition(|row| !row.is_empty()).expect("text");
     assert_eq!(rows[last], format!("osc {}", units - 1));
 }
+
+#[test]
+fn unique_styles_fill_the_style_table() {
+    // 4 MiB is about 250,000 cells, each with a colour of its own, all still in the history.
+    let (fed, _) = feed_fixture("unique_styles", 1 << 22, CHUNK);
+    assert_eq!(fed.term.interner().styles.entries(), 1 << 16);
+    assert!(
+        fed.refused > 100_000,
+        "{} cells lost their colour",
+        fed.refused
+    );
+}
+
+#[test]
+fn unique_links_are_swept_instead_of_refused() {
+    // 8 MiB is about 140,000 links against a table of 65,536; only 10,045 rows are live.
+    let (fed, _) = feed_fixture("unique_links", 1 << 23, CHUNK);
+    assert_eq!(fed.refused, 0);
+    assert!(fed.term.interner().hyperlinks.len() <= 1 << 16);
+}
