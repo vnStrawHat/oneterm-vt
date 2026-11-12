@@ -410,7 +410,8 @@ fn begin_batch_stamps_both_screens() {
 #[test]
 fn heap_bytes_cover_both_rings_and_the_anchors() {
     let f = fixture_with(4, 8, 100);
-    let rings = (f.grid.primary().ring_len() + f.grid.alt().ring_len()) * size_of::<Option<Row>>();
+    let rings =
+        (f.grid.primary().ring_len() + f.grid.alt().ring_len()) * size_of::<Option<Box<Row>>>();
     assert!(f.grid.heap_bytes() >= rings + f.grid.anchors.heap_bytes());
 }
 

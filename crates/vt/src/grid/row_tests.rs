@@ -176,7 +176,7 @@ fn recycled_row_carries_nothing() {
     view.set_wrapped(true);
     view.mark_graphic();
     let buffer = spare.cells().as_ptr();
-    let row = Row::recycle(Some(spare), RowId(99), 6, SeqNo(8), Cell::EMPTY);
+    let row = Row::recycle(Some(Box::new(spare)), RowId(99), 6, SeqNo(8), Cell::EMPTY);
     assert_eq!(row.cells().as_ptr(), buffer);
     assert_eq!(row.cells(), &[Cell::EMPTY; 6]);
     assert_eq!(row.header().flags, RowFlags::DIRTY);
@@ -643,19 +643,19 @@ fn recycle_same_width_equals_new() {
     let template = Cell::EMPTY.with_style(StyleId(4));
     let mut spare = row_with(6, "abc");
     RowMut::new(&mut spare, SEQ).set_wrapped(true);
-    let recycled = Row::recycle(Some(spare), ID, 6, SeqNo(9), template);
-    assert_eq!(recycled, Row::new(ID, 6, SeqNo(9), template));
+    let recycled = Row::recycle(Some(Box::new(spare)), ID, 6, SeqNo(9), template);
+    assert_eq!(*recycled, Row::new(ID, 6, SeqNo(9), template));
 }
 
 #[test]
 fn recycle_other_width_equals_new() {
     let spare = row_with(4, "abcd");
     assert_eq!(
-        Row::recycle(Some(spare), ID, 7, SeqNo(9), Cell::EMPTY),
+        *Row::recycle(Some(Box::new(spare)), ID, 7, SeqNo(9), Cell::EMPTY),
         Row::new(ID, 7, SeqNo(9), Cell::EMPTY)
     );
     assert_eq!(
-        Row::recycle(None, ID, 3, SeqNo(9), Cell::EMPTY),
+        *Row::recycle(None, ID, 3, SeqNo(9), Cell::EMPTY),
         Row::new(ID, 3, SeqNo(9), Cell::EMPTY)
     );
 }

@@ -12,7 +12,7 @@ struct Rig {
     screen: Screen,
     anchors: Anchors,
     interner: Interner,
-    scratch: Vec<Option<Row>>,
+    scratch: Vec<Option<Box<Row>>>,
 }
 
 fn rig(rows: u16, cols: u16, scrollback: u32) -> Rig {

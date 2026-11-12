@@ -222,15 +222,15 @@ fn lay_out(line: &mut Reader<'_>, length: usize, cols: u16, mut on_row: impl FnM
     }
 }
 
-fn source_row(rows: &[Option<Row>], index: usize, id: RowId, cols: u16) -> RowRef<'_> {
-    match rows.get(index).and_then(Option::as_ref) {
+fn source_row(rows: &[Option<Box<Row>>], index: usize, id: RowId, cols: u16) -> RowRef<'_> {
+    match rows.get(index).and_then(Option::as_deref) {
         Some(row) => RowRef::allocated(row),
         None => RowRef::blank(id, cols),
     }
 }
 
 /// Takes the buffer of a finished source row, scanning forward from `pool`.
-fn take_pooled(done: &mut [Option<Row>], pool: &mut usize) -> Option<Row> {
+fn take_pooled(done: &mut [Option<Box<Row>>], pool: &mut usize) -> Option<Box<Row>> {
     while let Some(slot) = done.get_mut(*pool) {
         if let Some(row) = slot.take() {
             return Some(row);
@@ -295,7 +295,7 @@ impl Screen {
         &mut self,
         cols: u16,
         anchors: &mut Anchors,
-        scratch: &mut Vec<Option<Row>>,
+        scratch: &mut Vec<Option<Box<Row>>>,
     ) -> Reflowed {
         let mut points = self.collect_points(anchors);
         let mut walk = Walk {
@@ -363,7 +363,7 @@ impl Screen {
     }
 
     /// Moves every live row out of the ring into `scratch`, in id order.
-    fn detach_rows(&mut self, scratch: &mut Vec<Option<Row>>) {
+    fn detach_rows(&mut self, scratch: &mut Vec<Option<Box<Row>>>) {
         scratch.clear();
         let live = self.newest.distance(self.oldest).saturating_add(1);
         scratch.reserve(usize::try_from(live).unwrap_or(0));
@@ -379,15 +379,15 @@ impl Screen {
     fn reflow_line(
         &mut self,
         walk: &mut Walk,
-        done: &mut [Option<Row>],
-        rest: &mut [Option<Row>],
+        done: &mut [Option<Box<Row>>],
+        rest: &mut [Option<Box<Row>>],
         line: Line,
         points: &mut [Point],
     ) {
         let Line { first_id, count } = line;
         let (old_cols, new_cols) = (walk.old_cols, walk.new_cols);
         let (length, moves_whole) = {
-            let rows: &[Option<Row>] = rest;
+            let rows: &[Option<Box<Row>>] = rest;
             let row_at = |index: usize| source_row(rows, index, first_id + index as u64, old_cols);
             let mut length = line_length(&row_at, count);
             place_points(&row_at, count, first_id, points, &mut length);
@@ -410,7 +410,7 @@ impl Screen {
     }
 
     /// The fast path: the row is re-homed with its buffer, trailing blanks cut or padded.
-    fn move_row(&mut self, walk: &mut Walk, row: Option<Row>, points: &mut [Point]) {
+    fn move_row(&mut self, walk: &mut Walk, row: Option<Box<Row>>, points: &mut [Point]) {
         let Some(mut row) = row else { return };
         let id = self.newest + 1;
         row.fit(walk.new_cols, self.seq);
@@ -427,8 +427,8 @@ impl Screen {
     fn copy_line(
         &mut self,
         walk: &mut Walk,
-        done: &mut [Option<Row>],
-        rest: &[Option<Row>],
+        done: &mut [Option<Box<Row>>],
+        rest: &[Option<Box<Row>>],
         line: Line,
         length: usize,
         points: &mut [Point],
@@ -458,11 +458,11 @@ impl Screen {
     fn build_row(
         &mut self,
         walk: &mut Walk,
-        done: &mut [Option<Row>],
+        done: &mut [Option<Box<Row>>],
         copy: &mut Reader<'_>,
         span: RowSpan,
         id: RowId,
-    ) -> Option<Row> {
+    ) -> Option<Box<Row>> {
         if span.start == span.end && !span.leading_spacer && !span.wrapped {
             return None;
         }
@@ -471,7 +471,7 @@ impl Screen {
             .spare
             .take()
             .or_else(|| take_pooled(done, &mut walk.pool))
-            .map(Row::into_cells)
+            .map(|row| row.into_cells())
             .unwrap_or_default();
         cells.clear();
         cells.reserve_exact(cols);
@@ -487,7 +487,7 @@ impl Screen {
         cells.resize(cols, Cell::EMPTY);
         let mut flags = RowFlags::DIRTY | hints;
         flags.set(RowFlags::WRAPPED, span.wrapped);
-        Some(Row::from_cells(id, self.seq, cells, flags, occ))
+        Some(Box::new(Row::from_cells(id, self.seq, cells, flags, occ)))
     }
 
     /// One column cannot hold a wide glyph: each half becomes a blank, and the glyph is counted.
@@ -507,7 +507,7 @@ impl Screen {
     /// Stores the next output row, first dropping the oldest one when the ring is full. The
     /// scrollback cap is applied in `finish_reflow`, after the blank tail is discarded: padding
     /// rows below the cursor must not push real content out.
-    fn push_reflowed(&mut self, row: Option<Row>, walk: &mut Walk) {
+    fn push_reflowed(&mut self, row: Option<Box<Row>>, walk: &mut Walk) {
         if (self.newest + 1).distance(self.oldest) >= self.ring_len() as u64 {
             let index = self.slot_index(self.oldest);
             if let Some(old) = self.slots.get_mut(index).and_then(Option::take) {
@@ -527,7 +527,7 @@ impl Screen {
     fn finish_reflow(
         &mut self,
         walk: &Walk,
-        scratch: &mut Vec<Option<Row>>,
+        scratch: &mut Vec<Option<Box<Row>>>,
         points: &[Point],
         anchors: &mut Anchors,
     ) -> Reflowed {
@@ -693,8 +693,8 @@ impl Screen {
 }
 
 /// The number of rows of the logical line that starts at `rows[0]`.
-fn line_rows(rows: &[Option<Row>]) -> usize {
-    let wrapped = |row: &Option<Row>| {
+fn line_rows(rows: &[Option<Box<Row>>]) -> usize {
+    let wrapped = |row: &Option<Box<Row>>| {
         row.as_ref()
             .is_some_and(|row| row.header().flags.contains(RowFlags::WRAPPED))
     };

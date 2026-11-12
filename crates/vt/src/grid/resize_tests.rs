@@ -893,7 +893,7 @@ fn reflow_scratch_is_empty_between_calls_and_counted() {
     lines_of_numbers(&mut f, 12);
     f.resize(4, 6, BottomAnchor);
     assert!(f.grid.reflow_rows.is_empty());
-    let scratch = f.grid.reflow_rows.capacity() * size_of::<Option<crate::grid::Row>>();
+    let scratch = f.grid.reflow_rows.capacity() * size_of::<Option<Box<crate::grid::Row>>>();
     assert!(scratch > 0);
     let others =
         f.grid.primary().heap_bytes() + f.grid.alt().heap_bytes() + f.grid.anchors.heap_bytes();

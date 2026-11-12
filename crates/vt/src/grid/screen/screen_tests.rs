@@ -1174,9 +1174,25 @@ fn empty_scrollback_costs_only_its_ring() {
     let screen = f.grid.screen();
     assert_eq!(screen.history_len(), 10_000);
     assert!(screen.slots.iter().all(Option::is_none));
-    assert_eq!(size_of::<Option<Row>>(), size_of::<Row>());
-    let ring = screen.ring_len() * size_of::<Option<Row>>();
+    // A slot is one pointer, null for a row never written.
+    assert_eq!(size_of::<Option<Box<Row>>>(), size_of::<usize>());
+    let ring = screen.ring_len() * size_of::<Option<Box<Row>>>();
     assert!((ring..ring + 4096).contains(&screen.heap_bytes()));
+}
+
+#[test]
+fn heap_bytes_counts_boxed_rows() {
+    let mut f = fixture_with(4, 10, 100);
+    let empty = f.grid.screen().heap_bytes();
+    for index in 0..3 {
+        let screen = f.grid.screen_mut();
+        let id = screen.row_of_index(index);
+        let glyph = Cell::EMPTY.with_content(crate::cell::CellContent::Scalar('x'));
+        screen.row_mut(id).unwrap().set(0, glyph);
+    }
+    // Each written row is its box plus its cells; the ring itself did not grow.
+    let written = 3 * (size_of::<Row>() + 10 * size_of::<Cell>());
+    assert_eq!(f.grid.screen().heap_bytes(), empty + written);
 }
 
 /// Where every row buffer and the ring itself live.
@@ -1254,7 +1270,7 @@ fn check_reports_a_row_with_the_wrong_id_in_a_live_slot() {
     let (mut screen, _) = plain_screen();
     let id = screen.row_of_index(1);
     let index = screen.slot_index(id);
-    screen.slots[index] = Some(Row::new(RowId(900), 6, SeqNo(1), Cell::EMPTY));
+    screen.slots[index] = Some(Box::new(Row::new(RowId(900), 6, SeqNo(1), Cell::EMPTY)));
     assert_eq!(
         screen.check_rows(None),
         Err(IntegrityViolation::RowIdMismatch { id })
@@ -1348,7 +1364,7 @@ fn check_reports_a_walked_row_of_the_wrong_width() {
     let (mut screen, _) = plain_screen();
     let id = screen.row_of_index(2);
     let index = screen.slot_index(id);
-    screen.slots[index] = Some(Row::new(id, 5, SeqNo(1), Cell::EMPTY));
+    screen.slots[index] = Some(Box::new(Row::new(id, 5, SeqNo(1), Cell::EMPTY)));
     assert_eq!(
         screen.check_rows(None),
         Err(IntegrityViolation::RowWidth { id })
@@ -1359,7 +1375,7 @@ fn check_reports_a_walked_row_of_the_wrong_width() {
 #[test]
 fn paranoid_walk_reports_a_stale_row() {
     let (mut screen, _) = plain_screen();
-    screen.slots[100] = Some(Row::new(RowId(100), 6, SeqNo(1), Cell::EMPTY));
+    screen.slots[100] = Some(Box::new(Row::new(RowId(100), 6, SeqNo(1), Cell::EMPTY)));
     assert_eq!(
         screen.check_rows(None),
         Err(IntegrityViolation::StaleSlot { slot: 100 })
@@ -1889,7 +1905,7 @@ fn integrity_flags_a_row_of_another_id_in_a_live_slot() {
         Cell::EMPTY.with_content(CellContent::Scalar('S')),
     );
     let index = screen(&f).slot_index(id);
-    f.grid.screen_mut().slots[index] = Some(planted);
+    f.grid.screen_mut().slots[index] = Some(Box::new(planted));
     assert_eq!(
         screen(&f).check_rows(None),
         Err(IntegrityViolation::RowIdMismatch { id })
@@ -2001,7 +2017,7 @@ fn shrinking_the_ring_skips_stale_rows() {
         Cell::EMPTY.with_content(CellContent::Scalar('S')),
     );
     let index = screen(&f).slot_index(stale_id);
-    f.grid.screen_mut().slots[index] = Some(stale);
+    f.grid.screen_mut().slots[index] = Some(Box::new(stale));
     f.grid.set_scrollback_limit(0);
     f.check();
     assert_eq!(f.screen_text(), "r0|r1|r2|r3|r4|r5");

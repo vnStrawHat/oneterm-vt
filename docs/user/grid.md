@@ -86,8 +86,9 @@ assert_eq!(grid.alt().ring_len(), 1_024);
 assert!(grid.heap_bytes() < 1_000_000); // an empty scrollback costs only its ring
 ```
 
-- The ring has `(scrollback + 1024).next_power_of_two()` slots of 48 bytes. A slot is filled
-  only when its row is first written, so unwritten history costs nothing beyond the ring.
+- The ring has `(scrollback + 1024).next_power_of_two()` slots of 8 bytes. A slot is filled
+  only when its row is first written, so unwritten history costs nothing beyond the ring;
+  a written row adds 48 bytes plus its cells.
 - `oldest()`, `newest()`, `row_range()` and `history_len()` describe the live ids. Rows older
   than `oldest()` are gone; asking for one gives blanks.
 - Sizes are clamped to 1..=1024 rows and 1..=2048 columns, scrollback to `SCROLLBACK_MAX`.

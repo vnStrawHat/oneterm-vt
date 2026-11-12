@@ -54,7 +54,7 @@ pub struct TerminalGrid {
     anchors: Anchors,
     seq: SeqNo,
     /// Detached rows during a column reflow; empty between calls, capacity kept.
-    reflow_rows: Vec<Option<Row>>,
+    reflow_rows: Vec<Option<Box<Row>>>,
 }
 
 impl TerminalGrid {
@@ -225,7 +225,7 @@ impl TerminalGrid {
         self.primary.heap_bytes()
             + self.alt.heap_bytes()
             + self.anchors.heap_bytes()
-            + self.reflow_rows.capacity() * size_of::<Option<Row>>()
+            + self.reflow_rows.capacity() * size_of::<Option<Box<Row>>>()
     }
 
     pub(crate) fn linefeed(&mut self) -> Option<ScrollReport> {

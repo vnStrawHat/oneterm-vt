@@ -5,7 +5,8 @@
 //! errors or panics: counts clamp and out-of-range reads are blanks.
 //!
 //! The ring has a fixed number of slots (a power of two, sized once from the scrollback
-//! limit); an id lives in slot `id & mask`. Rows are created lazily: a slot that was never
+//! limit); an id lives in slot `id & mask`. A slot is one pointer: rows are boxed, so a
+//! region scroll rotates 8 bytes per row. Rows are created lazily: a slot that was never
 //! written holds `None` and reads as blanks.
 
 use std::fmt;
@@ -217,7 +218,7 @@ enum Shift {
 /// One screen with its scrollback.
 pub struct Screen {
     kind: ScreenKind,
-    slots: Box<[Option<Row>]>,
+    slots: Box<[Option<Box<Row>>]>,
     mask: u64,
     oldest: RowId,
     newest: RowId,
@@ -236,7 +237,7 @@ pub struct Screen {
     /// been written in the batch.
     batch_lo: RowId,
     /// The last row a trim dropped, kept for its allocation; never read as content.
-    spare: Option<Row>,
+    spare: Option<Box<Row>>,
     /// Ids whose rows a rotation moved in this batch without rewriting their headers: the slot
     /// of a live id in this range holds that id's row (or nothing), whatever id its header
     /// says, changed at `seq`. [`restamp_moved`](Self::restamp_moved) rewrites the headers.
@@ -275,7 +276,7 @@ impl Screen {
         let scrollback_limit = scrollback_limit.min(SCROLLBACK_MAX);
         // At most `1_000_000 + 1024` slots.
         let ring = (scrollback_limit as usize + usize::from(MAX_ROWS)).next_power_of_two();
-        let slots: Box<[Option<Row>]> = std::iter::repeat_with(|| None).take(ring).collect();
+        let slots: Box<[Option<Box<Row>>]> = std::iter::repeat_with(|| None).take(ring).collect();
         let oldest = kind.origin();
         let newest = oldest + u64::from(size.rows - 1);
         let home = Cursor::home(oldest);
@@ -390,7 +391,7 @@ impl Screen {
     fn stored(&self, id: RowId) -> Option<&Row> {
         self.slots
             .get(self.slot_index(id))?
-            .as_ref()
+            .as_deref()
             .filter(|row| row.id() == id || self.moved.contains(&id))
     }
 
@@ -417,7 +418,7 @@ impl Screen {
     /// The row in the slot of `id`, whatever id it carries.
     fn slot_row_mut(&mut self, id: RowId) -> Option<&mut Row> {
         let index = self.slot_index(id);
-        self.slots.get_mut(index)?.as_mut()
+        self.slots.get_mut(index)?.as_deref_mut()
     }
 
     /// Reads a row: the stored row, or blanks if the id's slot holds no such row.
@@ -453,7 +454,7 @@ impl Screen {
             let row = Row::recycle(self.spare.take(), id, self.cols, self.seq, Cell::EMPTY);
             *self.slots.get_mut(index)? = Some(row);
         }
-        self.slots.get_mut(index)?.as_mut()
+        self.slots.get_mut(index)?.as_deref_mut()
     }
 
     /// The id of screen row `index`; clamps to the screen.
@@ -1111,7 +1112,7 @@ impl Screen {
         let ring = (limit as usize + usize::from(MAX_ROWS)).next_power_of_two();
         if ring != self.slots.len() {
             let mask = (ring - 1) as u64;
-            let mut slots: Box<[Option<Row>]> =
+            let mut slots: Box<[Option<Box<Row>>]> =
                 std::iter::repeat_with(|| None).take(ring).collect();
             // A row outside the live ids is stale: it must not take the slot of a live one.
             let live = self.oldest..=self.newest;
@@ -1234,16 +1235,17 @@ impl Screen {
         self.mask
     }
 
-    /// Heap bytes held: the ring, every row, the spare and the tab stops.
+    /// Heap bytes held: the ring, every row (its box and its cells), the spare and the tab
+    /// stops.
     pub fn heap_bytes(&self) -> usize {
         let rows: usize = self
             .slots
             .iter()
             .flatten()
             .chain(self.spare.as_ref())
-            .map(Row::bytes)
+            .map(|row| size_of::<Row>() + row.bytes())
             .sum();
-        self.slots.len() * size_of::<Option<Row>>() + rows + self.tabs.stops.capacity()
+        self.slots.len() * size_of::<Option<Box<Row>>>() + rows + self.tabs.stops.capacity()
     }
 
     /// Appends the text of a row: spacer cells skipped, clusters resolved, no trimming, no

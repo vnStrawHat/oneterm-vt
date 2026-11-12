@@ -21,7 +21,7 @@ limits.md promises; corpus, goldens, harness. What stays behind: end of evidence
 ## Acceptance criteria
 
 - [ ] Steps S1-S5 landed in order (files.md), gate green after each, one commit each
-- [ ] S6 landed last only if the owner approves it (below); otherwise its section is skipped
+- [x] S6 landed last only if the owner approves it (below); otherwise its section is skipped
 - [ ] Every per-step threshold in files.md met (pinned `vt-bench grid`, median of 5, 32 MiB)
 - [ ] No guard fixture below 0.95 x its value before the step; `vt-bench grid --check` passes
 - [ ] `compare verify --engine oneterm` 21/21 ok; public API snapshot unchanged (CI)
@@ -54,7 +54,7 @@ elsewhere: `plain_ascii` 745 -> 815; every other fixture within noise (re-checks
    limits in any step. Measured and not proposed (pen style memo, one UTF-8 check per ground
    run, 16-byte `ESC` look-ahead): evidence.md, "Rejected experiments".
 
-## Owner decision (open): S6, boxed ring rows
+## Owner decision (approved 2026-11-12): S6, boxed ring rows
 
 Not an API or behaviour change, a trade-off. For: `scroll_region` +10-14 %,
 `scroll_region_small` +7 % (interleaved, plain and aligned builds), and the ring shrinks 6x

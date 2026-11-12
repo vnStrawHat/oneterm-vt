@@ -1,7 +1,8 @@
 //! Rows, headers, and the read and write views over them.
 //!
-//! A row is a fixed header plus one `Vec<Cell>` of exactly `cols` cells. A ring slot that was
-//! never written holds no row at all and reads as blanks.
+//! A row is a fixed header plus one `Vec<Cell>` of exactly `cols` cells, boxed in its ring
+//! slot so a region scroll moves 8-byte pointers. A ring slot that was never written holds
+//! no row at all and reads as blanks.
 //!
 //! Two invariants make writes cheap and checkable:
 //!
@@ -119,16 +120,17 @@ impl Row {
         }
     }
 
-    /// Builds a row for a new id out of a spare row's allocation. Nothing of the spare survives.
+    /// Builds a row for a new id out of a spare row's allocations (its box and its cells).
+    /// Nothing of the spare survives.
     // Inlined on purpose: measured, `scrolling` loses 11 % when `recycle` is a call.
     #[inline]
     pub(crate) fn recycle(
-        spare: Option<Row>,
+        spare: Option<Box<Row>>,
         id: RowId,
         cols: u16,
         seq: SeqNo,
         template: Cell,
-    ) -> Row {
+    ) -> Box<Row> {
         // A spare of the right width only needs its used prefix rewritten (`reset`).
         let spare = match spare {
             Some(mut row) if row.cells.len() == usize::from(cols) => {
@@ -141,7 +143,7 @@ impl Row {
         let mut cells = spare.map(|row| row.cells).unwrap_or_default();
         cells.clear();
         cells.resize(usize::from(cols), template);
-        Row {
+        Box::new(Row {
             header: RowHeader {
                 id,
                 seq,
@@ -149,7 +151,7 @@ impl Row {
                 occ: 0,
             },
             cells,
-        }
+        })
     }
 
     /// Builds a row around a ready cell buffer. The caller promises that `occ` follows the
