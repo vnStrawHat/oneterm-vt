@@ -60,10 +60,10 @@ fn unknown_ids_resolve_to_defaults() {
 #[test]
 fn style_table_full_falls_back_and_counts() {
     let mut interner = Interner::default();
-    for n in 1..TABLE_CAPACITY as u32 {
+    for n in 1..STYLE_CAPACITY as u32 {
         interner.style(rgb_style(n));
     }
-    assert_eq!(interner.styles.entries(), 65_536);
+    assert_eq!(interner.styles.entries(), 1_048_576);
     assert_eq!(interner.styles.exhausted(), 0);
     assert_eq!(interner.style(rgb_style(1 << 20)), StyleId::DEFAULT);
     assert_eq!(interner.styles.exhausted(), 1);
@@ -324,7 +324,7 @@ fn interner_routes_to_its_tables() {
         graphic: None,
     };
     let extras_id = interner.extras(extras);
-    assert_eq!(*interner.extras.resolve(extras_id.0), extras);
+    assert_eq!(*interner.extras.resolve(u32::from(extras_id.0)), extras);
     assert_eq!(*interner.resolve_extras(extras_id), extras);
 
     let grapheme = interner.grapheme("e\u{301}");
@@ -342,7 +342,7 @@ fn image(n: u64) -> Extras {
     }
 }
 
-fn live(ids: &[u16]) -> FxHashSet<u16> {
+fn live(ids: &[u32]) -> FxHashSet<u32> {
     ids.iter().copied().collect()
 }
 
@@ -364,7 +364,7 @@ fn freed_slot_reused_first() {
 #[test]
 fn sweep_frees_exactly_unreferenced() {
     let mut table = InternTable::<Extras>::default();
-    let ids: Vec<u16> = (1..=6).map(|n| table.intern(image(n))).collect();
+    let ids: Vec<u32> = (1..=6).map(|n| table.intern(image(n))).collect();
     table.sweep_unreferenced(&live(&[ids[1], ids[4]]));
     for (index, id) in ids.iter().enumerate() {
         let kept = index == 1 || index == 4;
@@ -378,7 +378,7 @@ fn sweep_frees_exactly_unreferenced() {
     assert!(ids.contains(&again) && !table.is_free(again));
     // A second sweep with the same live set frees nothing new and keeps the slots listed once.
     table.sweep_unreferenced(&live(&[ids[1], ids[4], again]));
-    let reused: Vec<u16> = (0..3).map(|n| table.intern(image(10 + n))).collect();
+    let reused: Vec<u32> = (0..3).map(|n| table.intern(image(10 + n))).collect();
     let mut sorted = reused.clone();
     sorted.sort_unstable();
     sorted.dedup();
@@ -409,7 +409,7 @@ fn every_miss_counts_towards_sweep() {
     assert_eq!(full.entries(), 1 << 16);
     assert!(full.exhausted() > 0);
     assert!(full.needs_sweep());
-    let everything: FxHashSet<u16> = (1..=u16::MAX).collect();
+    let everything: FxHashSet<u32> = (1..=u32::from(u16::MAX)).collect();
     full.sweep_unreferenced(&everything);
     assert!(!full.needs_sweep());
     for n in 80_000..80_000 + 4096 {
@@ -462,9 +462,9 @@ fn lookup_counts_nothing() {
 fn room_counts_free_and_unused() {
     let mut table: InternTable<Style> = InternTable::default();
     assert_eq!(table.room(), 65_535);
-    let ids: Vec<u16> = (1..=10).map(|n| table.intern(rgb_style(n))).collect();
+    let ids: Vec<u32> = (1..=10).map(|n| table.intern(rgb_style(n))).collect();
     assert_eq!(table.room(), 65_525);
-    let keep: FxHashSet<u16> = ids[..6].iter().copied().collect();
+    let keep: FxHashSet<u32> = ids[..6].iter().copied().collect();
     table.sweep_unreferenced(&keep);
     assert_eq!(table.room(), 65_525 + 4);
 }
@@ -659,4 +659,97 @@ fn hyperlink_sweep_gives_the_bytes_back() {
     assert!(!table.needs_sweep());
     assert!(table.intern(Some("2044"), &uri).is_some());
     assert_eq!(table.exhausted(), 0);
+}
+
+#[test]
+fn the_index_grows_and_shrinks_with_the_entries_in_use() {
+    let mut table: InternTable<Style> = InternTable::with_capacity(STYLE_CAPACITY);
+    let ids: Vec<u32> = (1..=100_000).map(|n| table.intern(rgb_style(n))).collect();
+    // Every value is found again, across many doublings of the index.
+    for (n, id) in (1..=100_000).zip(&ids) {
+        assert_eq!(table.lookup(&rgb_style(n)), Some(*id));
+        assert_eq!(*table.resolve(*id), rgb_style(n));
+    }
+    assert_eq!(table.lookup(&rgb_style(100_001)), None);
+    assert!(table.index.len() >= 2 * 100_001 && table.index.len().is_power_of_two());
+
+    // A sweep that keeps ten values gives the index back, down to what the soft limit needs.
+    let keep: FxHashSet<u32> = ids[..10].iter().copied().collect();
+    table.sweep_unreferenced(&keep);
+    assert_eq!(table.index.len(), 2 * TABLE_CAPACITY);
+    for (n, id) in (1..=10).zip(&ids) {
+        assert_eq!(table.lookup(&rgb_style(n)), Some(*id));
+    }
+    assert_eq!(table.lookup(&rgb_style(11)), None);
+    assert_eq!(table.lookup(&Style::DEFAULT), Some(0));
+    // A swept value interns afresh into a freed slot.
+    let again = table.intern(rgb_style(11));
+    assert!(ids.contains(&again));
+    assert_eq!(table.entries(), 100_001);
+}
+
+#[test]
+fn a_full_table_of_live_values_is_swept_less_and_less_often() {
+    let mut table: InternTable<Style> = InternTable::with_capacity(1 << 16);
+    let ids: Vec<u32> = (1..1 << 16).map(|n| table.intern(rgb_style(n))).collect();
+    let everything: FxHashSet<u32> = ids.iter().copied().collect();
+    let refuse = |table: &mut InternTable<Style>, from: u32, count: u32| {
+        for n in from..from + count {
+            assert_eq!(table.intern(rgb_style(n)), 0);
+        }
+    };
+    assert!(table.wants_sweep());
+    // Nothing is freed: the next sweep waits for twice as many refused values, up to a quarter
+    // of the capacity.
+    for (round, interval) in [8_192u32, 16_384, 16_384].into_iter().enumerate() {
+        table.sweep_unreferenced(&everything);
+        assert!(!table.wants_sweep());
+        let from = (1 << 20) + round as u32 * 100_000;
+        refuse(&mut table, from, interval - 1);
+        assert!(!table.wants_sweep(), "round {round}");
+        refuse(&mut table, from + interval, 1);
+        assert!(table.wants_sweep(), "round {round}");
+    }
+    // A sweep that frees plenty starts over: with room again nothing is due, and once the
+    // freed slots are taken the short interval applies.
+    table.sweep_unreferenced(&ids[..100].iter().copied().collect());
+    assert!(!table.wants_sweep());
+    for n in 0..table.room() as u32 {
+        table.intern(rgb_style((1 << 21) + n));
+    }
+    assert_eq!(table.room(), 0);
+    assert!(table.wants_sweep());
+}
+
+#[test]
+fn the_soft_limit_follows_what_a_sweep_kept() {
+    let mut table: InternTable<Style> = InternTable::with_capacity(STYLE_CAPACITY);
+    // Room for two more values (a pen and its erase style) is kept below the limit, so the
+    // sweep is due at 65,535 entries in use: id 0 and 65,534 values.
+    let ids: Vec<u32> = (1..=65_533).map(|n| table.intern(rgb_style(n))).collect();
+    assert!(!table.wants_sweep());
+    table.intern(rgb_style(65_534));
+    assert!(table.wants_sweep());
+    // Everything is still in use: the table may now grow to twice that before the next sweep.
+    let everything: FxHashSet<u32> = (1..=65_534).collect();
+    table.sweep_unreferenced(&everything);
+    assert!(!table.wants_sweep());
+    for n in 0..65_533 {
+        table.intern(rgb_style(100_000 + n));
+    }
+    assert!(!table.wants_sweep());
+    table.intern(rgb_style(200_000));
+    assert!(
+        table.wants_sweep(),
+        "131,069 entries in use against a limit of 131,070"
+    );
+    // Almost nothing is: back to the first limit.
+    table.sweep_unreferenced(&ids[..10].iter().copied().collect());
+    assert_eq!(table.room(), STYLE_CAPACITY - 11);
+    for n in 0..65_523 {
+        table.intern(rgb_style((1 << 21) + n));
+    }
+    assert!(!table.wants_sweep());
+    table.intern(rgb_style(1 << 22));
+    assert!(table.wants_sweep());
 }

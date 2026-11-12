@@ -1135,8 +1135,8 @@ pub struct oneterm_vt::intern::InternTable<T>
 impl<T: core::marker::Copy + core::cmp::Eq + core::hash::Hash + core::default::Default> oneterm_vt::intern::InternTable<T>
 pub fn oneterm_vt::intern::InternTable<T>::entries(&self) -> usize
 pub fn oneterm_vt::intern::InternTable<T>::exhausted(&self) -> u32
-pub fn oneterm_vt::intern::InternTable<T>::intern(&mut self, T) -> u16
-pub fn oneterm_vt::intern::InternTable<T>::resolve(&self, u16) -> &T
+pub fn oneterm_vt::intern::InternTable<T>::intern(&mut self, T) -> u32
+pub fn oneterm_vt::intern::InternTable<T>::resolve(&self, u32) -> &T
 impl<T: core::fmt::Debug> core::fmt::Debug for oneterm_vt::intern::InternTable<T>
 pub fn oneterm_vt::intern::InternTable<T>::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<T: core::marker::Copy + core::cmp::Eq + core::hash::Hash + core::default::Default> core::default::Default for oneterm_vt::intern::InternTable<T>
@@ -1162,7 +1162,7 @@ pub fn oneterm_vt::intern::Interner::resolve_grapheme(&self, oneterm_vt::intern:
 pub fn oneterm_vt::intern::Interner::resolve_style(&self, oneterm_vt::intern::StyleId) -> &oneterm_vt::Style
 pub fn oneterm_vt::intern::Interner::style(&mut self, oneterm_vt::Style) -> oneterm_vt::intern::StyleId
 impl core::default::Default for oneterm_vt::intern::Interner
-pub fn oneterm_vt::intern::Interner::default() -> oneterm_vt::intern::Interner
+pub fn oneterm_vt::intern::Interner::default() -> Self
 impl core::fmt::Debug for oneterm_vt::intern::Interner
 pub fn oneterm_vt::intern::Interner::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Freeze for oneterm_vt::intern::Interner
@@ -1172,7 +1172,7 @@ impl core::marker::Unpin for oneterm_vt::intern::Interner
 impl core::marker::UnsafeUnpin for oneterm_vt::intern::Interner
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::intern::Interner
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::intern::Interner
-pub struct oneterm_vt::intern::StyleId(pub u16)
+pub struct oneterm_vt::intern::StyleId(pub u32)
 impl oneterm_vt::intern::StyleId
 pub const oneterm_vt::intern::StyleId::DEFAULT: oneterm_vt::intern::StyleId
 impl core::clone::Clone for oneterm_vt::intern::StyleId
@@ -2637,7 +2637,7 @@ pub fn oneterm_vt::intern::Interner::resolve_grapheme(&self, oneterm_vt::intern:
 pub fn oneterm_vt::intern::Interner::resolve_style(&self, oneterm_vt::intern::StyleId) -> &oneterm_vt::Style
 pub fn oneterm_vt::intern::Interner::style(&mut self, oneterm_vt::Style) -> oneterm_vt::intern::StyleId
 impl core::default::Default for oneterm_vt::intern::Interner
-pub fn oneterm_vt::intern::Interner::default() -> oneterm_vt::intern::Interner
+pub fn oneterm_vt::intern::Interner::default() -> Self
 impl core::fmt::Debug for oneterm_vt::intern::Interner
 pub fn oneterm_vt::intern::Interner::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Freeze for oneterm_vt::intern::Interner

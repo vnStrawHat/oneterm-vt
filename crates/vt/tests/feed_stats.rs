@@ -85,9 +85,10 @@ fn hyperlink_table_exhausted() {
 fn style_table_exhausted() {
     let mut term = terminal(160, 45);
     let mut stream = Vec::new();
-    for color in 0..65_536u32 {
-        let (g, b) = ((color >> 8) & 255, color & 255);
-        stream.extend_from_slice(format!("\x1b[38;2;0;{g};{b}mx").as_bytes());
+    // The table holds 1,048,576 styles, the default one included: one colour too many.
+    for color in 0..1_048_576u32 {
+        let (r, g, b) = (color >> 16, (color >> 8) & 255, color & 255);
+        stream.extend_from_slice(format!("\x1b[38;2;{r};{g};{b}mx").as_bytes());
     }
     assert_eq!(stats_of(&mut term, &stream).style_table_exhausted, 1);
 }

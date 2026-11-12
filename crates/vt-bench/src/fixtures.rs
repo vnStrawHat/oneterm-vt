@@ -93,7 +93,7 @@ pub(crate) const FIXTURES: [Fixture; 16] = [
     },
     Fixture {
         name: "unique_styles",
-        about: "a 24-bit colour of its own for every cell: the style table at its ceiling",
+        about: "a 24-bit colour of its own for every cell: a style table of a million entries",
         make: unique_styles,
     },
     Fixture {
@@ -646,8 +646,9 @@ fn vim_session(target: usize) -> Vec<u8> {
     })
 }
 
-/// A foreground of its own for every cell, in grid-width lines. Past 65,536 cells every style
-/// id is held by a cell still on the grid, so the engine runs with a full style table.
+/// A foreground of its own for every cell, in grid-width lines: the style table grows by one
+/// entry per cell, and past 1,048,576 cells (about 20 MiB of this stream) it is full of styles
+/// still on the grid.
 fn unique_styles(target: usize) -> Vec<u8> {
     build(target, b"", |i, out| {
         for col in 0..COLUMNS {

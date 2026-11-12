@@ -360,7 +360,7 @@ impl TerminalGrid {
 
     /// Replaces `out` with every style id a cell, a pen, an erase cell or a saved cursor of
     /// either screen holds. Rows without the `STYLED` hint are skipped.
-    pub(crate) fn live_style_ids(&self, out: &mut FxHashSet<u16>) {
+    pub(crate) fn live_style_ids(&self, out: &mut FxHashSet<u32>) {
         out.clear();
         self.primary.collect_style_ids(out);
         self.alt.collect_style_ids(out);
@@ -368,7 +368,7 @@ impl TerminalGrid {
 
     /// Replaces `out` with every extras id a cell, a pen or a saved cursor of either screen
     /// holds. Rows without the `HAS_EXTRAS` hint are skipped.
-    pub(crate) fn live_extras_ids(&self, out: &mut FxHashSet<u16>) {
+    pub(crate) fn live_extras_ids(&self, out: &mut FxHashSet<u32>) {
         out.clear();
         self.primary.collect_extras_ids(out);
         self.alt.collect_extras_ids(out);

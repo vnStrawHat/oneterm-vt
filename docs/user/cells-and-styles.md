@@ -105,7 +105,8 @@ assert_eq!(remap.get(drop), GraphemeId(0)); // not kept: resolves to a space
 
 | Table | Cap | Past the cap |
 |---|---|---|
-| styles, extras | 65,536 entries each | new value gets id 0 (default); `exhausted()` grows |
+| styles | 1,048,576 entries | new value gets id 0 (default); `exhausted()` grows |
+| extras | 65,536 entries | new value gets id 0 (none); `exhausted()` grows |
 | grapheme cluster | 16 scalars | cut at 16; `truncated()` grows |
 | grapheme arena | 262,144 clusters or 1,048,576 scalars | new cluster gets id 0 (a space); `exhausted()` grows |
 | hyperlinks | 65,536 links or 4 MiB of id and URI text | `intern` returns `None`: print the text, drop the link |

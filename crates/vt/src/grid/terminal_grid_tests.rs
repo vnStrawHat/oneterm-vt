@@ -509,9 +509,12 @@ fn live_extras_ids_reads_history_and_templates() {
     live.insert(60_000);
     f.grid.live_extras_ids(&mut live);
     for id in &ids[..5] {
-        assert!(live.contains(&id.0), "{id:?} is held");
+        assert!(live.contains(&u32::from(id.0)), "{id:?} is held");
     }
-    assert!(!live.contains(&ids[5].0), "an unreferenced id is not live");
+    assert!(
+        !live.contains(&u32::from(ids[5].0)),
+        "an unreferenced id is not live"
+    );
     assert!(!live.contains(&60_000), "the set is replaced, not extended");
 }
 
@@ -524,7 +527,7 @@ fn live_extras_ids_skips_unhinted_rows() {
     f.print("plain text only");
     let mut live = FxHashSet::default();
     f.grid.live_extras_ids(&mut live);
-    assert!(!live.contains(&unused.0));
+    assert!(!live.contains(&u32::from(unused.0)));
     assert!(
         live.iter().all(|id| *id == 0),
         "only the empty entry is held: {live:?}"
@@ -548,8 +551,8 @@ fn live_extras_ids_read_only_the_used_prefix() {
     assert_eq!(row.occ(), 3);
     let mut live = FxHashSet::default();
     f.grid.live_extras_ids(&mut live);
-    assert!(live.contains(&held.0));
-    assert!(!live.contains(&stale.0));
+    assert!(live.contains(&u32::from(held.0)));
+    assert!(!live.contains(&u32::from(stale.0)));
 }
 
 #[test]

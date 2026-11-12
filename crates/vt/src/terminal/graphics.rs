@@ -49,7 +49,8 @@ impl State {
         let live: FxHashSet<u32> = self
             .live_ids
             .iter()
-            .filter_map(|id| interner.resolve_extras(ExtrasId(*id)).hyperlink)
+            .filter_map(|id| u16::try_from(*id).ok())
+            .filter_map(|id| interner.resolve_extras(ExtrasId(id)).hyperlink)
             .map(|link| link.0)
             .collect();
         self.interner.hyperlinks.sweep_unreferenced(&live);

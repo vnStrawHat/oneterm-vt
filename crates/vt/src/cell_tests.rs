@@ -3,8 +3,8 @@ use crate::intern::{Extras, GraphicId, HyperlinkId};
 
 const _: () = assert!(size_of::<Style>() <= 16);
 
-/// Bits 27..32 must never be set by any setter.
-const RESERVED: u64 = 0b11111 << 27;
+/// Bit 27, the one bit no field uses, must never be set by any setter.
+const RESERVED: u64 = 1 << 27;
 
 #[test]
 fn empty_cell_is_a_default_space() {
@@ -59,7 +59,9 @@ fn out_of_range_grapheme_id_falls_back() {
 #[test]
 fn bit_layout_is_the_documented_one() {
     let e = Cell::EMPTY;
-    assert_eq!(e.with_style(StyleId(0xABCD)).to_bits(), 0xABCD << 32);
+    assert_eq!(e.with_style(StyleId(0xABCDE)).to_bits(), 0xABCDE << 28);
+    // Twenty bits: a larger id is cut, and never reaches the extras bits.
+    assert_eq!(e.with_style(StyleId(u32::MAX)).to_bits(), 0xFFFFF << 28);
     assert_eq!(e.with_extras(ExtrasId(0xABCD)).to_bits(), 0xABCD << 48);
     assert_eq!(e.with_width(CellWidth::Wide).to_bits(), 1 << 22);
     assert_eq!(e.with_width(CellWidth::WideSpacer).to_bits(), 2 << 22);
@@ -161,7 +163,7 @@ mod props {
             .with_width(width)
             .with_semantic(semantic)
             .with_protected(protected)
-            .with_style(StyleId(style))
+            .with_style(StyleId(u32::from(style)))
             .with_extras(ExtrasId(extras))
     }
 
@@ -188,7 +190,7 @@ mod props {
             prop_assert_eq!(cell.width(), width);
             prop_assert_eq!(cell.semantic(), semantic);
             prop_assert_eq!(cell.is_protected(), protected);
-            prop_assert_eq!(cell.style_id(), StyleId(style));
+            prop_assert_eq!(cell.style_id(), StyleId(u32::from(style)));
             prop_assert_eq!(cell.extras_id(), ExtrasId(extras));
             prop_assert_eq!(cell.to_bits() & RESERVED, 0);
         }
@@ -208,7 +210,7 @@ mod props {
             prop_assert_eq!(cell.width(), width);
             prop_assert_eq!(cell.semantic(), semantic);
             prop_assert_eq!(cell.is_protected(), protected);
-            prop_assert_eq!(cell.style_id(), StyleId(style));
+            prop_assert_eq!(cell.style_id(), StyleId(u32::from(style)));
             prop_assert_eq!(cell.extras_id(), ExtrasId(extras));
             prop_assert_eq!(cell.to_bits() & RESERVED, 0);
         }
@@ -235,7 +237,7 @@ mod props {
                 1 => cell.with_width(new_width),
                 2 => cell.with_semantic(new_semantic),
                 3 => cell.with_protected(new_protected),
-                4 => cell.with_style(StyleId(new_style)),
+                4 => cell.with_style(StyleId(u32::from(new_style))),
                 _ => cell.with_extras(ExtrasId(new_extras)),
             };
             if which != 0 {

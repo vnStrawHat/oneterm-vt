@@ -1357,7 +1357,7 @@ impl Screen {
     /// Adds to `out` the style ids this screen holds: every cell of the rows flagged `STYLED`
     /// (history included; the hint has no false negatives) and the pen and erase cell of both
     /// cursors.
-    pub(crate) fn collect_style_ids(&self, out: &mut FxHashSet<u16>) {
+    pub(crate) fn collect_style_ids(&self, out: &mut FxHashSet<u32>) {
         for row in self
             .slots
             .iter()
@@ -1389,7 +1389,7 @@ impl Screen {
 
     /// Adds to `out` the extras ids this screen holds: every cell of the rows flagged
     /// `HAS_EXTRAS` (history included; the hint has no false negatives) and both cursors' pens.
-    pub(crate) fn collect_extras_ids(&self, out: &mut FxHashSet<u16>) {
+    pub(crate) fn collect_extras_ids(&self, out: &mut FxHashSet<u32>) {
         for row in self
             .slots
             .iter()
@@ -1406,14 +1406,14 @@ impl Screen {
                 .iter()
                 .chain(cells.last())
             {
-                let id = cell.extras_id().0;
+                let id = u32::from(cell.extras_id().0);
                 if id != 0 {
                     out.insert(id);
                 }
             }
         }
-        out.insert(self.cursor.template().extras_id().0);
-        out.insert(self.saved_cursor.template().extras_id().0);
+        out.insert(u32::from(self.cursor.template().extras_id().0));
+        out.insert(u32::from(self.saved_cursor.template().extras_id().0));
     }
 
     /// Rewrites the cluster ids of every live row flagged `HAS_GRAPHEME` through `remap`.

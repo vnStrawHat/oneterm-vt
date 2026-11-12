@@ -8,7 +8,9 @@ use std::fmt;
 
 use bitflags::bitflags;
 
-use crate::intern::{ExtrasId, GRAPHEME_ID_LIMIT, GraphemeArena, GraphemeId, Interner, StyleId};
+use crate::intern::{
+    ExtrasId, GRAPHEME_ID_LIMIT, GraphemeArena, GraphemeId, Interner, STYLE_CAPACITY, StyleId,
+};
 
 const CONTENT_MASK: u64 = (1 << 21) - 1;
 const GRAPHEME_BIT: u64 = 1 << 21;
@@ -17,11 +19,14 @@ const WIDTH_MASK: u64 = 0b11;
 const SEMANTIC_SHIFT: u32 = 24;
 const SEMANTIC_MASK: u64 = 0b11;
 const PROTECTED_BIT: u64 = 1 << 26;
-const STYLE_SHIFT: u32 = 32;
+/// A style id takes bits 28 to 47: 20 bits, a table of 1,048,576 styles. Bit 27 is free.
+const STYLE_SHIFT: u32 = 28;
+const STYLE_MASK: u64 = (1 << 20) - 1;
 const EXTRAS_SHIFT: u32 = 48;
 const ID_MASK: u64 = 0xFFFF;
 
 const _: () = assert!(size_of::<Cell>() == 8);
+const _: () = assert!(STYLE_CAPACITY as u64 == STYLE_MASK + 1);
 
 /// One grid position: content, column role, semantic zone, protection, style id and extras id.
 ///
@@ -127,8 +132,8 @@ impl Cell {
 
     /// Returns the id of the cell's style in the terminal's style table.
     pub fn style_id(self) -> StyleId {
-        // Masked to 16 bits.
-        StyleId(((self.0 >> STYLE_SHIFT) & ID_MASK) as u16)
+        // Masked to 20 bits.
+        StyleId(((self.0 >> STYLE_SHIFT) & STYLE_MASK) as u32)
     }
 
     /// Returns the id of the cell's extras (hyperlink, image) in the terminal's extras table.
@@ -182,7 +187,7 @@ impl Cell {
     /// Returns the cell with a new style id.
     #[must_use]
     pub fn with_style(self, id: StyleId) -> Cell {
-        self.with_field(ID_MASK, STYLE_SHIFT, u64::from(id.0))
+        self.with_field(STYLE_MASK, STYLE_SHIFT, u64::from(id.0))
     }
 
     /// Returns the cell with a new extras id.

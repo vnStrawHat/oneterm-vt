@@ -2302,6 +2302,7 @@ fn styles_are_reclaimed_when_the_table_fills() {
             ..Config::default()
         },
     );
+    s.term.limit_styles(1 << 16);
     let stats = s.feed(&distinct_backgrounds(70_000, "x\r\n"));
     assert_eq!(stats.style_table_exhausted, 0);
     // The last `x` sits on the row above the cursor.
@@ -2313,6 +2314,7 @@ fn pens_survive_a_style_sweep() {
     let red = Color::Named(NamedColor::Red);
     let blue = Color::Named(NamedColor::Blue);
     let mut s = Session::new(10, 3);
+    s.term.limit_styles(1 << 16);
     // A on the primary screen, saved by DECSC and by the alternate-screen switch; B saved on
     // the alternate screen.
     s.feed(b"\x1b[41m\x1b7\x1b[?1049h\x1b[44m\x1b7");
@@ -2336,7 +2338,8 @@ fn a_full_live_set_still_falls_back() {
             ..Config::default()
         },
     );
-    // 87,200 cells of screen and history, each with its own style: more than the table holds.
+    s.term.limit_styles(1 << 16);
+    // 87,200 cells of screen and history, each with its own style: more than this table holds.
     let stats = s.feed(&distinct_backgrounds(70_000, "x"));
     assert!(stats.style_table_exhausted > 0);
 }

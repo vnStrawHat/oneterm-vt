@@ -22,8 +22,8 @@ absent from the numbers below until a release records them:
 - `hyperlinks`: OSC 8 links with 200-1000 byte URIs, `ST` and `BEL` ends, repeats.
 - `mode_churn`: alt screen, mode toggles, DECSC, titles, regions: a TUI opening and closing.
 - `sixel_large`: 640x480 to 1024x768 images, so pixel painting dominates.
-- `unique_styles`: a 24-bit colour of its own for every cell; past 65,536 live styles new ones
-  fall back to the default style, and this stream measures the engine in that state.
+- `unique_styles`: a 24-bit colour of its own for every cell, so the style table grows by one
+  entry per cell and is swept again and again while most of its styles are still on the grid.
 - `unique_links`: an `OSC 8` link nobody opened before on every line, so the link table fills
   and is swept.
 

@@ -39,9 +39,9 @@ enum Target {
 }
 
 impl State {
-    /// Interns the pen's new style. A hit costs one hash; only a miss that finds fewer than two
-    /// free slots (the pen and, in `set_template`, its erase cell may each need one) sweeps the
-    /// ids no cell, pen or saved cursor names, once enough misses have piled up.
+    /// Interns the pen's new style. A hit costs one hash; a miss first sweeps the ids no cell,
+    /// pen or saved cursor names when the table asks for it (see `InternTable::wants_sweep`:
+    /// at 65,536 styles, then at twice what the last sweep kept, and with backoff once full).
     ///
     /// The sweep runs between sequences, so every holder of a style id is reachable, and
     /// before the intern, so the id about to be minted is not freed.
@@ -49,7 +49,7 @@ impl State {
         if let Some(id) = self.interner.styles.lookup(&style) {
             return StyleId(id);
         }
-        if self.interner.styles.room() < 2 && self.interner.styles.needs_sweep() {
+        if self.interner.styles.wants_sweep() {
             self.sweep_styles();
         }
         self.interner.style(style)

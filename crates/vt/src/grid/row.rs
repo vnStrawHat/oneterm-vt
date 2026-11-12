@@ -325,11 +325,11 @@ impl UnknownId {
 /// Checks that every id a cell holds resolves in `interner`.
 pub(crate) fn check_cell_ids(cell: Cell, interner: &Interner) -> Result<(), UnknownId> {
     let style = cell.style_id().0;
-    if usize::from(style) >= interner.styles.entries() || interner.styles.is_free(style) {
+    if style as usize >= interner.styles.entries() || interner.styles.is_free(style) {
         return Err(UnknownId::Style);
     }
-    let extras = cell.extras_id().0;
-    if usize::from(extras) >= interner.extras.entries() || interner.extras.is_free(extras) {
+    let extras = u32::from(cell.extras_id().0);
+    if extras as usize >= interner.extras.entries() || interner.extras.is_free(extras) {
         return Err(UnknownId::Extras);
     }
     if let CellContent::Grapheme(id) = cell.content()

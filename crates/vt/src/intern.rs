@@ -19,7 +19,8 @@
 //!
 //! | Table | Cap | At the cap |
 //! |---|---|---|
-//! | [`InternTable`] | 65,536 entries including id 0 | a new value gets id 0; counted |
+//! | [`InternTable`] of styles | 1,048,576 entries including id 0 | a new value gets id 0; counted |
+//! | [`InternTable`] of extras | 65,536 entries including id 0 | a new value gets id 0; counted |
 //! | [`GraphemeArena`] cluster | 16 scalars | cut at 16 scalars; counted as truncated |
 //! | [`GraphemeArena`] entries | 262,144 including id 0 | a new cluster gets id 0 (`" "`); counted |
 //! | [`GraphemeArena`] scalars | 1,048,576 | same |
@@ -32,8 +33,14 @@ use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
 
 use crate::cell::{CellContent, Style};
 
-/// Entries in an [`InternTable`], id 0 included.
+/// Entries in an [`InternTable`] made by `default()`, id 0 included: what a 16-bit id names.
 const TABLE_CAPACITY: usize = 1 << 16;
+/// Styles a terminal keeps, id 0 included: what the 20 style bits of a cell can name.
+pub(crate) const STYLE_CAPACITY: usize = 1 << 20;
+/// An index slot of an [`InternTable`] that holds no id.
+const NO_ID: u32 = u32::MAX;
+/// Index slots of a new [`InternTable`]; the index doubles to stay at most half full.
+const INDEX_START: usize = 64;
 /// New entries after which [`InternTable::needs_sweep`] turns true.
 const SWEEP_INTERVAL: u32 = 4096;
 /// Longest cluster kept, in scalars.
@@ -65,7 +72,7 @@ const UNLISTED: u32 = 0;
 
 /// Index of a [`Style`] in the style table. `StyleId::DEFAULT` is [`Style::DEFAULT`].
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
-pub struct StyleId(pub u16);
+pub struct StyleId(pub u32);
 
 impl StyleId {
     /// The default style.
@@ -112,78 +119,160 @@ impl Extras {
     };
 }
 
-/// A deduplicating table of small values addressed by `u16` ids.
+/// A deduplicating table of small values addressed by ids.
 ///
 /// Id 0 always holds `T::default()`. Ids are never moved; one is reused only after its owner
-/// swept it as unreferenced (the terminal does this for styles and extras). At 65,536 entries a
+/// swept it as unreferenced (the terminal does this for styles and extras). At its capacity a
 /// new value gets id 0 and is counted by [`exhausted`](Self::exhausted); known values still hit.
-/// The hash is not collision-resistant; the cap bounds the worst probe chain.
+/// The hash is not collision-resistant; the capacity bounds the worst probe chain.
 #[derive(Debug)]
 pub struct InternTable<T> {
     entries: Vec<T>,
-    index: FxHashMap<T, u16>,
+    /// The hash index: ids by open addressing with linear probing, in a power of two of slots
+    /// that is at most half full. An id costs 4 bytes here, not a second copy of its value,
+    /// which keeps a full table of a million styles near 23 MiB.
+    index: Vec<u32>,
+    /// Most entries, id 0 included.
+    capacity: usize,
     exhausted: u32,
     /// Swept slots; each holds `T::default()` until a new value takes it.
-    free: Vec<u16>,
+    free: Vec<u32>,
     /// Misses since the last sweep, the full-table ones included.
     since_sweep: u32,
+    /// Misses a full table waits for before it is swept again: `SWEEP_INTERVAL`, doubled
+    /// by every sweep that freed little, so a table full of values still in use is not
+    /// walked over and over.
+    full_interval: u32,
+    /// Entries in use at which the owner sweeps although the table has room: 65,536 at
+    /// first, then twice what the last sweep kept. A table with few values in use stays
+    /// small enough for the cache; one with many grows towards its capacity in doublings.
+    soft_limit: usize,
 }
 
 impl<T: Copy + Eq + Hash + Default> Default for InternTable<T> {
+    /// A table of 65,536 entries: what a 16-bit id can name.
     fn default() -> Self {
-        let mut index = FxHashMap::default();
-        index.insert(T::default(), 0);
-        InternTable {
-            entries: vec![T::default()],
-            index,
-            exhausted: 0,
-            free: Vec::new(),
-            since_sweep: 0,
-        }
+        InternTable::with_capacity(TABLE_CAPACITY)
     }
 }
 
 impl<T: Copy + Eq + Hash + Default> InternTable<T> {
-    /// Returns the id of `value`, adding it if it is new and the table has room.
-    pub fn intern(&mut self, value: T) -> u16 {
-        if let Some(&id) = self.index.get(&value) {
-            return id;
+    /// A table of at most `capacity` entries, id 0 included.
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
+        let mut table = InternTable {
+            entries: vec![T::default()],
+            index: vec![NO_ID; INDEX_START],
+            capacity,
+            exhausted: 0,
+            free: Vec::new(),
+            since_sweep: 0,
+            full_interval: SWEEP_INTERVAL,
+            soft_limit: capacity.min(TABLE_CAPACITY),
+        };
+        table.index_id(0);
+        table
+    }
+
+    /// Looks `value` up in the index: `Ok(id)` when it is interned, else the empty slot its id
+    /// would take. The index is never full, so the walk ends.
+    #[inline]
+    fn probe(&self, value: &T) -> Result<u32, usize> {
+        // The default value is the commonest lookup (`CSI m`) and always id 0: no hash.
+        if *value == T::default() {
+            return Ok(0);
         }
-        self.since_sweep = self.since_sweep.saturating_add(1);
-        if let Some(id) = self.free.pop() {
-            if let Some(slot) = self.entries.get_mut(usize::from(id)) {
-                *slot = value;
+        let mask = self.index.len() - 1;
+        let mut hasher = FxHasher::default();
+        value.hash(&mut hasher);
+        // Truncation is fine: only the low bits pick the slot.
+        let mut slot = hasher.finish() as usize & mask;
+        loop {
+            match self.index.get(slot) {
+                Some(&id) if id != NO_ID => {
+                    if self.entries.get(id as usize) == Some(value) {
+                        return Ok(id);
+                    }
+                }
+                _ => return Err(slot),
             }
-            self.index.insert(value, id);
-            return id;
+            slot = (slot + 1) & mask;
         }
-        if self.entries.len() >= TABLE_CAPACITY {
+    }
+
+    /// Enters `id`, whose value is not indexed yet, into the index.
+    fn index_id(&mut self, id: u32) {
+        let Some(value) = self.entries.get(id as usize).copied() else {
+            return;
+        };
+        if let Err(slot) = self.probe(&value)
+            && let Some(entry) = self.index.get_mut(slot)
+        {
+            *entry = id;
+        }
+    }
+
+    /// Rebuilds the index with `slots` slots (a power of two) from the entries in use.
+    fn rebuild_index(&mut self, slots: usize) {
+        self.index.clear();
+        self.index.resize(slots, NO_ID);
+        // Fits: `entries.len() <= capacity <= 1 << 20`.
+        for id in 0..self.entries.len() as u32 {
+            if !self.is_free(id) {
+                self.index_id(id);
+            }
+        }
+    }
+
+    /// Entries in use: every id but the swept ones.
+    fn in_use(&self) -> usize {
+        self.entries.len() - self.free.len()
+    }
+
+    /// Returns the id of `value`, adding it if it is new and the table has room.
+    pub fn intern(&mut self, value: T) -> u32 {
+        let slot = match self.probe(&value) {
+            Ok(id) => return id,
+            Err(slot) => slot,
+        };
+        self.since_sweep = self.since_sweep.saturating_add(1);
+        let id = if let Some(id) = self.free.pop() {
+            if let Some(entry) = self.entries.get_mut(id as usize) {
+                *entry = value;
+            }
+            id
+        } else if self.entries.len() >= self.capacity {
             self.exhausted = self.exhausted.saturating_add(1);
             return 0;
+        } else {
+            // Fits: `len < capacity <= 1 << 20`.
+            let id = self.entries.len() as u32;
+            self.entries.push(value);
+            id
+        };
+        if let Some(entry) = self.index.get_mut(slot) {
+            *entry = id;
         }
-        // Fits: `len < TABLE_CAPACITY == 1 << 16`.
-        let id = self.entries.len() as u16;
-        self.entries.push(value);
-        self.index.insert(value, id);
+        if self.in_use() * 2 > self.index.len() {
+            self.rebuild_index(self.index.len() * 2);
+        }
         id
     }
 
     /// Returns the value behind `id`; an unknown id gives the default value.
-    pub fn resolve(&self, id: u16) -> &T {
-        // `entries[0]` exists: `default()` is the only constructor and pushes the default.
-        self.entries
-            .get(usize::from(id))
-            .unwrap_or(&self.entries[0])
+    pub fn resolve(&self, id: u32) -> &T {
+        // `entries[0]` exists: every constructor pushes the default.
+        self.entries.get(id as usize).unwrap_or(&self.entries[0])
     }
 
     /// Returns the id of `value` if it is already interned, counting nothing.
-    pub(crate) fn lookup(&self, value: &T) -> Option<u16> {
-        self.index.get(value).copied()
+    #[inline]
+    pub(crate) fn lookup(&self, value: &T) -> Option<u32> {
+        self.probe(value).ok()
     }
 
     /// How many new values fit before the table refuses: freed slots plus the unused tail.
     pub(crate) fn room(&self) -> usize {
-        self.free.len() + (TABLE_CAPACITY - self.entries.len())
+        self.free.len() + (self.capacity - self.entries.len())
     }
 
     /// Returns the number of entries, id 0 included.
@@ -200,10 +289,11 @@ impl<T: Copy + Eq + Hash + Default> InternTable<T> {
     /// none; [`exhausted`](Self::exhausted) is kept.
     pub(crate) fn clear(&mut self) {
         self.entries.truncate(1);
-        self.index.clear();
-        self.index.insert(T::default(), 0);
         self.free.clear();
         self.since_sweep = 0;
+        self.full_interval = SWEEP_INTERVAL;
+        self.soft_limit = self.capacity.min(TABLE_CAPACITY);
+        self.rebuild_index(INDEX_START);
     }
 
     /// Whether enough new entries arrived since the last sweep that one is due.
@@ -211,31 +301,57 @@ impl<T: Copy + Eq + Hash + Default> InternTable<T> {
         self.since_sweep >= SWEEP_INTERVAL
     }
 
+    /// Whether the owner should sweep before it interns a new value (two, in fact: a pen and
+    /// its erase style).
+    ///
+    /// With room left: once the entries in use reach the soft limit, which is 65,536 or twice
+    /// what the last sweep kept. With none: once enough values were refused since the last
+    /// sweep, counted against an interval that doubles while sweeps free little (up to a
+    /// quarter of the capacity) and starts over when one frees a lot.
+    pub(crate) fn wants_sweep(&self) -> bool {
+        if self.room() < 2 {
+            return self.since_sweep >= self.full_interval;
+        }
+        self.in_use() + 2 > self.soft_limit
+    }
+
     /// Whether `id` is a swept slot waiting for reuse. A value equal to the default always
     /// interns to id 0, so a default at any other id marks a free slot.
-    pub(crate) fn is_free(&self, id: u16) -> bool {
-        id != 0 && self.entries.get(usize::from(id)) == Some(&T::default())
+    pub(crate) fn is_free(&self, id: u32) -> bool {
+        id != 0 && self.entries.get(id as usize) == Some(&T::default())
     }
 
     /// Frees every entry (id 0 excepted) that is not in `live`: forgets its value and offers
     /// the slot to the next new value. Ids are never renumbered. The caller passes every id a
     /// cell, pen or saved cursor still holds.
-    pub(crate) fn sweep_unreferenced(&mut self, live: &FxHashSet<u16>) {
-        for index in 1..self.entries.len() {
-            // Fits: `index < entries.len() <= TABLE_CAPACITY == 1 << 16`.
-            let id = index as u16;
+    pub(crate) fn sweep_unreferenced(&mut self, live: &FxHashSet<u32>) {
+        let free_before = self.free.len();
+        // Fits: `entries.len() <= capacity <= 1 << 20`.
+        for id in 1..self.entries.len() as u32 {
             if live.contains(&id) || self.is_free(id) {
                 continue;
             }
-            if let Some(slot) = self.entries.get_mut(index) {
+            if let Some(slot) = self.entries.get_mut(id as usize) {
                 *slot = T::default();
                 self.free.push(id);
             }
         }
-        // One `retain` instead of a `remove` per freed value: `remove` shares its probe with
-        // `get`, and that second caller stops the compiler inlining `get` into the SGR hot path
-        // (measured: `dense_cells` -12 %). Freed ids are exactly those outside `live`.
-        self.index.retain(|_, id| *id == 0 || live.contains(id));
+        let freed = self.free.len() - free_before;
+        self.full_interval = if freed >= self.full_interval as usize / 2 {
+            SWEEP_INTERVAL
+        } else {
+            // At most a quarter of the capacity: `capacity <= 1 << 20` fits `u32`.
+            let ceiling = (self.capacity / 4).max(SWEEP_INTERVAL as usize) as u32;
+            self.full_interval.saturating_mul(2).min(ceiling)
+        };
+        self.soft_limit =
+            (self.in_use() * 2).clamp(TABLE_CAPACITY.min(self.capacity), self.capacity);
+        // A burst of values does not pin the index at its peak, but it keeps what the soft
+        // limit needs: a stream of short-lived values would otherwise regrow it, doubling by
+        // doubling, after every sweep.
+        let needed = (self.in_use() * 2).next_power_of_two().max(INDEX_START);
+        let kept = (self.soft_limit * 2).next_power_of_two();
+        self.rebuild_index(self.index.len().min(kept).max(needed));
         self.since_sweep = 0;
     }
 }
@@ -691,7 +807,7 @@ fn explicit_key(key: &mut String, id: &str, uri: &str) {
 ///
 /// The `exhausted()` and `truncated()` counters of the four tables report everything the
 /// interner dropped or degraded.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Interner {
     /// Styles, addressed by [`StyleId`].
     pub styles: InternTable<Style>,
@@ -701,6 +817,17 @@ pub struct Interner {
     pub graphemes: GraphemeArena,
     /// OSC 8 hyperlinks, addressed by [`HyperlinkId`].
     pub hyperlinks: HyperlinkTable,
+}
+
+impl Default for Interner {
+    fn default() -> Self {
+        Interner {
+            styles: InternTable::with_capacity(STYLE_CAPACITY),
+            extras: InternTable::default(),
+            graphemes: GraphemeArena::default(),
+            hyperlinks: HyperlinkTable::default(),
+        }
+    }
 }
 
 impl Interner {
@@ -717,12 +844,13 @@ impl Interner {
 
     /// Returns the id of `extras`; a full table gives [`ExtrasId::NONE`].
     pub fn extras(&mut self, extras: Extras) -> ExtrasId {
-        ExtrasId(self.extras.intern(extras))
+        // The extras table holds at most 65,536 entries, so its ids fit 16 bits.
+        ExtrasId(self.extras.intern(extras) as u16)
     }
 
     /// Returns the extras behind `id`; an unknown id gives [`Extras::NONE`].
     pub fn resolve_extras(&self, id: ExtrasId) -> &Extras {
-        self.extras.resolve(id.0)
+        self.extras.resolve(u32::from(id.0))
     }
 
     /// Returns the id of `cluster`; see [`GraphemeArena::intern`].

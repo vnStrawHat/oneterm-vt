@@ -45,7 +45,8 @@ assert_eq!(stats.bytes, 10);
 | `?2027` cluster carried across chunks | 32 scalars | not carried; the next chunk starts a new cluster | `dropped_cluster_carries` |
 | cluster in a cell | 16 scalars | cut | `grapheme_truncated` |
 | grapheme arena | 262,144 entries, 1,048,576 scalars; swept after a feed once it doubled; keeps at most half of each cap, newest rows first; a refused or dropped cluster keeps its base glyph | the cell keeps its base glyph, the new marks are dropped | `grapheme_table_exhausted` |
-| styles / extras | 65,536 each; an entry is freed once no cell names it (extras: sweep every 4,096 new entries; styles: swept when the table is full, at most once per 4,096 new styles) | the default style / no link or image | `style_table_exhausted` / `hyperlink_table_exhausted` |
+| styles | 1,048,576 (about 23 MiB when full); an entry is freed once no cell names it (swept at 65,536 styles in use, then at twice what the last sweep kept; when full, after 4,096 refused styles, doubling up to 262,144 while sweeps free little) | the default style | `style_table_exhausted` |
+| extras | 65,536; an entry is freed once no cell names it (swept every 4,096 new entries) | no link or image | `hyperlink_table_exhausted` |
 | image side | 4096 px per axis | pixels past it are dropped | - |
 | image decode buffer | 64 MiB (4096 x 4096 RGBA) | cannot be exceeded | - |
 | images waiting for `take_graphics` | 128 MiB of pixels (each image counts at least its struct size) | the oldest is dropped and released | `graphics_dropped` |

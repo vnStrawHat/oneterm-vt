@@ -204,15 +204,12 @@ fn long_osc_leaves_the_status_text_and_no_title() {
 }
 
 #[test]
-fn unique_styles_fill_the_style_table() {
-    // 4 MiB is about 250,000 cells, each with a colour of its own, all still in the history.
+fn unique_styles_keep_a_style_per_cell() {
+    // 4 MiB is about 250,000 cells, each with a colour of its own, all still in the history:
+    // far past what 16-bit style ids could name, and within the table of a million.
     let (fed, _) = feed_fixture("unique_styles", 1 << 22, CHUNK);
-    assert_eq!(fed.term.interner().styles.entries(), 1 << 16);
-    assert!(
-        fed.refused > 100_000,
-        "{} cells lost their colour",
-        fed.refused
-    );
+    assert!(fed.term.interner().styles.entries() > 200_000);
+    assert_eq!(fed.refused, 0);
 }
 
 #[test]

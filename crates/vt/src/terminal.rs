@@ -144,7 +144,7 @@ struct State {
     cell_pixels: (u16, u16),
     graphics: GraphicsState,
     /// Scratch for the style and extras sweeps, kept for its capacity.
-    live_ids: FxHashSet<u16>,
+    live_ids: FxHashSet<u32>,
     stats: FeedStats,
     dispatched: bool,
 }
@@ -894,6 +894,13 @@ impl fmt::Debug for Terminal {
 
 #[cfg(test)]
 impl Terminal {
+    /// Replaces the style table of a fresh terminal with one of `capacity` entries, so a
+    /// test fills it with thousands of styles instead of a million.
+    pub(crate) fn limit_styles(&mut self, capacity: usize) {
+        assert_eq!(self.state.interner.styles.entries(), 1, "a fresh terminal");
+        self.state.interner.styles = crate::intern::InternTable::with_capacity(capacity);
+    }
+
     /// The change stamp of a primary-screen row.
     fn primary_row_seq(&self, id: RowId) -> crate::grid::SeqNo {
         self.state.grid.primary().row(id).seq()
