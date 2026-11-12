@@ -8,7 +8,7 @@ fn pos(row: u64, col: u16) -> Pos {
 }
 
 fn mark(anchors: &mut Anchors, row: u64) -> AnchorId {
-    anchors.register(AnchorKind::Mark(1), pos(row, 0))
+    anchors.register(AnchorKind::SelectionStart, pos(row, 0))
 }
 
 #[test]
@@ -69,7 +69,7 @@ fn a_killed_anchor_can_still_be_released() {
     let a = mark(&mut anchors, 1);
     anchors.trim(RowId(0), RowId(5));
     assert_eq!(anchors.get(a), None);
-    assert_eq!(anchors.kind(a), Some(AnchorKind::Mark(1)));
+    assert_eq!(anchors.kind(a), Some(AnchorKind::SelectionStart));
     anchors.release(a);
     assert_eq!(mark(&mut anchors, 9), a);
 }
@@ -185,7 +185,7 @@ fn kill_keeps_slot_not_freed() {
     let a = mark(&mut anchors, 4);
     anchors.kill(a);
     assert_eq!(anchors.get(a), None);
-    assert_eq!(anchors.kind(a), Some(AnchorKind::Mark(1)));
+    assert_eq!(anchors.kind(a), Some(AnchorKind::SelectionStart));
     assert_eq!(anchors.live(), 0);
     // The slot was not freed: a new anchor does not take it.
     let b = mark(&mut anchors, 5);
@@ -199,9 +199,9 @@ fn kill_keeps_slot_not_freed() {
 #[test]
 fn clamp_columns_touches_only_content_anchors_of_the_lane() {
     let mut anchors = Anchors::new();
-    let wide = anchors.register(AnchorKind::Mark(1), pos(RowId::ALT_ORIGIN.0, 9));
-    let narrow = anchors.register(AnchorKind::Mark(1), pos(RowId::ALT_ORIGIN.0 + 1, 2));
-    let primary = anchors.register(AnchorKind::Mark(1), pos(3, 9));
+    let wide = anchors.register(AnchorKind::SelectionStart, pos(RowId::ALT_ORIGIN.0, 9));
+    let narrow = anchors.register(AnchorKind::SelectionStart, pos(RowId::ALT_ORIGIN.0 + 1, 2));
+    let primary = anchors.register(AnchorKind::SelectionStart, pos(3, 9));
     let cursor = anchors.register(AnchorKind::Cursor, pos(RowId::ALT_ORIGIN.0, 9));
     anchors.clamp_columns(RowId::ALT_ORIGIN..RowId(u64::MAX), 4);
     assert_eq!(anchors.get(wide), Some(pos(RowId::ALT_ORIGIN.0, 3)));

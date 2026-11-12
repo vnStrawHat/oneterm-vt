@@ -223,7 +223,7 @@ fn apply(f: &mut Fixture, op: &Op, marks: &mut Vec<AnchorId>) {
             let row = grid.screen().row_of_index(index);
             marks.push(
                 grid.anchors
-                    .register(AnchorKind::Mark(1), Pos { row, col: 0 }),
+                    .register(AnchorKind::SelectionStart, Pos { row, col: 0 }),
             );
         }
         Op::Release(pick) => {

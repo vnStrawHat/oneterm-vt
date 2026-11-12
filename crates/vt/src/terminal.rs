@@ -13,7 +13,7 @@ use std::time::Instant;
 
 use rustc_hash::FxHashSet;
 
-use crate::cell::{Cell, Rgb, Style};
+use crate::cell::{Cell, Rgb, Semantic, Style};
 use crate::events::{EventBatch, FeedStats};
 use crate::graphics::{GraphicData, GraphicsState, Placement};
 use crate::grid::terminal_grid::{ResizeOutcome, ResizePolicy};
@@ -78,6 +78,11 @@ pub struct Config {
     /// Whether DECRQCRA may answer with a checksum of the screen. Off, the query is counted
     /// as unhandled: a program must not read the screen back unless the embedder allows it.
     pub allow_screen_readback: bool,
+    /// Whether East Asian Ambiguous scalars (`§`, `±`, box drawing, Greek and Cyrillic
+    /// letters) take two columns, as CJK legacy fonts draw them. Off (the default), they take
+    /// one, which is what programs assume unless the locale says otherwise. Set it to match
+    /// your font; the program must agree (most read it from the locale or a setting).
+    pub ambiguous_wide: bool,
 }
 
 impl Default for Config {
@@ -89,6 +94,7 @@ impl Default for Config {
             semantic_escape_chars: DEFAULT_SEMANTIC_ESCAPE_CHARS.to_owned(),
             product_name: None,
             allow_screen_readback: false,
+            ambiguous_wide: false,
         }
     }
 }
@@ -735,6 +741,40 @@ impl Terminal {
         text
     }
 
+    /// The nearest row above `row` on the active screen where a shell prompt starts, for
+    /// "jump to the previous prompt"; pass [`viewport`](Self::viewport)`().top`. `None`
+    /// when there is none.
+    ///
+    /// A prompt is found by its cells: the ones printed between OSC 133 `A` and `B` carry
+    /// [`Semantic::Prompt`](crate::Semantic). A prompt of several rows counts once, at its
+    /// first row; a prompt that printed nothing is not found. The search walks the history
+    /// (about a millisecond for 10,000 rows): call it on a key press, not per frame.
+    pub fn prompt_before(&self, row: RowId) -> Option<RowId> {
+        let screen = self.state.grid.screen();
+        let mut id = row.min(screen.newest() + 1);
+        while id > screen.oldest() {
+            id = id - 1;
+            if starts_prompt(screen, id) {
+                return Some(id);
+            }
+        }
+        None
+    }
+
+    /// The nearest row below `row` on the active screen where a shell prompt starts, for
+    /// "jump to the next prompt". See [`prompt_before`](Self::prompt_before).
+    pub fn prompt_after(&self, row: RowId) -> Option<RowId> {
+        let screen = self.state.grid.screen();
+        let mut id = row.max(screen.oldest()) + 1;
+        while id <= screen.newest() {
+            if starts_prompt(screen, id) {
+                return Some(id);
+            }
+            id = id + 1;
+        }
+        None
+    }
+
     /// Turns a pointer position into a cell and the half of it that was hit. Rows are counted
     /// from the top of the viewport and columns from its left edge, both fractional; negative
     /// and NaN values count as 0 and positions past the edges clamp. A column past the last
@@ -810,6 +850,35 @@ impl Terminal {
         let state = &mut self.state;
         state.release_selection();
         state.selection = Some(Selection::all(&mut state.grid));
+    }
+}
+
+/// Whether a shell prompt starts on row `id`: it holds a prompt cell that does not continue
+/// the prompt of the row above.
+fn starts_prompt(screen: &Screen, id: RowId) -> bool {
+    let is_prompt = |cell: &Cell| cell.semantic() == Semantic::Prompt;
+    let row = screen.row(id);
+    // Cells from `occ` on equal the last one, so the written prefix and the last cell hold
+    // every zone of the row.
+    let cells = row.cells();
+    let written = cells.get(..usize::from(row.occ())).unwrap_or(cells);
+    let first = written.iter().position(is_prompt).or_else(|| {
+        cells
+            .last()
+            .filter(|cell| is_prompt(cell))
+            .map(|_| written.len())
+    });
+    match first {
+        None => false,
+        // The cell before it on this row is no prompt: the prompt starts here.
+        Some(col) if col > 0 => true,
+        Some(_) if id <= screen.oldest() => true,
+        Some(_) => {
+            let above = screen.row(id - 1);
+            let end = usize::from(above.text_end());
+            let continues = end > 0 && above.cells().get(end - 1).is_some_and(is_prompt);
+            !continues
+        }
     }
 }
 

@@ -14,7 +14,7 @@ impl Fixture {
         let row = self.grid.screen().row_of_index(index);
         self.grid
             .anchors
-            .register(AnchorKind::Mark(1), Pos { row, col })
+            .register(AnchorKind::SelectionStart, Pos { row, col })
     }
 }
 
@@ -388,7 +388,7 @@ fn mark_in_trimmed_history_dies() {
     }
     let oldest = f.grid.screen().oldest();
     let old = f.grid.anchors.register(
-        AnchorKind::Mark(9),
+        AnchorKind::SelectionStart,
         Pos {
             row: oldest,
             col: 0,
@@ -397,7 +397,7 @@ fn mark_in_trimmed_history_dies() {
     let outcome = f.resize(2, 5, BottomAnchor);
     assert!(outcome.rows_trimmed > 0);
     assert_eq!(f.grid.anchors.get(old), None);
-    assert_eq!(f.grid.anchors.kind(old), Some(AnchorKind::Mark(9)));
+    assert_eq!(f.grid.anchors.kind(old), Some(AnchorKind::SelectionStart));
 }
 
 #[test]

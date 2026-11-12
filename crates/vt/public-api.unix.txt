@@ -3,7 +3,6 @@ pub mod oneterm_vt::grid
 pub enum oneterm_vt::grid::AnchorKind
 pub oneterm_vt::grid::AnchorKind::Cursor
 pub oneterm_vt::grid::AnchorKind::Graphic(oneterm_vt::intern::GraphicId)
-pub oneterm_vt::grid::AnchorKind::Mark(u32)
 pub oneterm_vt::grid::AnchorKind::SavedCursor
 pub oneterm_vt::grid::AnchorKind::SelectionEnd
 pub oneterm_vt::grid::AnchorKind::SelectionStart
@@ -2376,6 +2375,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::ColorOverrides
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::ColorOverrides
 pub struct oneterm_vt::Config
 pub oneterm_vt::Config::allow_screen_readback: bool
+pub oneterm_vt::Config::ambiguous_wide: bool
 pub oneterm_vt::Config::default_cursor_style: oneterm_vt::CursorStyle
 pub oneterm_vt::Config::osc_routes: oneterm_vt::OscRoutes
 pub oneterm_vt::Config::product_name: core::option::Option<alloc::borrow::Cow<'static, str>>
@@ -3364,6 +3364,8 @@ pub fn oneterm_vt::Terminal::mouse_reporting(&self) -> core::option::Option<onet
 pub fn oneterm_vt::Terminal::new(oneterm_vt::grid::Size, oneterm_vt::Config) -> oneterm_vt::Terminal
 pub fn oneterm_vt::Terminal::palette(&self) -> oneterm_vt::Palette
 pub fn oneterm_vt::Terminal::placements(&self) -> &[oneterm_vt::Placement]
+pub fn oneterm_vt::Terminal::prompt_after(&self, oneterm_vt::grid::RowId) -> core::option::Option<oneterm_vt::grid::RowId>
+pub fn oneterm_vt::Terminal::prompt_before(&self, oneterm_vt::grid::RowId) -> core::option::Option<oneterm_vt::grid::RowId>
 pub fn oneterm_vt::Terminal::resize(&mut self, oneterm_vt::grid::Size, oneterm_vt::ResizePolicy) -> oneterm_vt::ResizeOutcome
 pub fn oneterm_vt::Terminal::row_text(&self, oneterm_vt::grid::RowId) -> alloc::string::String
 pub fn oneterm_vt::Terminal::screen(&self) -> &oneterm_vt::grid::Screen

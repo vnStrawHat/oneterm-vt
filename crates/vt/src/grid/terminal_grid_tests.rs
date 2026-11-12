@@ -9,7 +9,7 @@ fn mark_at(f: &mut Fixture, index: u16) -> AnchorId {
     let row = f.grid.screen().row_of_index(index);
     f.grid
         .anchors
-        .register(AnchorKind::Mark(7), Pos { row, col: 0 })
+        .register(AnchorKind::SelectionStart, Pos { row, col: 0 })
 }
 
 /// The screen index of an anchor, `None` when it is dead.
@@ -421,7 +421,7 @@ fn heap_bytes_cover_both_rings_and_the_anchors() {
 fn check_reports_an_anchor_outside_its_lane() {
     let mut f = fixture(4, 8);
     let id = f.grid.anchors.register(
-        AnchorKind::Mark(1),
+        AnchorKind::SelectionStart,
         Pos {
             row: RowId(500),
             col: 0,

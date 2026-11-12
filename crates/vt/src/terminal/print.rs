@@ -3,7 +3,7 @@
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::grid::{Charset, PrintMode, RowId};
-use crate::width::{cluster_str_width, scalar_width};
+use crate::width::{cluster_str_width, cluster_str_width_cjk, scalar_width, scalar_width_cjk};
 
 use super::dispatch::Handler;
 use super::modes::Mode;
@@ -63,12 +63,33 @@ pub(super) fn map_charset(charset: Charset, c: char) -> char {
     }
 }
 
+/// The columns of one scalar: ambiguous-width ones are 2 when `ambiguous_wide`.
+#[inline]
+fn measure(c: char, ambiguous_wide: bool) -> u8 {
+    if ambiguous_wide {
+        scalar_width_cjk(c)
+    } else {
+        scalar_width(c)
+    }
+}
+
 /// What a print run needs of a scalar under `charset`: the mapped scalar and its width, or
 /// `None` for a width-0 scalar or a control.
 fn mapped_glyph(charset: Charset) -> impl Fn(char) -> Option<(char, u8)> + Copy {
     move |c| {
         let mapped = map_charset(charset, c);
         let width = scalar_width(mapped);
+        (!mapped.is_control() && width >= 1).then_some((mapped, width))
+    }
+}
+
+/// [`mapped_glyph`] with ambiguous-width scalars two columns wide. A closure of its own, so
+/// the print run is compiled once per width rule and the choice costs nothing per glyph
+/// (measured: a flag read inside one closure cost `cjk_wide` 9 %).
+fn mapped_glyph_cjk(charset: Charset) -> impl Fn(char) -> Option<(char, u8)> + Copy {
+    move |c| {
+        let mapped = map_charset(charset, c);
+        let width = scalar_width_cjk(mapped);
         (!mapped.is_control() && width >= 1).then_some((mapped, width))
     }
 }
@@ -93,10 +114,26 @@ impl Handler<'_> {
             .unwrap_or(self.state.shifts.active)
     }
 
+    /// The grid's print run under the terminal's width rule; returns the bytes it consumed.
+    fn print_run(
+        &mut self,
+        text: &str,
+        mode: PrintMode,
+        charset: Charset,
+        ambiguous_wide: bool,
+    ) -> usize {
+        let grid = &mut self.state.grid;
+        if ambiguous_wide {
+            grid.print_run(text, mode, charset, mapped_glyph_cjk(charset))
+        } else {
+            grid.print_run(text, mode, charset, mapped_glyph(charset))
+        }
+    }
+
     /// One scalar through `charset`: maps, measures and prints it. Returns its width.
     fn print_mapped(&mut self, c: char, charset: Charset, mode: PrintMode) -> u8 {
         let mapped = map_charset(charset, c);
-        let width = scalar_width(mapped);
+        let width = measure(mapped, self.state.config.ambiguous_wide);
         let report = self
             .state
             .grid
@@ -127,13 +164,13 @@ impl Handler<'_> {
         }
         // Nothing in a run changes the designations, so the set is looked up once.
         let charset = self.state.charset(self.state.shifts.active);
-        let glyph = mapped_glyph(charset);
+        let ambiguous_wide = self.state.config.ambiguous_wide;
         let last = text.chars().next_back();
         let is_mark = |c: char| !c.is_control() && scalar_width(map_charset(charset, c)) == 0;
         let mut try_run = true;
         while !text.is_empty() {
             if try_run {
-                let run = self.state.grid.print_run(text, mode, charset, glyph);
+                let run = self.print_run(text, mode, charset, ambiguous_wide);
                 text = &text[run..];
             }
             let Some(c) = text.chars().next() else {
@@ -225,10 +262,10 @@ impl Handler<'_> {
     fn print_ascii_word(&mut self, word: &str, mode: PrintMode) {
         let set = self.state.shifts.active;
         let charset = self.state.charset(set);
-        let glyph = mapped_glyph(charset);
+        let ambiguous_wide = self.state.config.ambiguous_wide;
         let mut rest = word;
         while !rest.is_empty() {
-            let run = self.state.grid.print_run(rest, mode, charset, glyph);
+            let run = self.print_run(rest, mode, charset, ambiguous_wide);
             if run > 0 {
                 rest = rest.get(run..).unwrap_or_default();
                 continue;
@@ -241,7 +278,11 @@ impl Handler<'_> {
 
     /// Prints one cluster: its first scalar with the cluster's width, the rest attached.
     fn place_cluster(&mut self, cluster: &str, set: u8, mode: PrintMode) {
-        let width = cluster_str_width(cluster);
+        let width = if self.state.config.ambiguous_wide {
+            cluster_str_width_cjk(cluster)
+        } else {
+            cluster_str_width(cluster)
+        };
         let charset = self.state.charset(set);
         let mut scalars = cluster.chars();
         let first = scalars.next();

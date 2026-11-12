@@ -257,7 +257,7 @@ fn full_screen_linefeed_equals_a_region_scroll() {
         let row = f.grid.screen().row_of_index(1);
         f.grid
             .anchors_mut()
-            .register(AnchorKind::Mark(3), Pos { row, col: 0 });
+            .register(AnchorKind::SelectionStart, Pos { row, col: 0 });
         f.goto(3, 0);
         f.grid.screen_mut().save_cursor();
         f

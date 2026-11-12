@@ -18,7 +18,8 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 /// Controls (including NUL, DEL and C1), combining marks, zero-width joiners, variation
 /// selectors and conjoining Hangul vowels and final consonants are 0 and attach to the
 /// previous cell. East Asian Wide and Fullwidth scalars, and scalars with emoji
-/// presentation, are 2. Ambiguous-width, unassigned and private-use scalars are 1.
+/// presentation, are 2. Ambiguous-width, unassigned and private-use scalars are 1 (a terminal
+/// built with `Config::ambiguous_wide` measures the ambiguous ones as 2 itself).
 pub fn scalar_width(c: char) -> u8 {
     // Clamped to 2: a few scalars are rated 3.
     UnicodeWidthChar::width(c).unwrap_or(0).min(2) as u8
@@ -41,6 +42,22 @@ pub(crate) fn cluster_str_width(cluster: &str) -> u8 {
     }
     // Clamped to 2: string rules sum the parts of unqualified sequences.
     UnicodeWidthStr::width(cluster).min(2) as u8
+}
+
+/// [`scalar_width`] for a terminal that draws East Asian Ambiguous scalars two columns wide
+/// (`Config::ambiguous_wide`), as CJK legacy fonts do.
+pub(crate) fn scalar_width_cjk(c: char) -> u8 {
+    // Clamped to 2: a few scalars are rated 3.
+    UnicodeWidthChar::width_cjk(c).unwrap_or(0).min(2) as u8
+}
+
+/// [`cluster_str_width`] with East Asian Ambiguous scalars two columns wide.
+pub(crate) fn cluster_str_width_cjk(cluster: &str) -> u8 {
+    if cluster.chars().next().is_some_and(char::is_control) {
+        return 0;
+    }
+    // Clamped to 2: string rules sum the parts of unqualified sequences.
+    UnicodeWidthStr::width_cjk(cluster).min(2) as u8
 }
 
 #[cfg(test)]

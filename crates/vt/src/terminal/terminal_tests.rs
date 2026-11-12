@@ -2675,3 +2675,63 @@ fn sgr_pixel_mouse_is_an_encoding_like_the_others() {
         MouseEncoding::Default
     );
 }
+
+#[test]
+fn ambiguous_width_scalars_are_wide_only_when_configured() {
+    // U+00A7 SECTION SIGN and U+2500 BOX DRAWINGS LIGHT HORIZONTAL are East Asian Ambiguous.
+    let text = "\u{a7}\u{2500}x".as_bytes();
+    let mut narrow = Session::new(10, 2);
+    narrow.feed(text);
+    assert_eq!(narrow.cursor(), (0, 3));
+
+    let config = Config {
+        ambiguous_wide: true,
+        ..Config::default()
+    };
+    let mut wide = Session::sized(10, 2, config);
+    wide.feed(text);
+    assert_eq!(wide.cursor(), (0, 5));
+    let row = wide.term.screen().row(wide.term.screen().row_of_index(0));
+    assert_eq!(row.cell(0).width(), CellWidth::Wide);
+    assert_eq!(row.cell(1).width(), CellWidth::WideSpacer);
+    assert_eq!(row.cell(4).content(), CellContent::Scalar('x'));
+    // The same under grapheme clustering.
+    wide.feed(b"\r\n\x1b[?2027h");
+    wide.feed(text);
+    assert_eq!(wide.cursor(), (1, 5));
+}
+
+#[test]
+fn prompts_are_found_by_their_cells() {
+    let mut session = Session::new(20, 4);
+    let command = |n: u32| {
+        format!(
+            "\x1b]133;A\x07$ \x1b]133;B\x07cmd{n}\r\n\x1b]133;C\x07out\r\nmore\r\n\x1b]133;D\x07"
+        )
+    };
+    for n in 0..3 {
+        session.feed(command(n).as_bytes());
+    }
+    // A prompt of two rows, then the cursor waits on it.
+    session.feed(b"\x1b]133;A\x07first line\r\n> \x1b]133;B\x07");
+    let screen = session.term.screen();
+    let oldest = screen.oldest();
+    let prompts = [oldest, oldest + 3, oldest + 6, oldest + 9];
+    assert_eq!(screen.newest(), oldest + 10);
+
+    let top = session.term.viewport().top;
+    assert_eq!(top, oldest + 7);
+    assert_eq!(session.term.prompt_before(top), Some(prompts[2]));
+    assert_eq!(session.term.prompt_before(prompts[2]), Some(prompts[1]));
+    assert_eq!(session.term.prompt_before(prompts[0]), None);
+    assert_eq!(session.term.prompt_after(prompts[1]), Some(prompts[2]));
+    // The second row of the last prompt continues it and is not a prompt of its own.
+    assert_eq!(session.term.prompt_after(prompts[2]), Some(prompts[3]));
+    assert_eq!(session.term.prompt_after(prompts[3]), None);
+    // Rows outside the live range clamp.
+    assert_eq!(
+        session.term.prompt_before(RowId(u64::MAX >> 2)),
+        Some(prompts[3])
+    );
+    assert_eq!(session.term.prompt_after(RowId(0)), Some(prompts[1]));
+}

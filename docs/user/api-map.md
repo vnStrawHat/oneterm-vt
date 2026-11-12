@@ -8,7 +8,7 @@ and its payload). The last row of a group lists its functions and constants.
 
 | Item | What it is for | Chapter |
 |---|---|---|
-| `Terminal` | the engine: `feed` bytes, `resize`, `snapshot_update`, `encode_key`, `encode_paste`, `encode_focus`, `color_reply`; `grid_mut` and `interner_mut` for hand-written cells | [quickstart](quickstart.md) |
+| `Terminal` | the engine: `feed` bytes, `resize`, `snapshot_update`, `encode_key`, `encode_paste`, `encode_focus`, `color_reply`, `prompt_before` / `prompt_after`; `grid_mut` and `interner_mut` for hand-written cells | [quickstart](quickstart.md) |
 | `Config` | how a `Terminal` is built: scrollback, product name, OSC routes | [quickstart](quickstart.md) |
 | `OscRoute`, `OscRoutes` | per OSC number: handle it, forward it to you, or drop it | [events](events.md) |
 | `Mode`, `ModeState` | a terminal mode, and how a program set it (DECRQM answers) | [conformance](conformance.md) |

@@ -63,6 +63,9 @@ assert_eq!(interner.grapheme("e\u{301}"), id); // deduplicated
   emoji base is 1, an emoji with a skin tone or a joined sequence is 2.
 - A terminal without grapheme clustering (the default) sums `scalar_width` per scalar; with
   mode `?2027` it measures whole clusters with `cluster_width`, one cell each.
+- East Asian Ambiguous scalars (`§`, `±`, box drawing, Greek, Cyrillic) are 1 column. A terminal
+  built with `Config { ambiguous_wide: true, .. }` gives them 2, for CJK fonts that draw them
+  wide; the two functions above keep answering 1.
 
 ```rust
 use oneterm_vt::{cluster_width, scalar_width};

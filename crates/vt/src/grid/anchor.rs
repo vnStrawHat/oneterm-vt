@@ -3,7 +3,8 @@
 //! A [`RowId`] names a position, and content moves between positions (region scrolls, later
 //! reflow). A consumer that must follow content registers an anchor and reads it back; every
 //! row-moving primitive updates the list. The list is small (three per screen plus selection
-//! ends, marks and placements), so a linear scan per scroll beats any index.
+//! ends and placements), so a linear scan per scroll beats any index. That is also why shell
+//! prompts are not anchors: thousands of them would make every scroll walk the list.
 //!
 //! The cursor, saved cursor and viewport-top anchors belong to their screen: it writes them
 //! back at the end of every operation that takes the list.
@@ -30,8 +31,6 @@ pub enum AnchorKind {
     SelectionStart,
     /// The end of a selection.
     SelectionEnd,
-    /// A shell-integration prompt mark, tagged by the dispatcher.
-    Mark(u32),
     /// One image placement.
     Graphic(GraphicId),
 }
