@@ -1146,3 +1146,37 @@ fn chunking_does_not_change_the_image() {
     let (a, b) = (whole.one_image(), bytewise.one_image());
     assert_eq!((a.width, a.height, &a.rgba), (b.width, b.height, &b.rgba));
 }
+
+/// A declared raster of 4096 x 4096 with one painted column, at screen row `row` and column `col`.
+fn huge_raster_at(row: u16, col: u16) -> String {
+    format!("[{};{}HPq\"1;1;4096;4096#0~\\", row + 1, col + 1)
+}
+
+#[test]
+fn live_pixels_stay_within_the_budget() {
+    let mut s = Session::new(160, 45);
+    let mut held = std::collections::HashMap::new();
+    let mut released = 0;
+    for index in 0..40u16 {
+        // Further right on the same rows: no image covers an older one.
+        s.feed_str(&huge_raster_at(index % 4, index / 4));
+        for image in s.term.take_graphics() {
+            held.insert(image.id, image.rgba.len());
+        }
+        for id in s.released() {
+            assert!(
+                held.remove(&id).is_some(),
+                "released once, after it was taken"
+            );
+            released += 1;
+        }
+        let live: usize = held.values().sum();
+        assert!(
+            live <= LIVE_MAX_BYTES,
+            "{live} bytes of textures after image {index}"
+        );
+    }
+    // Each image is 64 MiB, so four fit and every later one pushes the oldest out.
+    assert_eq!(s.term.placements().len(), 4);
+    assert_eq!(released, 36);
+}

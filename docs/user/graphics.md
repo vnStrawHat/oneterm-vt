@@ -110,6 +110,7 @@ assert_eq!((dx, dy), (2, 1)); // draw the texture at cell_origin - (dx, dy) * ce
 | `DCS` payload | 16 MiB | aborted, no image (`aborted_dcs`) |
 | waiting for `take_graphics` | 128 MiB of pixels (each image counts at least its struct size) | oldest dropped and released (`graphics_dropped`) |
 | live placements | 256 | the oldest is released |
+| pixels of live images | 256 MiB together | the oldest placements are released, so the textures you keep stay within it |
 
 A newer image over an older one's whole extent releases it at once. See [limits](limits.md).
 

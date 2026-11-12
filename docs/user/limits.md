@@ -50,6 +50,7 @@ assert_eq!(stats.bytes, 10);
 | image decode buffer | 64 MiB (4096 x 4096 RGBA) | cannot be exceeded | - |
 | images waiting for `take_graphics` | 128 MiB of pixels (each image counts at least its struct size) | the oldest is dropped and released | `graphics_dropped` |
 | image placements | 256 live | the oldest is released | - |
+| pixels of live images | 256 MiB together | the oldest placements are released (`GraphicReleased`) | - |
 | hyperlinks | 65,536 links, 4 MiB of text | the link is dropped, the text prints | `hyperlink_table_exhausted` |
 | REP | 65,535 prints per sequence | clamped | - |
 | product name | 64 bytes after dropping control characters | cut at a character | - |

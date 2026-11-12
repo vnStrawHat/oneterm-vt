@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use crate::graphics::placement::{cells_for, effective_cell, stamp_row};
 use crate::graphics::sixel::DecodedSixel;
-use crate::graphics::{GraphicData, MAX_PLACEMENTS, Placement};
+use crate::graphics::{GraphicData, Placement};
 use crate::grid::AnchorKind;
 use crate::intern::{Extras, ExtrasId, GraphicId};
 
@@ -59,17 +59,15 @@ impl Handler<'_> {
         });
 
         let State { grid, graphics, .. } = &mut *self.state;
-        while graphics.placements.len() >= MAX_PLACEMENTS {
-            graphics.release(0, grid);
-        }
         let anchor = grid.anchors_mut().register(AnchorKind::Graphic(id), cursor);
-        graphics.placements.push(Placement {
+        let placement = Placement {
             id,
             anchor,
             cols,
             rows,
             pixel_size: size,
-        });
+        };
+        graphics.admit(placement, grid);
 
         for step in 0..rows.max(walk.saturating_add(1)) {
             if step < rows {

@@ -6,7 +6,10 @@
 use std::ops::Range;
 use std::sync::Arc;
 
-use super::{GraphicData, GraphicsState, PENDING_MAX_BYTES, VIRTUAL_CELL};
+use super::{
+    GraphicData, GraphicsState, LIVE_MAX_BYTES, MAX_PLACEMENTS, PENDING_MAX_BYTES, Placement,
+    VIRTUAL_CELL,
+};
 use crate::grid::{AnchorId, RowFlags, RowId, Screen, TerminalGrid};
 use crate::intern::{ExtrasId, GraphicId, Interner};
 
@@ -87,13 +90,37 @@ impl Extent {
     }
 }
 
+/// The RGBA bytes of an image of `size` pixels.
+fn pixel_bytes(size: (u32, u32)) -> usize {
+    (size.0 as usize)
+        .saturating_mul(size.1 as usize)
+        .saturating_mul(4)
+}
+
 impl GraphicsState {
+    /// Adds `placement` as the newest one, first releasing the oldest placements until it fits
+    /// both the placement count and the pixel budget of live images.
+    pub(crate) fn admit(&mut self, placement: Placement, grid: &mut TerminalGrid) {
+        let bytes = pixel_bytes(placement.pixel_size);
+        let budget = LIVE_MAX_BYTES.saturating_sub(bytes);
+        while !self.placements.is_empty()
+            && (self.placements.len() >= MAX_PLACEMENTS || self.live_bytes > budget)
+        {
+            self.release(0, grid);
+        }
+        self.live_bytes = self.live_bytes.saturating_add(bytes);
+        self.placements.push(placement);
+    }
+
     /// Removes placement `index` and queues its `GraphicReleased`.
     pub(crate) fn release(&mut self, index: usize, grid: &mut TerminalGrid) {
         if index >= self.placements.len() {
             return;
         }
         let placement = self.placements.remove(index);
+        self.live_bytes = self
+            .live_bytes
+            .saturating_sub(pixel_bytes(placement.pixel_size));
         grid.anchors_mut().release(placement.anchor);
         self.released.push(placement.id);
     }

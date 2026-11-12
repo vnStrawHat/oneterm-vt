@@ -38,6 +38,9 @@ pub(crate) const MAX_DIMENSION: u32 = 4096;
 pub(crate) const MAX_PLACEMENTS: usize = 256;
 /// Most pixel bytes waiting for `Terminal::take_graphics`.
 pub(crate) const PENDING_MAX_BYTES: usize = 128 << 20;
+/// Most pixel bytes of live placements together; the oldest are released to make room. Without
+/// it 256 placements of 4096 x 4096 pixels would be 16 GiB of textures an embedder must keep.
+pub(crate) const LIVE_MAX_BYTES: usize = 256 << 20;
 
 /// A decoded image: RGBA8, row-major, stride `width * 4`, straight (not premultiplied) alpha.
 ///
@@ -86,6 +89,8 @@ pub(crate) struct GraphicsState {
     pub(crate) pending_bytes: usize,
     /// Live placements, oldest first (draw order).
     pub(crate) placements: Vec<Placement>,
+    /// The RGBA bytes of the images in `placements`.
+    pub(crate) live_bytes: usize,
     /// Ids released since the last feed delivered them, in release order.
     pub(crate) released: Vec<GraphicId>,
     /// The open `DCS q` string, if any.
@@ -99,6 +104,7 @@ impl GraphicsState {
             pending: Vec::new(),
             pending_bytes: 0,
             placements: Vec::new(),
+            live_bytes: 0,
             released: Vec::new(),
             decoder: None,
         }
