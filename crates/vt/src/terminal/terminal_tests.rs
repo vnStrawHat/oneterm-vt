@@ -1232,9 +1232,9 @@ fn unknown_and_unimplemented_csi_are_counted() {
         &b"\x1b[5J"[..],
         b"\x1b[9 q",
         b"\x1b[1c",
-        b"\x1b[\"q",
-        b"\x1b[?J",
-        b"\x1b[?K",
+        b"\x1b[3\"q",
+        b"\x1b[?3J",
+        b"\x1b[?3K",
         b"\x1b[99z",
         b"\x1b[?9999z",
     ] {
@@ -2597,4 +2597,56 @@ fn paste_and_focus_follow_the_modes_the_program_set() {
 
     session.feed(b"\x1b[?1004l");
     assert_eq!(session.term.encode_focus(false), None);
+}
+
+#[test]
+fn selective_erase_spares_protected_cells() {
+    let mut session = Session::new(12, 3);
+    // "ab" plain, "CD" protected, "ef" plain again, on every row.
+    for _ in 0..3 {
+        session.feed(b"ab\x1b[1\"qCD\x1b[0\"qef\r\n");
+    }
+    session.feed(b"\x1b[2;3H");
+    // DECSEL 0: from the cursor to the end of the row.
+    session.feed(b"\x1b[?K");
+    assert_eq!(session.row(1).trim_end(), "abCD");
+    // DECSEL 2: the whole row.
+    session.feed(b"\x1b[?2K");
+    assert_eq!(session.row(1).trim_end(), "  CD");
+    // DECSED 2: every row, in place; only the first line, scrolled out earlier, is history.
+    session.feed(b"\x1b[?2J");
+    assert_eq!(session.row(0).trim_end(), "  CD");
+    assert_eq!(session.row(2).trim_end(), "");
+    assert_eq!(session.term.screen().history_len(), 1);
+    // Plain erases do not look at the protection.
+    session.feed(b"\x1b[1;1H\x1b[K");
+    assert_eq!(session.row(0).trim_end(), "");
+}
+
+#[test]
+fn selective_erase_above_and_below_stop_at_the_cursor() {
+    let mut session = Session::new(6, 3);
+    session.feed(b"aaaaaa\x1b[2;1Hbb\x1b[1\"qPP\x1b[2\"qbb\x1b[3;1Hcccccc");
+    session.feed(b"\x1b[2;2H\x1b[?1J");
+    assert_eq!(session.row(0).trim_end(), "");
+    assert_eq!(session.row(1), "  PPbb");
+    session.feed(b"\x1b[2;5H\x1b[?0J");
+    assert_eq!(session.row(1).trim_end(), "  PP");
+    assert_eq!(session.row(2).trim_end(), "");
+}
+
+#[test]
+fn protection_is_a_pen_attribute_reported_by_decrqss() {
+    let mut session = Session::new(10, 2);
+    session.feed(b"\x1bP$q\"q\x1b\\");
+    assert_eq!(session.replies(), "\x1bP1$r0\"q\x1b\\");
+    // SGR 0 leaves the protection; DECSTR clears it.
+    session.feed(b"\x1b[1\"q\x1b[0m\x1bP$q\"q\x1b\\");
+    assert_eq!(session.replies(), "\x1bP1$r1\"q\x1b\\");
+    assert!(session.term.template().is_protected());
+    session.feed(b"\x1b[!p");
+    assert!(!session.term.template().is_protected());
+    // A wide glyph is protected or erased whole.
+    session.feed(b"\x1b[1\"q\xe4\xb8\x96\x1b[0\"qx\x1b[1;1H\x1b[?2K");
+    assert_eq!(session.row(0).trim_end(), "\u{4e16}");
 }

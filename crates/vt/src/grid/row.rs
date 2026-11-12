@@ -587,6 +587,31 @@ impl<'a> RowMut<'a> {
         self.changed_up_to(end, template);
     }
 
+    /// Fills the cells of `cols` that DECSCA did not protect with `template`, splitting no
+    /// pair: a glyph is protected or erased whole.
+    pub(crate) fn fill_unprotected(&mut self, cols: Range<u16>, template: Cell) {
+        let end = cols
+            .end
+            .min(u16::try_from(self.row.cells.len()).unwrap_or(u16::MAX));
+        let protected = |cells: &[Cell]| cells.iter().any(|cell| cell.is_protected());
+        let range = usize::from(cols.start)..usize::from(end);
+        // The usual row holds no protected cell: one fill.
+        if !self.row.cells.get(range).is_some_and(protected) {
+            self.fill(cols.start..end, template);
+            return;
+        }
+        for col in cols.start..end {
+            let erasable = self
+                .row
+                .cells
+                .get(usize::from(col))
+                .is_some_and(|cell| !cell.is_protected());
+            if erasable {
+                self.set(col, template);
+            }
+        }
+    }
+
     /// Writes the printable-ASCII `bytes` from `col` on with the pen's style, extras and zone.
     ///
     /// Only the two edges can split a wide pair; every cell between them is overwritten whole.

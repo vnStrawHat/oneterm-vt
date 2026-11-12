@@ -339,7 +339,7 @@ impl Handler<'_> {
                 };
                 (base + u8::from(!style.blinking)).to_string()
             }
-            b"\"q" => "0".to_owned(),
+            b"\"q" => u8::from(screen.cursor().template().is_protected()).to_string(),
             b"\"p" => "62;1".to_owned(),
             _ => {
                 self.reply(format_args!("\x1bP0$r\x1b\\"));

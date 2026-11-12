@@ -41,7 +41,7 @@ assert_eq!(answer(&mut term, b"\x1b[?9999$p"), b"\x1b[?9999;0$y"); // unknown
 | C0 | `BEL BS HT LF VT FF CR SO SI`; `DEL` is ignored; the rest and every C1 byte are unhandled |
 | ESC | `IND NEL HTS RI SS2 SS3 LS2 LS3 DECSC DECRC DECALN RIS DECID`, `ESC (` `)` `*` `+` with `B` or `0`, `ESC =` `ESC >` |
 | cursor | `CUU CUD CUF CUB CNL CPL CHA HPA HPR VPA VPR CUP HVP CHT CBT`, `SCOSC SCORC`, `DECSTBM` |
-| edit | `ICH DCH ECH EL ED IL DL SU SD REP`, `TBC`, `DECST8C` (`CSI ? 5 W`) |
+| edit | `ICH DCH ECH EL ED IL DL SU SD REP`, `TBC`, `DECST8C` (`CSI ? 5 W`), `DECSCA DECSED DECSEL` |
 | attributes | `SGR`: attributes, 16/256/RGB colours in `;` and `:` forms, underline styles and colour |
 | modes | `SM RM` (ANSI and `?`), `DECSTR`, `DECSCUSR`, `DECRQM`, kitty keyboard flags, `modifyOtherKeys` |
 | reports | `DA1 DA2 DA3 DSR CPR DECXCPR XTVERSION DECRQSS DECRQCRA XTGETTCAP`, `CSI 14 t`, `CSI 18 t` |
@@ -75,8 +75,10 @@ read.
 ## Known gaps
 
 - `CSI h` and `CSI ? h` with no parameter count one unhandled sequence.
-- Left and right margins (`DECSLRM`, `?69`), `DECSCA`, `DECSED`, `DECSEL`, and `CSI * x` (`DECCARA`
-  family) are not implemented: counted, no effect.
+- Left and right margins (`DECSLRM`, `?69`) and `CSI * x` (`DECCARA` family) are not implemented:
+  counted, no effect.
+- `DECSCA` protects glyphs from `DECSED` and `DECSEL` only; `ED`, `EL` and `ECH` erase them, as
+  xterm does. `DECSED` erases in place: unlike `ED 2` it moves nothing into the history.
 - DA1 reports level 62 (VT220 with Sixel and ANSI colour); VT320+ features are not claimed.
 - Only 7-bit introducers are sequences. A raw C1 byte (`0x80..=0x9F`) is a control that is counted
   as unhandled, never a CSI or OSC introducer.

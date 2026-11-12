@@ -119,7 +119,8 @@ impl Cell {
         }
     }
 
-    /// Whether the cell is protected from selective erase (DECSCA).
+    /// Whether the cell is protected from selective erase: printed after `DECSCA 1`, so
+    /// DECSED and DECSEL leave it. `ED`, `EL` and `ECH` do not look at it.
     pub fn is_protected(self) -> bool {
         self.0 & PROTECTED_BIT != 0
     }

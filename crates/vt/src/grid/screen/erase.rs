@@ -129,6 +129,59 @@ impl Screen {
         report
     }
 
+    /// `DECSEL`: `EL` that spares the cells DECSCA protected.
+    pub(crate) fn selective_erase_line(&mut self, mode: LineClear) {
+        let col = self.cursor.pos.col;
+        let cols = self.cols;
+        let index = self.cursor_row_index();
+        match mode {
+            LineClear::Right if self.cursor.pending_wrap => {}
+            LineClear::Right => self.erase_unprotected(index, col..cols),
+            LineClear::Left => self.erase_unprotected(index, 0..col + 1),
+            LineClear::All => self.erase_unprotected(index, 0..cols),
+        }
+        self.debug_check();
+    }
+
+    /// `DECSED`: `ED` 0, 1 or 2 in place, sparing the cells DECSCA protected. Nothing enters
+    /// the history, and `Saved` does nothing.
+    pub(crate) fn selective_erase_display(&mut self, mode: DisplayClear) {
+        let index = self.cursor_row_index();
+        let col = self.cursor.pos.col;
+        let (rows, cols) = (self.rows, self.cols);
+        let whole = |screen: &mut Screen, indices: std::ops::Range<u16>| {
+            for index in indices {
+                screen.erase_unprotected(index, 0..cols);
+            }
+        };
+        match mode {
+            DisplayClear::Below => {
+                self.erase_unprotected(index, col..cols);
+                whole(self, index + 1..rows);
+            }
+            DisplayClear::Above => {
+                whole(self, 0..index);
+                self.erase_unprotected(index, 0..col + 1);
+            }
+            DisplayClear::All => whole(self, 0..rows),
+            DisplayClear::Saved => {}
+        }
+        self.debug_check();
+    }
+
+    /// Blanks the unprotected cells of screen row `index` in `cols` with the erase cell. A
+    /// row never written stays unwritten when the erase cell is the plain blank.
+    fn erase_unprotected(&mut self, index: u16, cols: std::ops::Range<u16>) {
+        let id = self.row_of_index(index);
+        let erase = self.cursor.erase;
+        if erase == Cell::EMPTY && !self.row(id).is_allocated() {
+            return;
+        }
+        if let Some(mut row) = self.row_mut(id) {
+            row.fill_unprotected(cols, erase);
+        }
+    }
+
     /// One more than the index of the last screen row holding something worth keeping.
     fn occupied_rows(&self, interner: &Interner) -> u16 {
         (0..self.rows)

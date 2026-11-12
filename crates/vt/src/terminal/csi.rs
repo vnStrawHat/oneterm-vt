@@ -105,6 +105,8 @@ impl Handler<'_> {
             }
             ([], b'J') => self.erase_display(args.next_raw().unwrap_or(0)),
             ([], b'K') => self.erase_line(args.next_raw().unwrap_or(0)),
+            ([b'?'], b'J') => self.selective_erase_display(args.next_raw().unwrap_or(0)),
+            ([b'?'], b'K') => self.selective_erase_line(args.next_raw().unwrap_or(0)),
             ([], b'L') => {
                 let n = args.next_or(1);
                 let report = self.state.grid.insert_lines(n);
@@ -160,6 +162,7 @@ impl Handler<'_> {
             ([b'?', b'$'], b'p') => self.report_mode(args, true),
             ([b'>'], b'q') => self.report_version(args),
             ([b' '], b'q') => self.set_cursor_style(args),
+            ([b'"'], b'q') => self.set_protection(args.next_raw().unwrap_or(0)),
             ([], b'r') => self.set_scroll_region(args),
             ([], b's') => self.state.save_cursor(),
             ([], b'u') => self.state.restore_cursor(),
@@ -244,6 +247,56 @@ impl Handler<'_> {
         };
         self.state.invalidate(Invalidation::EraseLine);
         self.state.grid.screen_mut().erase_line(mode);
+    }
+
+    /// DECSED: `ED` 0, 1 or 2 without touching the cells DECSCA protected, and without
+    /// scrolling anything into the history.
+    fn selective_erase_display(&mut self, selector: u16) {
+        let (mode, invalidation) = match selector {
+            0 => (DisplayClear::Below, Invalidation::EraseBelow),
+            1 => (DisplayClear::Above, Invalidation::EraseAbove),
+            2 => (DisplayClear::All, Invalidation::EraseScreen),
+            _ => {
+                self.unhandled();
+                return;
+            }
+        };
+        self.state.invalidate(invalidation);
+        self.state.grid.screen_mut().selective_erase_display(mode);
+    }
+
+    /// DECSEL: `EL` without touching the cells DECSCA protected.
+    fn selective_erase_line(&mut self, selector: u16) {
+        let mode = match selector {
+            0 => LineClear::Right,
+            1 => LineClear::Left,
+            2 => LineClear::All,
+            _ => {
+                self.unhandled();
+                return;
+            }
+        };
+        self.state.invalidate(Invalidation::EraseLine);
+        self.state.grid.screen_mut().selective_erase_line(mode);
+    }
+
+    /// DECSCA: glyphs printed from now on are protected from DECSED and DECSEL (`1`) or not
+    /// (`0`, `2`). `ED`, `EL` and `ECH` erase them all the same.
+    fn set_protection(&mut self, selector: u16) {
+        let protected = match selector {
+            0 | 2 => false,
+            1 => true,
+            _ => {
+                self.unhandled();
+                return;
+            }
+        };
+        let state = &mut *self.state;
+        let template = state.grid.screen().cursor().template();
+        state
+            .grid
+            .screen_mut()
+            .set_template(template.with_protected(protected), &mut state.interner);
     }
 
     /// TBC.
