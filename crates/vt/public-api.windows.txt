@@ -547,6 +547,7 @@ pub fn oneterm_vt::grid::Screen::scroll_offset(&self) -> u32
 pub fn oneterm_vt::grid::Screen::scroll_to_bottom(&mut self)
 pub fn oneterm_vt::grid::Screen::scroll_viewport(&mut self, i32)
 pub fn oneterm_vt::grid::Screen::set_region(&mut self, u16, u16, oneterm_vt::grid::CursorOrigin) -> bool
+pub fn oneterm_vt::grid::Screen::side_margins(&self) -> (u16, u16)
 pub fn oneterm_vt::grid::Screen::size(&self) -> oneterm_vt::grid::Size
 pub fn oneterm_vt::grid::Screen::visible_top(&self) -> oneterm_vt::grid::RowId
 impl oneterm_vt::grid::Screen
@@ -1770,6 +1771,7 @@ pub oneterm_vt::Mode::DecCoLm
 pub oneterm_vt::Mode::FocusInOut
 pub oneterm_vt::Mode::GraphemeClusters
 pub oneterm_vt::Mode::Insert
+pub oneterm_vt::Mode::LeftRightMargins
 pub oneterm_vt::Mode::LineFeedNewLine
 pub oneterm_vt::Mode::LineWrap
 pub oneterm_vt::Mode::MouseClick

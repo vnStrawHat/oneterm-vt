@@ -39,6 +39,10 @@ impl Screen {
         if top >= bottom || bottom > self.rows {
             return Err(Violation::RegionInvalid);
         }
+        let narrowed = self.left > 0 || self.right < self.cols;
+        if self.left >= self.right || self.right > self.cols || narrowed != self.narrowed {
+            return Err(Violation::RegionInvalid);
+        }
         Ok(())
     }
 

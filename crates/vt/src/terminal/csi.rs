@@ -7,6 +7,7 @@ use crate::parser::{ParamGroups, Params};
 use crate::selection::Invalidation;
 
 use super::dispatch::Handler;
+use super::modes::Mode;
 
 /// The parameters of one sequence, read group by group.
 ///
@@ -64,30 +65,23 @@ impl Handler<'_> {
             ([], b'B' | b'e') => self.cursor_down(args.next_or(1), false),
             ([], b'C' | b'a') => {
                 let n = args.next_or(1);
-                let screen = self.state.grid.screen_mut();
-                let (index, col) = (screen.cursor_row_index(), screen.cursor().pos.col);
-                screen.goto(index, col.saturating_add(n));
+                self.state.grid.screen_mut().cursor_forward(n);
             }
             ([], b'D') => {
                 let n = args.next_or(1);
-                let screen = self.state.grid.screen_mut();
-                let (index, col) = (screen.cursor_row_index(), screen.cursor().pos.col);
-                screen.goto(index, col.saturating_sub(n));
+                self.state.grid.screen_mut().cursor_back(n);
             }
             ([], b'E') => self.cursor_down(args.next_or(1), true),
             ([], b'F') => self.cursor_up(args.next_or(1), true),
             ([], b'G' | b'`') => {
                 let col = args.next_or(1) - 1;
-                let screen = self.state.grid.screen_mut();
-                let index = screen.cursor_row_index();
-                screen.goto(index, col);
+                let origin = self.origin();
+                self.state.grid.screen_mut().goto_column(col, origin);
             }
             ([], b'd') => {
                 let row = args.next_or(1) - 1;
                 let origin = self.origin();
-                let screen = self.state.grid.screen_mut();
-                let col = screen.cursor().pos.col;
-                screen.goto_origin(row, col, origin);
+                self.state.grid.screen_mut().goto_row(row, origin);
             }
             ([], b'H' | b'f') => {
                 let row = args.next_or(1) - 1;
@@ -164,7 +158,7 @@ impl Handler<'_> {
             ([b' '], b'q') => self.set_cursor_style(args),
             ([b'"'], b'q') => self.set_protection(args.next_raw().unwrap_or(0)),
             ([], b'r') => self.set_scroll_region(args),
-            ([], b's') => self.state.save_cursor(),
+            ([], b's') => self.save_cursor_or_set_side_margins(args),
             ([], b'u') => self.state.restore_cursor(),
             ([], b't') => self.window_operation(args),
             ([b'?'], b'u') => self.query_keyboard_flags(),
@@ -321,6 +315,27 @@ impl Handler<'_> {
         let screen = self.state.grid.screen_mut();
         let cols = screen.cols();
         *screen.tabs_mut() = TabStops::new(cols);
+    }
+
+    /// `CSI s`: SCOSC, or DECSLRM (`CSI Pl ; Pr s`) while `?69` is set. Margins narrower than
+    /// two columns are ignored without a count, like an empty DECSTBM.
+    fn save_cursor_or_set_side_margins(&mut self, args: &mut Args<'_>) {
+        if !self.state.modes.get(Mode::LeftRightMargins) {
+            self.state.save_cursor();
+            return;
+        }
+        let left = args.next_or(1);
+        let screen = self.state.grid.screen_mut();
+        let right = match args.next_raw() {
+            None | Some(0) => screen.cols(),
+            Some(right) => right,
+        };
+        let origin = self.origin();
+        // `set_side_margins` clamps the right margin to the screen and refuses the rest.
+        self.state
+            .grid
+            .screen_mut()
+            .set_side_margins(left - 1, right, origin);
     }
 
     /// DECSTBM. An empty or reversed region is ignored without a count.

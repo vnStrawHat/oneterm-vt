@@ -83,6 +83,7 @@ impl Screen {
     /// control. `charset` is the set `glyph` maps through; under [`Charset::Ascii`] printable
     /// ASCII bypasses `glyph` and is written in bulk.
     ///
+    /// Not for a screen with narrowed side margins: the caller prints glyph by glyph then.
     /// It stops before anything the general path must decide: insert mode, a pending wrap that
     /// autowrap performs, a scalar `glyph` rejects, a wide glyph that needs the last column
     /// (the filler and the wrap), a wide-pair half at column 0 or 1 (the filler above may need
@@ -94,6 +95,9 @@ impl Screen {
         charset: Charset,
         glyph: impl Fn(char) -> Option<(char, u8)>,
     ) -> usize {
+        // Side margins move the wrap column and only the general path knows them: the caller
+        // skips this one while `?69` is set (a flag test here cost `scrolling` 5 %).
+        debug_assert!(!self.has_side_margins());
         if mode.insert || (self.cursor.pending_wrap && mode.autowrap) {
             return 0;
         }
@@ -240,13 +244,14 @@ impl Screen {
             report = self.wrapline(anchors);
         }
         let span: u16 = if width >= 2 { 2 } else { 1 };
-        if mode.insert && self.cursor.pos.col.saturating_add(span) < self.cols {
+        let limit = self.right_limit();
+        if mode.insert && self.cursor.pos.col.saturating_add(span) < limit {
             let Pos { row, col } = self.cursor.pos;
             // The shift moves or splits a wide pair, so the cell it leaves behind is no longer
             // the one that justified a filler on the row above.
             self.release_filler_if_wide_half(row, col);
             if let Some(mut row) = self.row_mut(row) {
-                row.shift_right(col, span);
+                row.shift_right(col, span, limit);
             }
         }
         let pen = self.cursor.template;
@@ -262,7 +267,7 @@ impl Screen {
             self.drop_wide();
             return report;
         }
-        if self.cursor.pos.col + 1 >= self.cols {
+        if self.cursor.pos.col + 1 >= self.right_limit() {
             if !mode.autowrap {
                 self.cursor.pending_wrap = true;
                 self.drop_wide();
@@ -290,7 +295,7 @@ impl Screen {
     /// Moves right one column; at the last column arms the wrap instead, whatever DECAWM says,
     /// so turning autowrap back on over an armed flag still breaks the line.
     fn advance(&mut self) {
-        if self.cursor.pos.col + 1 < self.cols {
+        if self.cursor.pos.col + 1 < self.right_limit() {
             self.cursor.pos.col += 1;
         } else {
             self.cursor.pending_wrap = true;
@@ -359,16 +364,25 @@ impl Screen {
     /// it on DECAWM. Returns the report of the scroll it ran, `Some` exactly when one did.
     pub fn wrapline(&mut self, anchors: &mut Anchors) -> Option<ScrollReport> {
         let id = self.cursor.pos.row;
-        if let Some(mut row) = self.row_mut(id) {
+        let home = self.left_limit();
+        // A row cut short by a right margin does not continue on the next one: reflow and
+        // selection must not join them.
+        if !self.has_side_margins()
+            && let Some(mut row) = self.row_mut(id)
+        {
             row.set_wrapped(true);
         }
         let report = if self.cursor_row_index() + 1 >= self.region.bottom {
-            self.linefeed(anchors)
+            if self.has_side_margins() {
+                self.linefeed_in_margins(anchors)
+            } else {
+                self.linefeed(anchors)
+            }
         } else {
             self.cursor.pos.row = self.cursor.pos.row + 1;
             None
         };
-        self.cursor.pos.col = 0;
+        self.cursor.pos.col = home;
         self.cursor.pending_wrap = false;
         self.sync_anchors(anchors);
         self.debug_check();
@@ -401,7 +415,7 @@ impl Screen {
             {
                 target.repair(col, cell.with_content(CellContent::Scalar('\t')));
             }
-            let next = self.tabs.next_after(col);
+            let next = self.tabs.next_after(col).min(self.right_limit() - 1);
             if next == col {
                 break;
             }
@@ -415,7 +429,7 @@ impl Screen {
     pub(crate) fn tab_forward(&mut self, n: u16) {
         for _ in 0..n {
             let col = self.cursor.pos.col;
-            let next = self.tabs.next_after(col);
+            let next = self.tabs.next_after(col).min(self.right_limit() - 1);
             if next == col {
                 break;
             }
@@ -428,7 +442,7 @@ impl Screen {
     pub(crate) fn tab_backward(&mut self, n: u16) {
         for _ in 0..n {
             let col = self.cursor.pos.col;
-            let prev = self.tabs.prev_before(col);
+            let prev = self.tabs.prev_before(col).max(self.left_limit());
             if prev == col {
                 break;
             }

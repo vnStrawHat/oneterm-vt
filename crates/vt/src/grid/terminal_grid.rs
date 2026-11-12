@@ -233,6 +233,11 @@ impl TerminalGrid {
         screen.linefeed(anchors)
     }
 
+    pub(crate) fn linefeed_in_margins(&mut self) -> Option<ScrollReport> {
+        let (screen, anchors) = self.active();
+        screen.linefeed_in_margins(anchors)
+    }
+
     pub(crate) fn reverse_index(&mut self) -> Option<ScrollReport> {
         let (screen, anchors) = self.active();
         screen.reverse_index(anchors)

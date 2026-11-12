@@ -189,10 +189,10 @@ fn recycled_row_carries_nothing() {
 #[test]
 fn delete_cells_shifts_left() {
     let mut row = row_with(10, "abcdefghij");
-    RowMut::new(&mut row, SEQ).delete_cells(2, 3, Cell::EMPTY);
+    RowMut::new(&mut row, SEQ).delete_cells(2, 3, u16::MAX, Cell::EMPTY);
     assert_eq!(text(&row), "abfghij   ");
     let mut row = row_with(10, "abcdefghij");
-    RowMut::new(&mut row, SEQ).delete_cells(2, 40, Cell::EMPTY);
+    RowMut::new(&mut row, SEQ).delete_cells(2, 40, u16::MAX, Cell::EMPTY);
     assert_eq!(text(&row), "ab        ");
     assert_eq!(row.header.occ, 10);
 }
@@ -203,14 +203,14 @@ fn delete_cells_orphaning_a_spacer_blanks_it() {
     let mut view = RowMut::new(&mut row, SEQ);
     view.set(1, wide('W'));
     view.set(4, narrow('z'));
-    view.delete_cells(0, 2, Cell::EMPTY);
+    view.delete_cells(0, 2, u16::MAX, Cell::EMPTY);
     assert_eq!(row.check(6, None), Ok(()));
     assert_eq!(text(&row), "  z   ");
     // Starting on a spacer splits the pair from the left.
     let mut row = Row::new(ID, 6, SeqNo(1), Cell::EMPTY);
     let mut view = RowMut::new(&mut row, SEQ);
     view.set(1, wide('W'));
-    view.delete_cells(2, 1, Cell::EMPTY);
+    view.delete_cells(2, 1, u16::MAX, Cell::EMPTY);
     assert_eq!(row.check(6, None), Ok(()));
     assert_eq!(text(&row), "      ");
 }
@@ -220,7 +220,7 @@ fn delete_cells_moves_a_leading_spacer_off_the_last_column() {
     let mut row = Row::new(ID, 4, SeqNo(1), Cell::EMPTY);
     let mut view = RowMut::new(&mut row, SEQ);
     view.set(3, narrow(' ').with_width(CellWidth::LeadingWideSpacer));
-    view.delete_cells(0, 1, Cell::EMPTY);
+    view.delete_cells(0, 1, u16::MAX, Cell::EMPTY);
     assert_eq!(row.check(4, None), Ok(()));
 }
 
@@ -229,7 +229,7 @@ fn insert_cells_pushes_wide_off_the_end() {
     let mut row = Row::new(ID, 6, SeqNo(1), Cell::EMPTY);
     let mut view = RowMut::new(&mut row, SEQ);
     view.set(4, wide('W'));
-    view.insert_cells(0, 1, Cell::EMPTY);
+    view.insert_cells(0, 1, u16::MAX, Cell::EMPTY);
     assert_eq!(row.check(6, None), Ok(()));
     assert_eq!(row.cells()[5], Cell::EMPTY);
     assert_eq!(row.cells()[5].width(), CellWidth::Narrow);
@@ -240,7 +240,7 @@ fn insert_cells_before_a_spacer_splits_the_pair() {
     let mut row = Row::new(ID, 8, SeqNo(1), Cell::EMPTY);
     let mut view = RowMut::new(&mut row, SEQ);
     view.set(2, wide('W'));
-    view.insert_cells(3, 2, Cell::EMPTY);
+    view.insert_cells(3, 2, u16::MAX, Cell::EMPTY);
     assert_eq!(row.check(8, None), Ok(()));
     assert_eq!(text(&row), "        ");
 }
@@ -248,7 +248,7 @@ fn insert_cells_before_a_spacer_splits_the_pair() {
 #[test]
 fn shift_right_opens_blank_cells() {
     let mut row = row_with(6, "abcd");
-    RowMut::new(&mut row, SEQ).shift_right(1, 2);
+    RowMut::new(&mut row, SEQ).shift_right(1, 2, u16::MAX);
     assert_eq!(text(&row), "a  bcd");
 }
 
@@ -257,10 +257,10 @@ fn counts_of_zero_and_columns_past_the_row_change_nothing() {
     let mut row = row_with(5, "abcde");
     let before = row.clone();
     let mut view = RowMut::new(&mut row, SEQ);
-    view.insert_cells(1, 0, Cell::EMPTY);
-    view.delete_cells(1, 0, Cell::EMPTY);
-    view.insert_cells(5, 3, Cell::EMPTY);
-    view.delete_cells(9, 3, Cell::EMPTY);
+    view.insert_cells(1, 0, u16::MAX, Cell::EMPTY);
+    view.delete_cells(1, 0, u16::MAX, Cell::EMPTY);
+    view.insert_cells(5, 3, u16::MAX, Cell::EMPTY);
+    view.delete_cells(9, 3, u16::MAX, Cell::EMPTY);
     view.fill(3..3, Cell::EMPTY);
     view.fill(7..9, Cell::EMPTY);
     assert_eq!(row.cells(), before.cells());

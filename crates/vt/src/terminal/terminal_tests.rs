@@ -2735,3 +2735,205 @@ fn prompts_are_found_by_their_cells() {
     );
     assert_eq!(session.term.prompt_after(RowId(0)), Some(prompts[1]));
 }
+
+#[test]
+fn side_margins_bound_printing_wrapping_and_cursor_moves() {
+    let mut session = Session::new(10, 4);
+    // Columns 3 to 6 (one-based): the cursor homes, then starts at the left margin.
+    session.feed(b"\x1b[?69h\x1b[3;6s");
+    assert_eq!(session.cursor(), (0, 0));
+    session.feed(b"\x1b[1;3Habcdefgh");
+    assert_eq!(session.row(0).trim_end(), "  abcd");
+    assert_eq!(session.row(1).trim_end(), "  efgh");
+    assert_eq!(session.cursor(), (1, 5));
+    // The row did not soft-wrap for reflow or copying: it was cut by the margin.
+    let screen = session.term.screen();
+    assert!(!screen.row(screen.row_of_index(0)).wrapped());
+
+    session.feed(b"\r");
+    assert_eq!(session.cursor(), (1, 2));
+    session.feed(b"\x08\x08");
+    assert_eq!(session.cursor(), (1, 2));
+    session.feed(b"\x1b[10C");
+    assert_eq!(session.cursor(), (1, 5));
+    session.feed(b"\x1b[10D");
+    assert_eq!(session.cursor(), (1, 2));
+    // The next tab stop is column 8: the right margin stops the cursor first.
+    session.feed(b"\t");
+    assert_eq!(session.cursor(), (1, 5));
+    // Right of the right margin the screen edge is the limit.
+    session.feed(b"\x1b[3;8Hxyz");
+    assert_eq!(session.row(2).trim_end(), "       xyz");
+    assert_eq!(session.cursor(), (2, 9));
+}
+
+#[test]
+fn line_feeds_scroll_only_between_the_side_margins() {
+    let mut session = Session::new(8, 3);
+    session.feed(b"\x1b[1;1Haaaaaaaa\x1b[2;1Hbbbbbbbb\x1b[3;1Hcccccccc");
+    session.feed(b"\x1b[?69h\x1b[3;6s\x1b[3;4H\n");
+    assert_eq!(session.row(0), "aabbbbaa");
+    assert_eq!(session.row(1), "bbccccbb");
+    assert_eq!(session.row(2), "cc    cc");
+    assert_eq!(session.cursor(), (2, 3));
+    assert_eq!(session.term.screen().history_len(), 0);
+    // Reverse index at the top scrolls the same rectangle down.
+    session.feed(b"\x1b[1;4H\x1bM");
+    assert_eq!(session.row(0), "aa    aa");
+    assert_eq!(session.row(1), "bbbbbbbb");
+    assert_eq!(session.row(2), "cccccccc");
+    // Outside the margins nothing scrolls and the cursor stays.
+    session.feed(b"\x1b[3;1H\n");
+    assert_eq!(session.cursor(), (2, 0));
+    assert_eq!(session.row(2), "cccccccc");
+    // SU moves the rectangle too.
+    session.feed(b"\x1b[S");
+    assert_eq!(session.row(0), "aabbbbaa");
+    assert_eq!(session.row(2), "cc    cc");
+}
+
+#[test]
+fn inserts_and_deletes_stay_between_the_side_margins() {
+    let mut session = Session::new(8, 3);
+    session.feed(b"\x1b[1;1Habcdefgh\x1b[2;1Hijklmnop\x1b[3;1Hqrstuvwx");
+    session.feed(b"\x1b[?69h\x1b[3;6s\x1b[1;4H\x1b[P");
+    assert_eq!(session.row(0), "abcef gh");
+    session.feed(b"\x1b[2@");
+    assert_eq!(session.row(0), "abc  egh");
+    session.feed(b"\x1b[L");
+    assert_eq!(session.row(0), "ab    gh");
+    assert_eq!(session.row(1), "ijc  eop");
+    assert_eq!(session.row(2), "qrklmnwx");
+    session.feed(b"\x1b[M");
+    assert_eq!(session.row(0), "abc  egh");
+    assert_eq!(session.row(1), "ijklmnop");
+    assert_eq!(session.row(2), "qr    wx");
+    // Outside the margins the edits do nothing.
+    session.feed(b"\x1b[1;1H\x1b[P\x1b[@\x1b[L\x1b[M");
+    assert_eq!(session.row(0), "abc  egh");
+    assert_eq!(session.row(1), "ijklmnop");
+    // Insert mode pushes text up to the right margin only.
+    session.feed(b"\x1b[2;3H\x1b[4hZ\x1b[4l");
+    assert_eq!(session.row(1), "ijZklmop");
+}
+
+#[test]
+fn side_margins_need_their_mode_and_report_themselves() {
+    let mut session = Session::new(10, 3);
+    // Without ?69, `CSI s` saves the cursor.
+    session.feed(b"\x1b[2;5H\x1b[s\x1b[1;1H\x1b[u");
+    assert_eq!(session.cursor(), (1, 4));
+    session.feed(b"\x1bP$qs\x1b\\");
+    assert_eq!(session.replies(), "\x1bP1$r1;10s\x1b\\");
+
+    session.feed(b"\x1b[?69h\x1b[3;6s\x1bP$qs\x1b\\");
+    assert_eq!(session.replies(), "\x1bP1$r3;6s\x1b\\");
+    session.feed(b"\x1b[?69$p");
+    assert_eq!(session.replies(), "\x1b[?69;1$y");
+    // Reversed margins and margins one column wide are ignored.
+    session.feed(b"\x1b[6;3s\x1b[5;5s\x1bP$qs\x1b\\");
+    assert_eq!(session.replies(), "\x1bP1$r3;6s\x1b\\");
+
+    // Origin mode counts columns from the left margin, in CUP and in the position report.
+    session.feed(b"\x1b[?6h");
+    assert_eq!(session.cursor(), (0, 2));
+    session.feed(b"\x1b[1;2H\x1b[6n");
+    assert_eq!(session.cursor(), (0, 3));
+    assert_eq!(session.replies(), "\x1b[1;2R");
+    session.feed(b"\x1b[99G");
+    assert_eq!(session.cursor(), (0, 5));
+
+    // Resetting the mode restores the full width; so does a resize.
+    session.feed(b"\x1b[?6l\x1b[?69l\x1bP$qs\x1b\\");
+    assert_eq!(session.replies(), "\x1bP1$r1;10s\x1b\\");
+    session.feed(b"\x1b[?69h\x1b[2;4s");
+    session
+        .term
+        .resize(Size { rows: 3, cols: 12 }, ResizePolicy::BottomAnchor);
+    assert_eq!(session.term.screen().side_margins(), (0, 12));
+}
+
+#[test]
+fn a_margin_scroll_never_leaves_half_a_wide_glyph() {
+    let mut session = Session::new(8, 3);
+    // A wide glyph across the left margin (columns 2 and 3 of row 2) and one across the right.
+    session.feed("\x1b[2;2H\u{4e16}\x1b[2;6H\u{754c}\x1b[3;1Hxxxxxxxx".as_bytes());
+    session.feed(b"\x1b[?69h\x1b[3;6s\x1b[3;4H\n");
+    // Row 1 received columns 3 to 6 of row 2: the halves the cut split are blank on both rows.
+    let screen = session.term.screen();
+    for index in 0..3 {
+        let row = screen.row(screen.row_of_index(index));
+        for (col, cell) in row.cells().iter().enumerate() {
+            let next = row.cells().get(col + 1).map(|cell| cell.width());
+            if cell.width() == CellWidth::Wide {
+                assert_eq!(next, Some(CellWidth::WideSpacer), "row {index} col {col}");
+            }
+        }
+    }
+    assert_eq!(session.row(1).trim_end(), "  xxxx");
+}
+
+/// Random margin, edit, scroll and print operations; every feed ends in the grid's integrity
+/// walk (wide pairs whole, `occ`, hints, cursor on screen), which panics on a broken invariant.
+#[test]
+fn side_margin_operations_keep_the_grid_whole() {
+    const PIECES: [&[u8]; 40] = [
+        b"\x1b[?69h",
+        b"\x1b[?69l",
+        b"\x1b[3;9s",
+        b"\x1b[1;4s",
+        b"\x1b[6;12s",
+        b"\x1b[2;5r",
+        b"\x1b[r",
+        b"\x1b[?6h",
+        b"\x1b[?6l",
+        b"\x1b[4h",
+        b"\x1b[4l",
+        b"\x1b[?7l",
+        b"\x1b[?7h",
+        b"\x1b[2;4H",
+        b"\x1b[5;11H",
+        b"\x1b[1;1H",
+        b"\x1b[6;6H",
+        b"\x1b[3@",
+        b"\x1b[2P",
+        b"\x1b[2L",
+        b"\x1b[M",
+        b"\x1b[2S",
+        b"\x1b[T",
+        b"\x1b[3X",
+        b"\x1b[K",
+        b"\x1b[?2K",
+        b"\x1b[J",
+        b"\x1b[5C",
+        b"\x1b[7D",
+        b"\x1bM",
+        b"\x1bD",
+        b"\x1bE",
+        b"\n",
+        b"\r",
+        b"\t",
+        b"\x08",
+        b"abcdefghijklmnopq",
+        "\u{4e16}\u{754c}\u{4e16}\u{754c}\u{4e16}".as_bytes(),
+        "a\u{4e16}b\u{754c}c".as_bytes(),
+        b"\x1b[3b",
+    ];
+    let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+    let mut next = || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        state
+    };
+    for (cols, rows) in [(12, 6), (5, 3), (2, 2)] {
+        let mut session = Session::new(cols, rows);
+        for _ in 0..6_000 {
+            let piece = PIECES[(next() % PIECES.len() as u64) as usize];
+            session.feed(piece);
+            let screen = session.term.screen();
+            let (left, right) = screen.side_margins();
+            assert!(left < right && right <= screen.cols());
+        }
+    }
+}

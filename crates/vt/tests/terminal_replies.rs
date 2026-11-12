@@ -406,11 +406,21 @@ fn decrqss_sgr_reports_the_pen() {
 }
 
 #[test]
+fn decrqss_side_margins() {
+    let mut harness = Harness::new();
+    // 80 columns: the whole width until DECSLRM narrows it.
+    assert_eq!(harness.ask(b"\x1bP$qs\x1b\\"), b"\x1bP1$r1;80s\x1b\\");
+    assert_eq!(
+        harness.ask(b"\x1b[?69h\x1b[5;40s\x1bP$qs\x1b\\"),
+        b"\x1bP1$r5;40s\x1b\\"
+    );
+}
+
+#[test]
 fn decrqss_refusals() {
     let mut harness = Harness::new();
     for request in [
         &b""[..],
-        b"s",
         b"$}",
         b"*x",
         b"$|",

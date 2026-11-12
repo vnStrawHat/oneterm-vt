@@ -69,22 +69,26 @@ impl Screen {
         self.edit_cursor_row(|row, erase| row.fill(col..end, erase));
     }
 
-    /// `DCH`: deletes `n` cells at the cursor, pulling the rest of the row left.
+    /// `DCH`: deletes `n` cells at the cursor, pulling the rest of the row (up to the right
+    /// margin) left. Outside the side margins it does nothing.
     pub(crate) fn delete_chars(&mut self, n: u16) {
-        if n == 0 {
+        if n == 0 || (self.has_side_margins() && !self.inside_side_margins()) {
             return;
         }
         let col = self.cursor.pos.col;
-        self.edit_cursor_row(|row, erase| row.delete_cells(col, n, erase));
+        let end = self.right_limit();
+        self.edit_cursor_row(|row, erase| row.delete_cells(col, n, end, erase));
     }
 
-    /// `ICH`: opens `n` blank cells at the cursor, pushing the rest of the row right.
+    /// `ICH`: opens `n` blank cells at the cursor, pushing the rest of the row (up to the
+    /// right margin) right. Outside the side margins it does nothing.
     pub(crate) fn insert_blanks(&mut self, n: u16) {
-        if n == 0 {
+        if n == 0 || (self.has_side_margins() && !self.inside_side_margins()) {
             return;
         }
         let col = self.cursor.pos.col;
-        self.edit_cursor_row(|row, erase| row.insert_cells(col, n, erase));
+        let end = self.right_limit();
+        self.edit_cursor_row(|row, erase| row.insert_cells(col, n, end, erase));
     }
 
     /// `ED`. `All` on the primary screen scrolls the occupied rows into the history instead of
@@ -110,7 +114,8 @@ impl Screen {
                 self.edit_cursor_row(|row, erase| row.fill(0..col + 1, erase));
                 None
             }
-            DisplayClear::All if self.kind == ScreenKind::Alternate => {
+            // With side margins a scroll moves only the columns between them: erase in place.
+            DisplayClear::All if self.kind == ScreenKind::Alternate || self.has_side_margins() => {
                 self.reset_screen_rows(0, self.rows);
                 None
             }

@@ -540,6 +540,7 @@ impl Screen {
         self.pad_to_screen();
         let trimmed = walk.trimmed.saturating_add(self.trim_history());
         self.cols = walk.new_cols;
+        self.reset_side_margins();
         self.tabs.resize(self.cols);
         self.newest_issued = self.newest;
         if self.spare.is_none() {
@@ -619,6 +620,7 @@ impl Screen {
             id = id + 1;
         }
         self.cols = cols;
+        self.reset_side_margins();
         self.tabs.resize(cols);
         anchors.clamp_columns(self.kind.origin()..RowId(u64::MAX), cols);
         let last = cols.saturating_sub(1);

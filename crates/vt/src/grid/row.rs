@@ -685,61 +685,110 @@ impl<'a> RowMut<'a> {
         self.clear_wrapped_if_last(end);
     }
 
-    /// Deletes `n` cells at `col`, shifting the rest left and filling the end with `template`.
-    pub(crate) fn delete_cells(&mut self, col: u16, n: u16, template: Cell) {
+    /// Deletes `n` cells at `col`, shifting the cells before column `end` left and filling
+    /// the gap in front of `end` with `template`. `end` is the right margin, or anything at
+    /// or past the row's width for the whole row; cells from `end` on stay.
+    pub(crate) fn delete_cells(&mut self, col: u16, n: u16, end: u16, template: Cell) {
         let len = self.row.cells.len();
+        let end = usize::from(end).min(len);
         let at = usize::from(col);
-        if at >= len || n == 0 {
+        if at >= end || n == 0 {
             return;
         }
-        let n = usize::from(n).min(len - at);
+        let n = usize::from(n).min(end - at);
         self.release_pair(at);
-        self.row.cells.copy_within(at + n..len, at);
-        if let Some(tail) = self.row.cells.get_mut(len - n..) {
-            tail.fill(template);
+        self.split_pair_across(end);
+        self.row.cells.copy_within(at + n..end, at);
+        if let Some(gap) = self.row.cells.get_mut(end - n..end) {
+            gap.fill(template);
         }
         // The spacer of a deleted `Wide` is now an orphan at `at`.
         if self.width_at(at) == Some(CellWidth::WideSpacer) {
             self.blank_cell(at);
         }
         // A leading spacer moved off the last column.
-        if len - n > at
-            && let Some(moved_last) = (len - n).checked_sub(1)
+        if end - n > at
+            && let Some(moved_last) = (end - n).checked_sub(1)
             && self.width_at(moved_last) == Some(CellWidth::LeadingWideSpacer)
         {
             self.blank_cell(moved_last);
         }
-        self.changed_up_to(len, template);
+        self.changed_up_to(end, template);
     }
 
-    /// Opens `n` cells at `col` filled with `template`, shifting the rest right.
-    pub(crate) fn insert_cells(&mut self, col: u16, n: u16, template: Cell) {
-        let len = self.row.cells.len();
-        let at = usize::from(col);
-        if at >= len || n == 0 {
+    /// Blanks both halves of a wide pair that sits across column `end`: an edit bounded by
+    /// a right margin would move one half and leave the other.
+    fn split_pair_across(&mut self, end: usize) {
+        if end > 0 && self.width_at(end) == Some(CellWidth::WideSpacer) {
+            self.blank_cell(end - 1);
+            self.blank_cell(end);
+        }
+    }
+
+    /// Overwrites the cells from `col` on with `cells`, a slice cut out of another row by a
+    /// margin scroll. A half the cut left without its partner, inside the slice or beside
+    /// it, becomes a blank.
+    pub(crate) fn write_cells(&mut self, col: u16, cells: &[Cell]) {
+        let start = usize::from(col);
+        let end = (start + cells.len()).min(self.row.cells.len());
+        if start >= end {
             return;
         }
-        let n = usize::from(n).min(len - at);
+        self.release_pair(start);
+        self.release_pair(end - 1);
+        let mut hints = RowFlags::empty();
+        if let Some(target) = self.row.cells.get_mut(start..end) {
+            for (slot, &cell) in target.iter_mut().zip(cells) {
+                *slot = cell;
+                hints |= hints_of(cell);
+            }
+        }
+        // `end <= cols <= MAX_COLS`.
+        self.row.header.occ = self.row.header.occ.max(end as u16);
+        self.row.header.flags |= hints;
+        // The releases above left no partner outside the slice, so a spacer at its start and
+        // a glyph at its end are halves of pairs the cut split.
+        if self.width_at(start) == Some(CellWidth::WideSpacer) {
+            self.blank_cell(start);
+        }
+        if self.width_at(end - 1) == Some(CellWidth::Wide) {
+            self.blank_cell(end - 1);
+        }
+        self.clear_wrapped_if_last(end);
+    }
+
+    /// Opens `n` cells at `col` filled with `template`, shifting the cells before column
+    /// `end` right; what is pushed to `end` is lost. `end` is the right margin, or anything
+    /// at or past the row's width for the whole row; cells from `end` on stay.
+    pub(crate) fn insert_cells(&mut self, col: u16, n: u16, end: u16, template: Cell) {
+        let len = self.row.cells.len();
+        let end = usize::from(end).min(len);
+        let at = usize::from(col);
+        if at >= end || n == 0 {
+            return;
+        }
+        let n = usize::from(n).min(end - at);
         if self.width_at(at) == Some(CellWidth::WideSpacer) {
             self.release_pair(at);
             self.blank_cell(at);
         }
-        self.row.cells.copy_within(at..len - n, at + n);
+        self.split_pair_across(end);
+        self.row.cells.copy_within(at..end - n, at + n);
         if let Some(opened) = self.row.cells.get_mut(at..at + n) {
             opened.fill(template);
         }
         // The spacer of a `Wide` in the new last column fell off the end.
-        if let Some(last) = len.checked_sub(1)
+        if let Some(last) = end.checked_sub(1)
             && self.width_at(last) == Some(CellWidth::Wide)
         {
             self.blank_cell(last);
         }
-        self.changed_up_to(len, template);
+        self.changed_up_to(end, template);
     }
 
-    /// Opens `n` blank cells at `col` before a print overwrites them (IRM).
-    pub(crate) fn shift_right(&mut self, col: u16, n: u16) {
-        self.insert_cells(col, n, Cell::EMPTY);
+    /// Opens `n` blank cells at `col`, before column `end`, for a print to overwrite (IRM).
+    pub(crate) fn shift_right(&mut self, col: u16, n: u16, end: u16) {
+        self.insert_cells(col, n, end, Cell::EMPTY);
     }
 
     /// Stores `cell` as given, keeping `WRAPPED`. For the two in-place fixes (a tab marker,

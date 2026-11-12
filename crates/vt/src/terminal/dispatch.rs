@@ -51,7 +51,12 @@ impl Handler<'_> {
     /// A line feed on either screen: scrolls at the region bottom and counts one line.
     pub(super) fn line_feed(&mut self) {
         self.state.lines_produced = self.state.lines_produced.saturating_add(1);
-        let report = self.state.grid.linefeed();
+        // Margins are only ever narrowed while `?69` is set.
+        let report = if self.state.modes.get(Mode::LeftRightMargins) {
+            self.state.grid.linefeed_in_margins()
+        } else {
+            self.state.grid.linefeed()
+        };
         self.report(report);
     }
 

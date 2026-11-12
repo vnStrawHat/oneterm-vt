@@ -165,9 +165,11 @@ impl Handler<'_> {
         // Nothing in a run changes the designations, so the set is looked up once.
         let charset = self.state.charset(self.state.shifts.active);
         let ambiguous_wide = self.state.config.ambiguous_wide;
+        // While `?69` is set every glyph takes the general path, which knows the margins.
+        let bulk = !self.state.modes.get(Mode::LeftRightMargins);
         let last = text.chars().next_back();
         let is_mark = |c: char| !c.is_control() && scalar_width(map_charset(charset, c)) == 0;
-        let mut try_run = true;
+        let mut try_run = bulk;
         while !text.is_empty() {
             if try_run {
                 let run = self.print_run(text, mode, charset, ambiguous_wide);
@@ -184,10 +186,11 @@ impl Handler<'_> {
                     .grid
                     .attach_marks(marks, &mut self.state.interner);
                 text = rest;
-                try_run = true;
+                try_run = bulk;
                 continue;
             }
-            try_run = self.print_mapped(c, charset, mode) != 0;
+            let width = self.print_mapped(c, charset, mode);
+            try_run = bulk && width != 0;
             text = &text[c.len_utf8()..];
         }
         if last.is_some() {
@@ -263,9 +266,14 @@ impl Handler<'_> {
         let set = self.state.shifts.active;
         let charset = self.state.charset(set);
         let ambiguous_wide = self.state.config.ambiguous_wide;
+        let bulk = !self.state.modes.get(Mode::LeftRightMargins);
         let mut rest = word;
         while !rest.is_empty() {
-            let run = self.print_run(rest, mode, charset, ambiguous_wide);
+            let run = if bulk {
+                self.print_run(rest, mode, charset, ambiguous_wide)
+            } else {
+                0
+            };
             if run > 0 {
                 rest = rest.get(run..).unwrap_or_default();
                 continue;

@@ -40,7 +40,7 @@ assert_eq!(answer(&mut term, b"\x1b[?9999$p"), b"\x1b[?9999;0$y"); // unknown
 |---|---|
 | C0 | `BEL BS HT LF VT FF CR SO SI`; `DEL` is ignored; the rest and every C1 byte are unhandled |
 | ESC | `IND NEL HTS RI SS2 SS3 LS2 LS3 DECSC DECRC DECALN RIS DECID`, `ESC (` `)` `*` `+` with `B` or `0`, `ESC =` `ESC >` |
-| cursor | `CUU CUD CUF CUB CNL CPL CHA HPA HPR VPA VPR CUP HVP CHT CBT`, `SCOSC SCORC`, `DECSTBM` |
+| cursor | `CUU CUD CUF CUB CNL CPL CHA HPA HPR VPA VPR CUP HVP CHT CBT`, `SCOSC SCORC`, `DECSTBM`, `DECSLRM` (under `?69`) |
 | edit | `ICH DCH ECH EL ED IL DL SU SD REP`, `TBC`, `DECST8C` (`CSI ? 5 W`), `DECSCA DECSED DECSEL` |
 | attributes | `SGR`: attributes, 16/256/RGB colours in `;` and `:` forms, underline styles and colour |
 | modes | `SM RM` (ANSI and `?`), `DECSTR`, `DECSCUSR`, `DECRQM`, kitty keyboard flags, `modifyOtherKeys` |
@@ -49,7 +49,7 @@ assert_eq!(answer(&mut term, b"\x1b[?9999$p"), b"\x1b[?9999;0$y"); // unknown
 | OSC | `0 1 2 4 7 8 9 9;4 10 11 12 17 19 22 50 52 104 110 111 112 133`; others routable with `OscRoutes` |
 | DCS | `q` (Sixel, see [graphics](graphics.md)), `$ q` (DECRQSS), `+ q` (XTGETTCAP); APC, SOS and PM are consumed and counted |
 
-Modes with a live effect: `?1 ?5 ?6 ?7 ?12 ?25 ?45 ?47 ?1047 ?1048 ?1049 ?2027` and `4`, and
+Modes with a live effect: `?1 ?5 ?6 ?7 ?12 ?25 ?45 ?47 ?69 ?1047 ?1048 ?1049 ?2027` and `4`, and
 `?2026` (synchronized output, see [threading](threading.md)). Modes the engine stores and you read
 (`Terminal::mode`, `Terminal::mode_snapshot`): `?9 ?1000 ?1002 ?1003 ?1004 ?1005 ?1006 ?1007 ?1015
 ?1016 ?1042 ?2004`. Mouse protocols are exclusive on `h`, as are the four encodings.
@@ -75,8 +75,13 @@ read.
 ## Known gaps
 
 - `CSI h` and `CSI ? h` with no parameter count one unhandled sequence.
-- Left and right margins (`DECSLRM`, `?69`) and `CSI * x` (`DECCARA` family) are not implemented:
-  counted, no effect.
+- `CSI * x` (the `DECCARA` family of rectangle edits) is not implemented: counted, no effect.
+- Left and right margins (`?69`, then `CSI Pl ; Pr s`): printing wraps at the right margin to the
+  left one, `CR`, `BS`, `HT`, `CUF` and `CUB` stop at them, `ICH`, `DCH`, `IL`, `DL`, `SU`, `SD`
+  and line feeds move only the columns between them, and origin mode counts columns from the
+  left margin. Such a scroll copies cells between rows: nothing enters the history, the
+  selection and images on those rows are released, and a row cut by the right margin is not
+  a soft wrap. A resize, `DECSTR`, `RIS` and resetting `?69` restore the full width.
 - `DECSCA` protects glyphs from `DECSED` and `DECSEL` only; `ED`, `EL` and `ECH` erase them, as
   xterm does. `DECSED` erases in place: unlike `ED 2` it moves nothing into the history.
 - DA1 reports level 62 (VT220 with Sixel and ANSI colour); VT320+ features are not claimed.

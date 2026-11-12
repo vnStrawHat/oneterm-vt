@@ -229,6 +229,13 @@ pub struct Screen {
     scrollback_limit: u32,
     offset: u32,
     region: ScrollRegion,
+    /// The left and right margins (DECSLRM) as columns, `right` exclusive: the whole width
+    /// unless a program narrowed them under `?69`.
+    left: u16,
+    right: u16,
+    /// Whether the margins are narrower than the screen, kept beside them so the print and
+    /// line-feed paths test one flag.
+    narrowed: bool,
     cursor: Cursor,
     saved_cursor: Cursor,
     tabs: TabStops,
@@ -293,6 +300,9 @@ impl Screen {
             scrollback_limit,
             offset: 0,
             region: ScrollRegion::full(size.rows),
+            left: 0,
+            right: size.cols,
+            narrowed: false,
             cursor: home,
             saved_cursor: home,
             tabs: TabStops::new(size.cols),
@@ -542,14 +552,118 @@ impl Screen {
     /// `CUP`: moves the cursor to a screen index and column (clamped, pending wrap cleared),
     /// counted from the region top under `CursorOrigin::Region`.
     pub fn goto_origin(&mut self, index: u16, col: u16, origin: CursorOrigin) {
-        let index = match origin {
+        let index = self.origin_row(index, origin);
+        let col = self.origin_col(col, origin);
+        self.goto(index, col);
+        self.debug_check();
+    }
+
+    /// `VPA`: moves to a screen row, counted from the region top under
+    /// `CursorOrigin::Region`; the column stays.
+    pub(crate) fn goto_row(&mut self, index: u16, origin: CursorOrigin) {
+        let index = self.origin_row(index, origin);
+        let col = self.cursor.pos.col;
+        self.goto(index, col);
+        self.debug_check();
+    }
+
+    /// `CHA` and `HPA`: moves to a column of the cursor row, counted from the left margin
+    /// under `CursorOrigin::Region`.
+    pub(crate) fn goto_column(&mut self, col: u16, origin: CursorOrigin) {
+        let index = self.cursor_row_index();
+        let col = self.origin_col(col, origin);
+        self.goto(index, col);
+    }
+
+    fn origin_row(&self, index: u16, origin: CursorOrigin) -> u16 {
+        match origin {
             CursorOrigin::Screen => index,
             CursorOrigin::Region => index
                 .saturating_add(self.region.top)
                 .min(self.region.bottom.saturating_sub(1)),
-        };
-        self.goto(index, col);
-        self.debug_check();
+        }
+    }
+
+    fn origin_col(&self, col: u16, origin: CursorOrigin) -> u16 {
+        match origin {
+            CursorOrigin::Screen => col,
+            CursorOrigin::Region => col
+                .saturating_add(self.left)
+                .min(self.right.saturating_sub(1)),
+        }
+    }
+
+    /// The side margins as `(left, right)` columns, `right` exclusive: `(0, cols)` unless a
+    /// program set them with DECSLRM.
+    pub fn side_margins(&self) -> (u16, u16) {
+        (self.left, self.right)
+    }
+
+    /// Whether DECSLRM narrowed the margins. The bulk print and scroll paths assume it did
+    /// not; the general ones honour them.
+    #[inline]
+    pub(crate) fn has_side_margins(&self) -> bool {
+        self.narrowed
+    }
+
+    /// `DECSLRM` with 0-based columns, `right` exclusive. Accepted when at least two columns
+    /// remain after clamping `right` to the width; on success the cursor homes.
+    pub(crate) fn set_side_margins(&mut self, left: u16, right: u16, origin: CursorOrigin) -> bool {
+        let right = right.min(self.cols);
+        if left.saturating_add(1) >= right {
+            return false;
+        }
+        self.left = left;
+        self.right = right;
+        self.narrowed = left > 0 || right < self.cols;
+        self.goto_origin(0, 0, origin);
+        true
+    }
+
+    /// Back to the whole width.
+    pub(crate) fn reset_side_margins(&mut self) {
+        self.left = 0;
+        self.right = self.cols;
+        self.narrowed = false;
+    }
+
+    /// Whether the cursor is between the side margins.
+    pub(crate) fn inside_side_margins(&self) -> bool {
+        (self.left..self.right).contains(&self.cursor.pos.col)
+    }
+
+    /// One past the last column a glyph at the cursor may take: the right margin while the
+    /// cursor is left of it, else the screen edge.
+    pub(crate) fn right_limit(&self) -> u16 {
+        if self.cursor.pos.col < self.right {
+            self.right
+        } else {
+            self.cols
+        }
+    }
+
+    /// The column the cursor does not move left of: the left margin unless it is already
+    /// left of it.
+    pub(crate) fn left_limit(&self) -> u16 {
+        if self.cursor.pos.col >= self.left {
+            self.left
+        } else {
+            0
+        }
+    }
+
+    /// `CUF`: right `n` columns, stopping at the right margin (or the screen edge beyond it).
+    pub(crate) fn cursor_forward(&mut self, n: u16) {
+        let index = self.cursor_row_index();
+        let col = self.cursor.pos.col.saturating_add(n);
+        self.goto(index, col.min(self.right_limit() - 1));
+    }
+
+    /// `CUB`: left `n` columns, stopping at the left margin (or column 0 left of it).
+    pub(crate) fn cursor_back(&mut self, n: u16) {
+        let index = self.cursor_row_index();
+        let col = self.cursor.pos.col.saturating_sub(n);
+        self.goto(index, col.max(self.left_limit()));
     }
 
     /// `DECSTBM` with 0-based, bottom-exclusive rows. Returns whether the region was accepted
@@ -565,7 +679,8 @@ impl Screen {
     }
 
     pub(crate) fn carriage_return(&mut self) {
-        self.cursor.pos.col = 0;
+        // Column 0 without a look at the margins unless a program narrowed them.
+        self.cursor.pos.col = if self.narrowed { self.left_limit() } else { 0 };
         self.cursor.pending_wrap = false;
     }
 
@@ -573,12 +688,14 @@ impl Screen {
     /// included), except under reverse wrap: below the region top, when the row above wrapped
     /// into this one, it moves to that row's last column.
     pub(crate) fn backspace(&mut self, mode: PrintMode) {
-        if self.cursor.pos.col > 0 {
+        if self.cursor.pos.col > self.left_limit() {
             self.cursor.pos.col -= 1;
             self.cursor.pending_wrap = false;
             return;
         }
-        if !mode.reverse_wrap || self.cursor_row_index() <= self.region.top {
+        // Rows cut short by a right margin are not marked as wrapped: nothing to go back to.
+        let at_top = self.cursor_row_index() <= self.region.top;
+        if !mode.reverse_wrap || self.has_side_margins() || at_top {
             return;
         }
         let above = self.cursor.pos.row - 1;
@@ -648,6 +765,11 @@ impl Screen {
     pub(crate) fn adopt_region_and_tabs(&mut self, from: &Screen) {
         self.region = from.region;
         self.tabs = from.tabs.clone();
+        (self.left, self.right) = (from.left, from.right.min(self.cols));
+        self.narrowed = self.left > 0 || self.right < self.cols;
+        if self.left.saturating_add(1) >= self.right {
+            self.reset_side_margins();
+        }
     }
 
     /// Takes the other screen's cursor (pens, charsets, pending wrap) at the same screen index.
@@ -858,6 +980,9 @@ impl Screen {
         let Some((region, n)) = self.clamp_scroll(region, n) else {
             return ScrollReport::NONE;
         };
+        if self.has_side_margins() {
+            return self.scroll_rect(region, n, Shift::Up, anchors);
+        }
         let in_place = self.kind == ScreenKind::Alternate && region.bottom < self.rows;
         let report = if region.top == 0 && !in_place {
             self.scroll_up_into_history(region, n, anchors)
@@ -944,6 +1069,9 @@ impl Screen {
         let Some((region, n)) = self.clamp_scroll(region, n) else {
             return ScrollReport::NONE;
         };
+        if self.has_side_margins() {
+            return self.scroll_rect(region, n, Shift::Down, anchors);
+        }
         let lo = self.screen_top() + u64::from(region.top);
         let len = u64::from(region.height());
         let step = u64::from(n);
@@ -961,13 +1089,84 @@ impl Screen {
         }
     }
 
+    /// Scrolls the columns between the side margins of `region` by `n` rows, blanking the
+    /// cells it opens. Cells move between rows, so nothing enters the history and no row
+    /// changes its id; a position that followed a whole row has nothing left to follow, so
+    /// the content anchors on these rows die.
+    fn scroll_rect(
+        &mut self,
+        region: ScrollRegion,
+        n: u16,
+        shift: Shift,
+        anchors: &mut Anchors,
+    ) -> ScrollReport {
+        let (left, right) = (self.left, self.right);
+        let top = self.screen_top();
+        let rows = top + u64::from(region.top)..top + u64::from(region.bottom);
+        anchors.shift_region(rows.clone(), 0, rows);
+        let erase = self.cursor.erase;
+        // One short-lived buffer per scroll: a field for it made `Screen` larger and cost the
+        // unmargined print path a few percent.
+        let mut cells = Vec::with_capacity(usize::from(right - left));
+        for step in 0..region.height() {
+            // Destinations in the order that never reads a row already overwritten.
+            let (dest, source) = match shift {
+                Shift::Up => {
+                    let dest = region.top + step;
+                    (dest, dest.checked_add(n).filter(|row| *row < region.bottom))
+                }
+                Shift::Down => {
+                    let dest = region.bottom - 1 - step;
+                    (dest, dest.checked_sub(n).filter(|row| *row >= region.top))
+                }
+            };
+            cells.clear();
+            match source {
+                Some(source) => {
+                    let row = self.row(top + u64::from(source));
+                    let range = usize::from(left)..usize::from(right);
+                    cells.extend_from_slice(row.cells().get(range).unwrap_or_default());
+                }
+                None => cells.resize(usize::from(right - left), erase),
+            }
+            if let Some(mut row) = self.row_mut(top + u64::from(dest)) {
+                row.write_cells(left, &cells);
+            }
+        }
+        self.sync_anchors(anchors);
+        self.debug_check();
+        ScrollReport::NONE
+    }
+
     /// `IND`/`LF`: down one row, scrolling the region up at its bottom. Returns the report of
     /// that scroll, `Some` exactly when one ran.
+    ///
+    /// Not for a screen with narrowed side margins: the caller takes
+    /// [`linefeed_in_margins`](Self::linefeed_in_margins) while `?69` is set, so this path
+    /// pays nothing for them (a flag test here cost `short_lines` 5 %).
     pub(crate) fn linefeed(&mut self, anchors: &mut Anchors) -> Option<ScrollReport> {
         let index = self.cursor_row_index();
         if index + 1 == self.region.bottom {
             if self.region.top == 0 && self.region.bottom == self.rows && self.offset == 0 {
                 return Some(self.linefeed_into_history(anchors));
+            }
+            return Some(self.scroll_up(self.region, 1, anchors));
+        }
+        if index + 1 < self.rows {
+            self.cursor.pos.row = self.cursor.pos.row + 1;
+        }
+        self.sync_anchors(anchors);
+        self.debug_check();
+        None
+    }
+
+    /// `IND`/`LF` while `?69` is set: at the region bottom only the columns between the side
+    /// margins scroll, and only when the cursor is between them; outside, nothing moves.
+    pub(crate) fn linefeed_in_margins(&mut self, anchors: &mut Anchors) -> Option<ScrollReport> {
+        let index = self.cursor_row_index();
+        if index + 1 == self.region.bottom {
+            if !self.inside_side_margins() {
+                return None;
             }
             return Some(self.scroll_up(self.region, 1, anchors));
         }
@@ -1004,6 +1203,9 @@ impl Screen {
     pub(crate) fn reverse_index(&mut self, anchors: &mut Anchors) -> Option<ScrollReport> {
         let index = self.cursor_row_index();
         if index == self.region.top {
+            if self.has_side_margins() && !self.inside_side_margins() {
+                return None;
+            }
             return Some(self.scroll_down(self.region, 1, anchors));
         }
         if index > 0 {
@@ -1017,7 +1219,8 @@ impl Screen {
     /// `IL`: opens `n` blank rows at the cursor row. `None` when the cursor is outside the region.
     pub(crate) fn insert_lines(&mut self, n: u16, anchors: &mut Anchors) -> Option<ScrollReport> {
         let index = self.cursor_row_index();
-        if !self.region.contains(index) {
+        if !self.region.contains(index) || (self.has_side_margins() && !self.inside_side_margins())
+        {
             return None;
         }
         let region = ScrollRegion {
@@ -1030,7 +1233,8 @@ impl Screen {
     /// `DL`: deletes `n` rows at the cursor row. At screen row 0 they enter the history.
     pub(crate) fn delete_lines(&mut self, n: u16, anchors: &mut Anchors) -> Option<ScrollReport> {
         let index = self.cursor_row_index();
-        if !self.region.contains(index) {
+        if !self.region.contains(index) || (self.has_side_margins() && !self.inside_side_margins())
+        {
             return None;
         }
         let region = ScrollRegion {
@@ -1086,6 +1290,7 @@ impl Screen {
         self.cursor = home;
         self.saved_cursor = home;
         self.region = ScrollRegion::full(self.rows);
+        self.reset_side_margins();
         self.tabs = TabStops::new(self.cols);
         self.reset_screen_rows(0, self.rows);
         self.sync_anchors(anchors);

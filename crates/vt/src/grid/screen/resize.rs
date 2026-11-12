@@ -23,6 +23,7 @@ impl Screen {
             0
         };
         self.region = ScrollRegion::full(self.rows);
+        self.reset_side_margins();
         self.settle();
         trimmed
     }

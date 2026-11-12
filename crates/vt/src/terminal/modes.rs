@@ -53,6 +53,10 @@ pub enum Mode {
     ReverseWrap,
     /// `?47`: alternate screen, no cursor save.
     AltScreen47,
+    /// `?69`: left and right margins (DECLRMM). While set, `CSI Pl ; Pr s` is DECSLRM instead
+    /// of "save cursor" and text is placed glyph by glyph (slower than the bulk path);
+    /// resetting it restores the full width.
+    LeftRightMargins,
     /// `?1047`: alternate screen, cleared on leave.
     AltScreen1047,
     /// `?1049`: alternate screen with cursor save and clear.
@@ -119,6 +123,7 @@ const PRIVATE_MODES: &[(u16, Mode)] = &[
     (25, Mode::ShowCursor),
     (45, Mode::ReverseWrap),
     (47, Mode::AltScreen47),
+    (69, Mode::LeftRightMargins),
     (1000, Mode::MouseClick),
     (1002, Mode::MouseDrag),
     (1003, Mode::MouseMotion),
@@ -208,6 +213,7 @@ impl Mode {
             Mode::Insert => 1 << 20,
             Mode::LineFeedNewLine => 1 << 21,
             Mode::AppKeypad => 1 << 22,
+            Mode::LeftRightMargins => 1 << 23,
             Mode::DecCoLm
             | Mode::SyncUpdate
             | Mode::CursorBlink
@@ -593,6 +599,12 @@ impl Handler<'_> {
                     self.state.restore_cursor();
                 }
             }
+            Mode::LeftRightMargins => {
+                self.state.modes.set(mode, on);
+                if !on {
+                    self.state.grid.screen_mut().reset_side_margins();
+                }
+            }
             Mode::GraphemeClusters => {
                 self.state.modes.set(mode, on);
                 if !on {
@@ -619,6 +631,7 @@ impl Handler<'_> {
         self.state.bump_generation();
         let screen = self.state.grid.screen_mut();
         let rows = screen.rows();
+        screen.reset_side_margins();
         screen.set_region(0, rows, CursorOrigin::Screen);
         screen.reset_screen_rows(0, rows);
     }
@@ -709,10 +722,12 @@ impl Handler<'_> {
         state.modes.set(Mode::Insert, false);
         state.modes.set(Mode::LineWrap, true);
         state.modes.set(Mode::ShowCursor, true);
+        state.modes.set(Mode::LeftRightMargins, false);
         state.dcs_query = None;
         state.dcs_payload.clear();
         let screen = state.grid.screen_mut();
         let rows = screen.rows();
+        screen.reset_side_margins();
         screen.set_region(0, rows, CursorOrigin::Screen);
         screen.set_template(Cell::EMPTY, &mut state.interner);
         screen.goto(0, 0);

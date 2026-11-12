@@ -173,13 +173,12 @@ impl Handler<'_> {
         let relative = self.state.modes.get(Mode::Origin);
         let screen = self.state.grid.screen();
         let mut row = screen.cursor_row_index();
+        let mut col = screen.cursor().pos.col;
         if relative {
             row = row.saturating_sub(screen.region().top);
+            col = col.saturating_sub(screen.side_margins().0);
         }
-        (
-            row.saturating_add(1),
-            screen.cursor().pos.col.saturating_add(1),
-        )
+        (row.saturating_add(1), col.saturating_add(1))
     }
 
     /// `CSI Ps n` and `CSI ? Ps n`.
@@ -329,6 +328,10 @@ impl Handler<'_> {
             b"r" => {
                 let region = screen.region();
                 format!("{};{}", region.top + 1, region.bottom)
+            }
+            b"s" => {
+                let (left, right) = screen.side_margins();
+                format!("{};{right}", left + 1)
             }
             b" q" => {
                 let style = self.state.stored_cursor_style();
