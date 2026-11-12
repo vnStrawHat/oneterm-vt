@@ -4,13 +4,13 @@ An embeddable terminal core in Rust: VT parser, grid with scrollback, reflow, se
 damage-tracked snapshots, key and mouse encoders, Sixel, and an optional pseudo-console.
 You bring the pixels.
 
-**Status:** v0.1.0. Built and tested on Linux, Windows and macOS.
+**Status:** v0.1.4. Built and tested on Linux, Windows and macOS.
 
 ## Use
 
 ```toml
 [dependencies]
-oneterm-vt = { git = "https://github.com/vnStrawHat/oneterm-vt", tag = "v0.1.0" }
+oneterm-vt = { git = "https://github.com/vnStrawHat/oneterm-vt", tag = "v0.1.4" }
 ```
 
 Guide: [docs/user/](docs/user/README.md). Semver promise: [docs/user/versioning.md](docs/user/versioning.md).
@@ -71,7 +71,7 @@ tier 1 panel appears from the first release after v0.1.1.
 | `docs/user/` | embedder guide |
 | `docs/perf/`, `perf/` | how performance is recorded; per-release records and charts, one set per platform |
 | `docs/roadmap.md`, `docs/specs/` | build plan and per-phase specs |
-| `fuzz/` | cargo-fuzz targets, run before each release (not a workspace member) |
+| `fuzz/` | cargo-fuzz targets, run by the Release workflow before tagging (not a workspace member) |
 | `scripts/public-api.sh` | check or update the public-API snapshot |
 | `scripts/release.sh` | release steps (bump; test and benchmark per OS; charts, commit, tag); run only by the Release workflow |
 | `.github/workflows/` | CI on 3 OS; the Release workflow (manual) |

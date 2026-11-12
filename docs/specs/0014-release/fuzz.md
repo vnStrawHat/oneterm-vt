@@ -2,7 +2,7 @@
 
 A cargo-fuzz crate at the repository root, **not** a workspace member. It proves the roadmap
 rule "hostile input never panics and never grows memory without a bound" beyond what proptest
-and the 1M-random-byte test reach. Run by hand before each release; no CI job (Decision 6).
+and the 1M-random-byte test reach. The Release workflow runs every target for 200 s before tagging (Decision 6); the 10-minute run below is the by-hand one.
 
 ## Why not a member, why Linux
 

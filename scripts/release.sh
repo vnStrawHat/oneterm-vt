@@ -36,6 +36,33 @@ workspace_version() {
     echo "$version"
 }
 
+# A breaking commit since the last tag ('!' after the type, or a 'BREAKING CHANGE:' footer) must
+# be released as a major step from version $1 to $2 (docs/agents/commits.md).
+require_breaking_bump() {
+    local last oma omi nma nmi
+    last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null) || return 0
+    git log "$last..HEAD" --format='%s%n%b' | grep -Eq '^[a-z]+(\([^)]*\))?!:|^BREAKING CHANGE:' || return 0
+    IFS=. read -r oma omi _ <<<"$1"
+    IFS=. read -r nma nmi _ <<<"$2"
+    if [ "$nma" -gt "$oma" ]; then
+        return 0
+    fi
+    if [ "$oma" -eq 0 ] && [ "$nma" -eq 0 ] && [ "$nmi" -gt "$omi" ]; then
+        return 0
+    fi
+    fail "commits since $last carry '!' or 'BREAKING CHANGE:'; release with kind 'major', not v$2"
+}
+
+# Rewrites the version in the lines of file $1 that tell a reader which tag to depend on.
+retag() {
+    awk -v v="$2" '
+        /tag = "v[0-9]+\.[0-9]+\.[0-9]+"/ { sub(/tag = "v[0-9]+\.[0-9]+\.[0-9]+"/, "tag = \"v" v "\"") }
+        /^\*\*Status:\*\* v[0-9]/ { sub(/v[0-9]+\.[0-9]+\.[0-9]+/, "v" v) }
+        { print }
+    ' "$1" >.tmp/retag.new
+    mv .tmp/retag.new "$1"
+}
+
 # HEAD must be the bump commit of version $1.
 require_release_head() {
     [ "$(git log -1 --format=%s)" = "release: v$1" ] || fail "HEAD is not the bump commit 'release: v$1'"
@@ -57,12 +84,16 @@ cmd_bump() {
     [ -z "$(git status --porcelain)" ] || fail "working tree is not clean; commit or stash first"
     [ "$(git symbolic-ref --short HEAD 2>/dev/null)" = main ] || fail "releases are cut from main"
     ! git rev-parse -q --verify "refs/tags/v$v" >/dev/null || fail "tag v$v already exists"
+    require_breaking_bump "$old" "$v"
     local p
     for p in $PLATFORMS; do
         [ ! -e "perf/history/$p/v$v.json" ] || fail "perf/history/$p/v$v.json already exists"
     done
 
     mkdir -p .tmp
+    for p in README.md docs/user/README.md docs/user/versioning.md; do
+        retag "$p" "$v"
+    done
     # Bump the version inside [workspace.package] only.
     awk -v v="$v" '
         /^\[/ { in_package = ($0 == "[workspace.package]") }
@@ -76,7 +107,7 @@ cmd_bump() {
     cargo clippy --workspace --all-targets --all-features -- -D warnings
     cargo test --workspace
 
-    git add Cargo.toml Cargo.lock
+    git add Cargo.toml Cargo.lock README.md docs/user/README.md docs/user/versioning.md
     git commit --allow-empty -m "release: v$v"
     echo "bumped v$v"
 }

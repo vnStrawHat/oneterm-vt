@@ -88,8 +88,43 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           overwrite: true
+  fuzz:
+    needs: bump
+    runs-on: ubuntu-latest
+    defaults: { run: { shell: bash } }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/download-artifact@v4
+        with: { name: bump, path: .tmp/bump }
+      - name: Check out the bump commit
+        run: |
+          git fetch .tmp/bump/bump.bundle main
+          git checkout --detach FETCH_HEAD
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: Install the fuzzing toolchain
+        run: |
+          nightly="$(sed -n 's/^NIGHTLY=//p' scripts/public-api.sh)"
+          rustup toolchain install "$nightly" --profile minimal
+          cargo install cargo-fuzz --locked
+          echo "FUZZ_NIGHTLY=$nightly" >>"$GITHUB_ENV"
+      - name: Seed the corpus from the bench fixtures
+        run: |
+          cargo run -p oneterm-vt-bench --release -- fixtures --out fuzz/corpus/feed --mib 1
+          mkdir -p fuzz/corpus/parser
+          cp fuzz/corpus/feed/* fuzz/corpus/parser/
+      - name: Fuzz every target (200 s each)
+        run: |
+          for target in parser feed resize; do
+            cargo "+$FUZZ_NIGHTLY" fuzz run --target-dir target/fuzz-linux "$target" -- \
+              -max_total_time=200 -rss_limit_mb=512 -max_len=4096 -timeout=10
+          done
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: fuzz-artifacts, path: fuzz/artifacts, if-no-files-found: ignore, retention-days: 7 }
   finalize:
-    needs: [bump, bench]
+    needs: [bump, bench, fuzz]
     runs-on: ubuntu-latest
     defaults: { run: { shell: bash } }
     env: { TAG: "${{ needs.bump.outputs.tag }}" }

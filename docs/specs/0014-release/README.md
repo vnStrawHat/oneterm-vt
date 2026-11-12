@@ -6,7 +6,7 @@ then the manual Release workflow bumps the version, tests and benchmarks that co
 Windows and macOS (one perf record and chart per platform), pushes commit and tag `v0.1.0` and
 publishes the GitHub release.
 
-**Non-goals:** new public items; publishing to crates.io; fuzzing in CI; perf gates in CI beyond
+**Non-goals:** new public items; publishing to crates.io; fuzzing on pushes and pull requests; perf gates in CI beyond
 the release trip-wire; a hand-written changelog; changes to `cliff.toml`; releases cut by hand;
 comparing perf records across platforms.
 
@@ -44,7 +44,7 @@ comparing perf records across platforms.
 5. Perf: the phase-12 target table, measured by hand on the quiet i7-12700, is the quality verdict.
    Release records come from the three hosted runners; `grid --check` on each is a 0.5-band trip-wire
    against that platform's previous record. Records are compared only within one platform.
-6. Fuzzing runs on Linux (WSL counts); cargo-fuzz does not support Windows. No CI job.
+6. Fuzzing runs on Linux (WSL counts); cargo-fuzz does not support Windows. The Release workflow runs every target for 200 s before tagging; pushes and pull requests do not fuzz.
 7. No new public item; `api-map.md`, `for-agents.md` and the example use roadmap items only.
 8. `performance.md` keeps its phase-12 table and links the per-platform history and charts.
 9. The phase commit is `docs(release)`; the workflow changes are `ci(release)`: hidden from notes.
