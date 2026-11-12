@@ -5,71 +5,93 @@
 <line x1="70" y1="290.0" x2="770.0" y2="290.0" stroke="#dddddd"/>
 <text x="62.0" y="294.0" text-anchor="end" fill="#444444">0.0</text>
 <line x1="70" y1="230.0" x2="770.0" y2="230.0" stroke="#dddddd"/>
-<text x="62.0" y="234.0" text-anchor="end" fill="#444444">500.0</text>
+<text x="62.0" y="234.0" text-anchor="end" fill="#444444">2000.0</text>
 <line x1="70" y1="170.0" x2="770.0" y2="170.0" stroke="#dddddd"/>
-<text x="62.0" y="174.0" text-anchor="end" fill="#444444">1000.0</text>
+<text x="62.0" y="174.0" text-anchor="end" fill="#444444">4000.0</text>
 <line x1="70" y1="110.0" x2="770.0" y2="110.0" stroke="#dddddd"/>
-<text x="62.0" y="114.0" text-anchor="end" fill="#444444">1500.0</text>
+<text x="62.0" y="114.0" text-anchor="end" fill="#444444">6000.0</text>
 <line x1="70" y1="50.0" x2="770.0" y2="50.0" stroke="#dddddd"/>
-<text x="62.0" y="54.0" text-anchor="end" fill="#444444">2000.0</text>
-<text x="157.5" y="310.0" text-anchor="middle" fill="#444444">v0.1.1</text>
-<text x="332.5" y="310.0" text-anchor="middle" fill="#444444">v0.1.2</text>
-<text x="507.5" y="310.0" text-anchor="middle" fill="#444444">v0.1.3</text>
-<text x="682.5" y="310.0" text-anchor="middle" fill="#444444">v0.1.4</text>
-<polyline points="157.5,207.9 332.5,106.0 507.5,185.8 682.5,161.7" fill="none" stroke="#1f77b4" stroke-width="2"/>
-<circle cx="157.5" cy="207.9" r="3" fill="#1f77b4"><title>plain_ascii v0.1.1: 684.4 MiB/s (spread 5.1%)</title></circle>
-<circle cx="332.5" cy="106.0" r="3" fill="#1f77b4"><title>plain_ascii v0.1.2: 1533.2 MiB/s (spread 3.8%)</title></circle>
-<circle cx="507.5" cy="185.8" r="3" fill="#1f77b4"><title>plain_ascii v0.1.3: 868.0 MiB/s (spread 3.4%)</title></circle>
-<circle cx="682.5" cy="161.7" r="3" fill="#1f77b4"><title>plain_ascii v0.1.4: 1069.2 MiB/s (spread 19.7%)</title></circle>
-<polyline points="157.5,206.2 332.5,121.4 507.5,175.6 682.5,159.3" fill="none" stroke="#d62728" stroke-width="2"/>
-<circle cx="157.5" cy="206.2" r="3" fill="#d62728"><title>long_lines v0.1.1: 698.0 MiB/s (spread 25.1%)</title></circle>
-<circle cx="332.5" cy="121.4" r="3" fill="#d62728"><title>long_lines v0.1.2: 1404.8 MiB/s (spread 19.0%)</title></circle>
-<circle cx="507.5" cy="175.6" r="3" fill="#d62728"><title>long_lines v0.1.3: 953.0 MiB/s (spread 2.6%)</title></circle>
-<circle cx="682.5" cy="159.3" r="3" fill="#d62728"><title>long_lines v0.1.4: 1088.9 MiB/s (spread 2.2%)</title></circle>
-<polyline points="157.5,250.5 332.5,215.3 507.5,249.2 682.5,248.4" fill="none" stroke="#2ca02c" stroke-width="2"/>
-<circle cx="157.5" cy="250.5" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.1: 329.1 MiB/s (spread 0.9%)</title></circle>
-<circle cx="332.5" cy="215.3" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.2: 622.6 MiB/s (spread 3.5%)</title></circle>
-<circle cx="507.5" cy="249.2" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.3: 339.9 MiB/s (spread 3.0%)</title></circle>
-<circle cx="682.5" cy="248.4" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.4: 346.9 MiB/s (spread 6.6%)</title></circle>
-<polyline points="157.5,244.4 332.5,203.8 507.5,243.6 682.5,239.6" fill="none" stroke="#9467bd" stroke-width="2"/>
-<circle cx="157.5" cy="244.4" r="3" fill="#9467bd"><title>tui_redraw v0.1.1: 380.4 MiB/s (spread 11.9%)</title></circle>
-<circle cx="332.5" cy="203.8" r="3" fill="#9467bd"><title>tui_redraw v0.1.2: 717.9 MiB/s (spread 13.8%)</title></circle>
-<circle cx="507.5" cy="243.6" r="3" fill="#9467bd"><title>tui_redraw v0.1.3: 386.6 MiB/s (spread 6.9%)</title></circle>
-<circle cx="682.5" cy="239.6" r="3" fill="#9467bd"><title>tui_redraw v0.1.4: 419.9 MiB/s (spread 0.7%)</title></circle>
-<polyline points="157.5,210.4 332.5,114.6 507.5,190.9 682.5,163.3" fill="none" stroke="#ff7f0e" stroke-width="2"/>
-<circle cx="157.5" cy="210.4" r="3" fill="#ff7f0e"><title>scroll_region v0.1.1: 663.7 MiB/s (spread 3.2%)</title></circle>
-<circle cx="332.5" cy="114.6" r="3" fill="#ff7f0e"><title>scroll_region v0.1.2: 1461.4 MiB/s (spread 45.2%)</title></circle>
-<circle cx="507.5" cy="190.9" r="3" fill="#ff7f0e"><title>scroll_region v0.1.3: 825.7 MiB/s (spread 2.6%)</title></circle>
-<circle cx="682.5" cy="163.3" r="3" fill="#ff7f0e"><title>scroll_region v0.1.4: 1056.0 MiB/s (spread 0.9%)</title></circle>
-<polyline points="157.5,226.0 332.5,151.8 507.5,212.5 682.5,206.0" fill="none" stroke="#17becf" stroke-width="2"/>
-<circle cx="157.5" cy="226.0" r="3" fill="#17becf"><title>cjk_wide v0.1.1: 533.5 MiB/s (spread 1.0%)</title></circle>
-<circle cx="332.5" cy="151.8" r="3" fill="#17becf"><title>cjk_wide v0.1.2: 1151.3 MiB/s (spread 50.0%)</title></circle>
-<circle cx="507.5" cy="212.5" r="3" fill="#17becf"><title>cjk_wide v0.1.3: 645.5 MiB/s (spread 3.3%)</title></circle>
-<circle cx="682.5" cy="206.0" r="3" fill="#17becf"><title>cjk_wide v0.1.4: 699.8 MiB/s (spread 12.4%)</title></circle>
-<polyline points="157.5,255.6 332.5,222.8 507.5,253.2 682.5,251.2" fill="none" stroke="#8c564b" stroke-width="2"/>
-<circle cx="157.5" cy="255.6" r="3" fill="#8c564b"><title>dense_cells v0.1.1: 287.0 MiB/s (spread 18.6%)</title></circle>
-<circle cx="332.5" cy="222.8" r="3" fill="#8c564b"><title>dense_cells v0.1.2: 560.0 MiB/s (spread 3.3%)</title></circle>
-<circle cx="507.5" cy="253.2" r="3" fill="#8c564b"><title>dense_cells v0.1.3: 306.5 MiB/s (spread 12.2%)</title></circle>
-<circle cx="682.5" cy="251.2" r="3" fill="#8c564b"><title>dense_cells v0.1.4: 323.6 MiB/s (spread 1.7%)</title></circle>
-<polyline points="157.5,205.1 332.5,124.8 507.5,181.3 682.5,162.9" fill="none" stroke="#e377c2" stroke-width="2"/>
-<circle cx="157.5" cy="205.1" r="3" fill="#e377c2"><title>scrolling v0.1.1: 707.2 MiB/s (spread 1.6%)</title></circle>
-<circle cx="332.5" cy="124.8" r="3" fill="#e377c2"><title>scrolling v0.1.2: 1376.8 MiB/s (spread 5.5%)</title></circle>
-<circle cx="507.5" cy="181.3" r="3" fill="#e377c2"><title>scrolling v0.1.3: 906.1 MiB/s (spread 3.1%)</title></circle>
-<circle cx="682.5" cy="162.9" r="3" fill="#e377c2"><title>scrolling v0.1.4: 1059.0 MiB/s (spread 1.1%)</title></circle>
-<polyline points="157.5,249.5 332.5,221.3 507.5,249.5 682.5,249.8" fill="none" stroke="#7f7f7f" stroke-width="2"/>
-<circle cx="157.5" cy="249.5" r="3" fill="#7f7f7f"><title>sixel v0.1.1: 337.3 MiB/s (spread 0.4%)</title></circle>
-<circle cx="332.5" cy="221.3" r="3" fill="#7f7f7f"><title>sixel v0.1.2: 572.8 MiB/s (spread 4.6%)</title></circle>
-<circle cx="507.5" cy="249.5" r="3" fill="#7f7f7f"><title>sixel v0.1.3: 337.7 MiB/s (spread 9.7%)</title></circle>
-<circle cx="682.5" cy="249.8" r="3" fill="#7f7f7f"><title>sixel v0.1.4: 334.8 MiB/s (spread 4.5%)</title></circle>
-<polyline points="157.5,240.6 332.5,183.8 507.5,237.0 682.5,246.8" fill="none" stroke="#bcbd22" stroke-width="2"/>
-<circle cx="157.5" cy="240.6" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.1: 411.9 MiB/s (spread 12.7%)</title></circle>
-<circle cx="332.5" cy="183.8" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.2: 885.0 MiB/s (spread 4.1%)</title></circle>
-<circle cx="507.5" cy="237.0" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.3: 441.7 MiB/s (spread 3.5%)</title></circle>
-<circle cx="682.5" cy="246.8" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.4: 359.9 MiB/s (spread 1.9%)</title></circle>
-<circle cx="682.5" cy="237.6" r="3" fill="#111111"><title>grapheme_clusters v0.1.4: 436.8 MiB/s (spread 3.6%)</title></circle>
-<circle cx="682.5" cy="261.3" r="3" fill="#003f5c"><title>hyperlinks v0.1.4: 238.9 MiB/s (spread 1.8%)</title></circle>
-<circle cx="682.5" cy="257.4" r="3" fill="#e6ab02"><title>mode_churn v0.1.4: 271.4 MiB/s (spread 3.7%)</title></circle>
-<circle cx="682.5" cy="248.4" r="3" fill="#a0006b"><title>sixel_large v0.1.4: 346.5 MiB/s (spread 0.5%)</title></circle>
+<text x="62.0" y="54.0" text-anchor="end" fill="#444444">8000.0</text>
+<text x="140.0" y="310.0" text-anchor="middle" fill="#444444">v0.1.1</text>
+<text x="280.0" y="310.0" text-anchor="middle" fill="#444444">v0.1.2</text>
+<text x="420.0" y="310.0" text-anchor="middle" fill="#444444">v0.1.3</text>
+<text x="560.0" y="310.0" text-anchor="middle" fill="#444444">v0.1.4</text>
+<text x="700.0" y="310.0" text-anchor="middle" fill="#444444">v0.2.0</text>
+<polyline points="140.0,269.5 280.0,244.0 420.0,264.0 560.0,257.9 700.0,209.7" fill="none" stroke="#1f77b4" stroke-width="2"/>
+<circle cx="140.0" cy="269.5" r="3" fill="#1f77b4"><title>plain_ascii v0.1.1: 684.4 MiB/s (spread 5.1%)</title></circle>
+<circle cx="280.0" cy="244.0" r="3" fill="#1f77b4"><title>plain_ascii v0.1.2: 1533.2 MiB/s (spread 3.8%)</title></circle>
+<circle cx="420.0" cy="264.0" r="3" fill="#1f77b4"><title>plain_ascii v0.1.3: 868.0 MiB/s (spread 3.4%)</title></circle>
+<circle cx="560.0" cy="257.9" r="3" fill="#1f77b4"><title>plain_ascii v0.1.4: 1069.2 MiB/s (spread 19.7%)</title></circle>
+<circle cx="700.0" cy="209.7" r="3" fill="#1f77b4"><title>plain_ascii v0.2.0: 2676.7 MiB/s (spread 8.3%)</title></circle>
+<polyline points="140.0,269.1 280.0,247.9 420.0,261.4 560.0,257.3 700.0,75.9" fill="none" stroke="#d62728" stroke-width="2"/>
+<circle cx="140.0" cy="269.1" r="3" fill="#d62728"><title>long_lines v0.1.1: 698.0 MiB/s (spread 25.1%)</title></circle>
+<circle cx="280.0" cy="247.9" r="3" fill="#d62728"><title>long_lines v0.1.2: 1404.8 MiB/s (spread 19.0%)</title></circle>
+<circle cx="420.0" cy="261.4" r="3" fill="#d62728"><title>long_lines v0.1.3: 953.0 MiB/s (spread 2.6%)</title></circle>
+<circle cx="560.0" cy="257.3" r="3" fill="#d62728"><title>long_lines v0.1.4: 1088.9 MiB/s (spread 2.2%)</title></circle>
+<circle cx="700.0" cy="75.9" r="3" fill="#d62728"><title>long_lines v0.2.0: 7135.8 MiB/s (spread 5.2%)</title></circle>
+<polyline points="140.0,280.1 280.0,271.3 420.0,279.8 560.0,279.6 700.0,273.9" fill="none" stroke="#2ca02c" stroke-width="2"/>
+<circle cx="140.0" cy="280.1" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.1: 329.1 MiB/s (spread 0.9%)</title></circle>
+<circle cx="280.0" cy="271.3" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.2: 622.6 MiB/s (spread 3.5%)</title></circle>
+<circle cx="420.0" cy="279.8" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.3: 339.9 MiB/s (spread 3.0%)</title></circle>
+<circle cx="560.0" cy="279.6" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.4: 346.9 MiB/s (spread 6.6%)</title></circle>
+<circle cx="700.0" cy="273.9" r="3" fill="#2ca02c"><title>heavy_sgr v0.2.0: 536.2 MiB/s (spread 6.1%)</title></circle>
+<polyline points="140.0,278.6 280.0,268.5 420.0,278.4 560.0,277.4 700.0,276.7" fill="none" stroke="#9467bd" stroke-width="2"/>
+<circle cx="140.0" cy="278.6" r="3" fill="#9467bd"><title>tui_redraw v0.1.1: 380.4 MiB/s (spread 11.9%)</title></circle>
+<circle cx="280.0" cy="268.5" r="3" fill="#9467bd"><title>tui_redraw v0.1.2: 717.9 MiB/s (spread 13.8%)</title></circle>
+<circle cx="420.0" cy="278.4" r="3" fill="#9467bd"><title>tui_redraw v0.1.3: 386.6 MiB/s (spread 6.9%)</title></circle>
+<circle cx="560.0" cy="277.4" r="3" fill="#9467bd"><title>tui_redraw v0.1.4: 419.9 MiB/s (spread 0.7%)</title></circle>
+<circle cx="700.0" cy="276.7" r="3" fill="#9467bd"><title>tui_redraw v0.2.0: 444.0 MiB/s (spread 4.0%)</title></circle>
+<polyline points="140.0,270.1 280.0,246.2 420.0,265.2 560.0,258.3 700.0,244.8" fill="none" stroke="#ff7f0e" stroke-width="2"/>
+<circle cx="140.0" cy="270.1" r="3" fill="#ff7f0e"><title>scroll_region v0.1.1: 663.7 MiB/s (spread 3.2%)</title></circle>
+<circle cx="280.0" cy="246.2" r="3" fill="#ff7f0e"><title>scroll_region v0.1.2: 1461.4 MiB/s (spread 45.2%)</title></circle>
+<circle cx="420.0" cy="265.2" r="3" fill="#ff7f0e"><title>scroll_region v0.1.3: 825.7 MiB/s (spread 2.6%)</title></circle>
+<circle cx="560.0" cy="258.3" r="3" fill="#ff7f0e"><title>scroll_region v0.1.4: 1056.0 MiB/s (spread 0.9%)</title></circle>
+<circle cx="700.0" cy="244.8" r="3" fill="#ff7f0e"><title>scroll_region v0.2.0: 1506.1 MiB/s (spread 3.6%)</title></circle>
+<polyline points="140.0,274.0 280.0,255.5 420.0,270.6 560.0,269.0 700.0,268.6" fill="none" stroke="#17becf" stroke-width="2"/>
+<circle cx="140.0" cy="274.0" r="3" fill="#17becf"><title>cjk_wide v0.1.1: 533.5 MiB/s (spread 1.0%)</title></circle>
+<circle cx="280.0" cy="255.5" r="3" fill="#17becf"><title>cjk_wide v0.1.2: 1151.3 MiB/s (spread 50.0%)</title></circle>
+<circle cx="420.0" cy="270.6" r="3" fill="#17becf"><title>cjk_wide v0.1.3: 645.5 MiB/s (spread 3.3%)</title></circle>
+<circle cx="560.0" cy="269.0" r="3" fill="#17becf"><title>cjk_wide v0.1.4: 699.8 MiB/s (spread 12.4%)</title></circle>
+<circle cx="700.0" cy="268.6" r="3" fill="#17becf"><title>cjk_wide v0.2.0: 714.8 MiB/s (spread 6.8%)</title></circle>
+<polyline points="140.0,281.4 280.0,273.2 420.0,280.8 560.0,280.3 700.0,275.5" fill="none" stroke="#8c564b" stroke-width="2"/>
+<circle cx="140.0" cy="281.4" r="3" fill="#8c564b"><title>dense_cells v0.1.1: 287.0 MiB/s (spread 18.6%)</title></circle>
+<circle cx="280.0" cy="273.2" r="3" fill="#8c564b"><title>dense_cells v0.1.2: 560.0 MiB/s (spread 3.3%)</title></circle>
+<circle cx="420.0" cy="280.8" r="3" fill="#8c564b"><title>dense_cells v0.1.3: 306.5 MiB/s (spread 12.2%)</title></circle>
+<circle cx="560.0" cy="280.3" r="3" fill="#8c564b"><title>dense_cells v0.1.4: 323.6 MiB/s (spread 1.7%)</title></circle>
+<circle cx="700.0" cy="275.5" r="3" fill="#8c564b"><title>dense_cells v0.2.0: 482.5 MiB/s (spread 7.0%)</title></circle>
+<polyline points="140.0,268.8 280.0,248.7 420.0,262.8 560.0,258.2 700.0,162.1" fill="none" stroke="#e377c2" stroke-width="2"/>
+<circle cx="140.0" cy="268.8" r="3" fill="#e377c2"><title>scrolling v0.1.1: 707.2 MiB/s (spread 1.6%)</title></circle>
+<circle cx="280.0" cy="248.7" r="3" fill="#e377c2"><title>scrolling v0.1.2: 1376.8 MiB/s (spread 5.5%)</title></circle>
+<circle cx="420.0" cy="262.8" r="3" fill="#e377c2"><title>scrolling v0.1.3: 906.1 MiB/s (spread 3.1%)</title></circle>
+<circle cx="560.0" cy="258.2" r="3" fill="#e377c2"><title>scrolling v0.1.4: 1059.0 MiB/s (spread 1.1%)</title></circle>
+<circle cx="700.0" cy="162.1" r="3" fill="#e377c2"><title>scrolling v0.2.0: 4263.1 MiB/s (spread 15.3%)</title></circle>
+<polyline points="140.0,279.9 280.0,272.8 420.0,279.9 560.0,280.0 700.0,268.4" fill="none" stroke="#7f7f7f" stroke-width="2"/>
+<circle cx="140.0" cy="279.9" r="3" fill="#7f7f7f"><title>sixel v0.1.1: 337.3 MiB/s (spread 0.4%)</title></circle>
+<circle cx="280.0" cy="272.8" r="3" fill="#7f7f7f"><title>sixel v0.1.2: 572.8 MiB/s (spread 4.6%)</title></circle>
+<circle cx="420.0" cy="279.9" r="3" fill="#7f7f7f"><title>sixel v0.1.3: 337.7 MiB/s (spread 9.7%)</title></circle>
+<circle cx="560.0" cy="280.0" r="3" fill="#7f7f7f"><title>sixel v0.1.4: 334.8 MiB/s (spread 4.5%)</title></circle>
+<circle cx="700.0" cy="268.4" r="3" fill="#7f7f7f"><title>sixel v0.2.0: 719.8 MiB/s (spread 8.3%)</title></circle>
+<polyline points="140.0,277.6 280.0,263.5 420.0,276.7 560.0,279.2 700.0,273.3" fill="none" stroke="#bcbd22" stroke-width="2"/>
+<circle cx="140.0" cy="277.6" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.1: 411.9 MiB/s (spread 12.7%)</title></circle>
+<circle cx="280.0" cy="263.5" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.2: 885.0 MiB/s (spread 4.1%)</title></circle>
+<circle cx="420.0" cy="276.7" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.3: 441.7 MiB/s (spread 3.5%)</title></circle>
+<circle cx="560.0" cy="279.2" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.4: 359.9 MiB/s (spread 1.9%)</title></circle>
+<circle cx="700.0" cy="273.3" r="3" fill="#bcbd22"><title>osc_9_7 v0.2.0: 556.7 MiB/s (spread 2.3%)</title></circle>
+<polyline points="560.0,276.9 700.0,277.8" fill="none" stroke="#111111" stroke-width="2"/>
+<circle cx="560.0" cy="276.9" r="3" fill="#111111"><title>grapheme_clusters v0.1.4: 436.8 MiB/s (spread 3.6%)</title></circle>
+<circle cx="700.0" cy="277.8" r="3" fill="#111111"><title>grapheme_clusters v0.2.0: 407.4 MiB/s (spread 5.2%)</title></circle>
+<polyline points="560.0,282.8 700.0,204.4" fill="none" stroke="#003f5c" stroke-width="2"/>
+<circle cx="560.0" cy="282.8" r="3" fill="#003f5c"><title>hyperlinks v0.1.4: 238.9 MiB/s (spread 1.8%)</title></circle>
+<circle cx="700.0" cy="204.4" r="3" fill="#003f5c"><title>hyperlinks v0.2.0: 2851.8 MiB/s (spread 1.4%)</title></circle>
+<polyline points="560.0,281.9 700.0,277.5" fill="none" stroke="#e6ab02" stroke-width="2"/>
+<circle cx="560.0" cy="281.9" r="3" fill="#e6ab02"><title>mode_churn v0.1.4: 271.4 MiB/s (spread 3.7%)</title></circle>
+<circle cx="700.0" cy="277.5" r="3" fill="#e6ab02"><title>mode_churn v0.2.0: 416.0 MiB/s (spread 18.8%)</title></circle>
+<polyline points="560.0,279.6 700.0,245.1" fill="none" stroke="#a0006b" stroke-width="2"/>
+<circle cx="560.0" cy="279.6" r="3" fill="#a0006b"><title>sixel_large v0.1.4: 346.5 MiB/s (spread 0.5%)</title></circle>
+<circle cx="700.0" cy="245.1" r="3" fill="#a0006b"><title>sixel_large v0.2.0: 1497.0 MiB/s (spread 23.2%)</title></circle>
+<circle cx="700.0" cy="274.7" r="3" fill="#66a61e"><title>unique_styles v0.2.0: 508.6 MiB/s (spread 15.4%)</title></circle>
+<circle cx="700.0" cy="276.1" r="3" fill="#7570b3"><title>unique_links v0.2.0: 462.4 MiB/s (spread 3.0%)</title></circle>
+<circle cx="700.0" cy="277.1" r="3" fill="#b15928"><title>kitty_images v0.2.0: 430.2 MiB/s (spread 1.9%)</title></circle>
 <rect x="790.0" y="50.0" width="12" height="12" fill="#1f77b4"/>
 <text x="808.0" y="60.0" fill="#222222">plain_ascii</text>
 <rect x="790.0" y="71.0" width="12" height="12" fill="#d62728"/>
@@ -98,78 +120,104 @@
 <text x="808.0" y="312.0" fill="#222222">mode_churn</text>
 <rect x="790.0" y="323.0" width="12" height="12" fill="#a0006b"/>
 <text x="808.0" y="333.0" fill="#222222">sixel_large</text>
+<rect x="790.0" y="344.0" width="12" height="12" fill="#66a61e"/>
+<text x="808.0" y="354.0" fill="#222222">unique_styles</text>
+<rect x="790.0" y="365.0" width="12" height="12" fill="#7570b3"/>
+<text x="808.0" y="375.0" fill="#222222">unique_links</text>
+<rect x="790.0" y="386.0" width="12" height="12" fill="#b15928"/>
+<text x="808.0" y="396.0" fill="#222222">kitty_images</text>
 <text x="70" y="358.0" font-size="16" fill="#222222">oneterm-vt tier 2 grid throughput on windows (MiB/s, higher is better)</text>
 <text x="70" y="370.0" text-anchor="end" fill="#444444">MiB/s</text>
 <line x1="70" y1="620.0" x2="770.0" y2="620.0" stroke="#dddddd"/>
 <text x="62.0" y="624.0" text-anchor="end" fill="#444444">0.0</text>
-<line x1="70" y1="572.0" x2="770.0" y2="572.0" stroke="#dddddd"/>
-<text x="62.0" y="576.0" text-anchor="end" fill="#444444">50.0</text>
-<line x1="70" y1="524.0" x2="770.0" y2="524.0" stroke="#dddddd"/>
-<text x="62.0" y="528.0" text-anchor="end" fill="#444444">100.0</text>
-<line x1="70" y1="476.0" x2="770.0" y2="476.0" stroke="#dddddd"/>
-<text x="62.0" y="480.0" text-anchor="end" fill="#444444">150.0</text>
-<line x1="70" y1="428.0" x2="770.0" y2="428.0" stroke="#dddddd"/>
-<text x="62.0" y="432.0" text-anchor="end" fill="#444444">200.0</text>
+<line x1="70" y1="560.0" x2="770.0" y2="560.0" stroke="#dddddd"/>
+<text x="62.0" y="564.0" text-anchor="end" fill="#444444">200.0</text>
+<line x1="70" y1="500.0" x2="770.0" y2="500.0" stroke="#dddddd"/>
+<text x="62.0" y="504.0" text-anchor="end" fill="#444444">400.0</text>
+<line x1="70" y1="440.0" x2="770.0" y2="440.0" stroke="#dddddd"/>
+<text x="62.0" y="444.0" text-anchor="end" fill="#444444">600.0</text>
 <line x1="70" y1="380.0" x2="770.0" y2="380.0" stroke="#dddddd"/>
-<text x="62.0" y="384.0" text-anchor="end" fill="#444444">250.0</text>
-<text x="157.5" y="640.0" text-anchor="middle" fill="#444444">v0.1.1</text>
-<text x="332.5" y="640.0" text-anchor="middle" fill="#444444">v0.1.2</text>
-<text x="507.5" y="640.0" text-anchor="middle" fill="#444444">v0.1.3</text>
-<text x="682.5" y="640.0" text-anchor="middle" fill="#444444">v0.1.4</text>
-<polyline points="157.5,544.8 332.5,481.2 507.5,541.8 682.5,530.2" fill="none" stroke="#1f77b4" stroke-width="2"/>
-<circle cx="157.5" cy="544.8" r="3" fill="#1f77b4"><title>plain_ascii v0.1.1: 78.3 MiB/s (spread 9.5%)</title></circle>
-<circle cx="332.5" cy="481.2" r="3" fill="#1f77b4"><title>plain_ascii v0.1.2: 144.6 MiB/s (spread 5.7%)</title></circle>
-<circle cx="507.5" cy="541.8" r="3" fill="#1f77b4"><title>plain_ascii v0.1.3: 81.4 MiB/s (spread 3.1%)</title></circle>
-<circle cx="682.5" cy="530.2" r="3" fill="#1f77b4"><title>plain_ascii v0.1.4: 93.6 MiB/s (spread 1.4%)</title></circle>
-<polyline points="157.5,538.1 332.5,467.3 507.5,538.0 682.5,510.9" fill="none" stroke="#d62728" stroke-width="2"/>
-<circle cx="157.5" cy="538.1" r="3" fill="#d62728"><title>long_lines v0.1.1: 85.3 MiB/s (spread 2.7%)</title></circle>
-<circle cx="332.5" cy="467.3" r="3" fill="#d62728"><title>long_lines v0.1.2: 159.1 MiB/s (spread 8.6%)</title></circle>
-<circle cx="507.5" cy="538.0" r="3" fill="#d62728"><title>long_lines v0.1.3: 85.4 MiB/s (spread 12.1%)</title></circle>
-<circle cx="682.5" cy="510.9" r="3" fill="#d62728"><title>long_lines v0.1.4: 113.7 MiB/s (spread 0.4%)</title></circle>
-<polyline points="157.5,494.8 332.5,405.3 507.5,495.6 682.5,456.4" fill="none" stroke="#2ca02c" stroke-width="2"/>
-<circle cx="157.5" cy="494.8" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.1: 130.4 MiB/s (spread 0.5%)</title></circle>
-<circle cx="332.5" cy="405.3" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.2: 223.7 MiB/s (spread 1.8%)</title></circle>
-<circle cx="507.5" cy="495.6" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.3: 129.6 MiB/s (spread 4.6%)</title></circle>
-<circle cx="682.5" cy="456.4" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.4: 170.5 MiB/s (spread 2.3%)</title></circle>
-<polyline points="157.5,513.6 332.5,422.3 507.5,518.6 682.5,472.6" fill="none" stroke="#9467bd" stroke-width="2"/>
-<circle cx="157.5" cy="513.6" r="3" fill="#9467bd"><title>tui_redraw v0.1.1: 110.8 MiB/s (spread 0.5%)</title></circle>
-<circle cx="332.5" cy="422.3" r="3" fill="#9467bd"><title>tui_redraw v0.1.2: 206.0 MiB/s (spread 4.4%)</title></circle>
-<circle cx="507.5" cy="518.6" r="3" fill="#9467bd"><title>tui_redraw v0.1.3: 105.7 MiB/s (spread 7.4%)</title></circle>
-<circle cx="682.5" cy="472.6" r="3" fill="#9467bd"><title>tui_redraw v0.1.4: 153.5 MiB/s (spread 13.6%)</title></circle>
-<polyline points="157.5,573.7 332.5,540.4 507.5,574.2 682.5,559.3" fill="none" stroke="#ff7f0e" stroke-width="2"/>
-<circle cx="157.5" cy="573.7" r="3" fill="#ff7f0e"><title>scroll_region v0.1.1: 48.2 MiB/s (spread 2.0%)</title></circle>
-<circle cx="332.5" cy="540.4" r="3" fill="#ff7f0e"><title>scroll_region v0.1.2: 83.0 MiB/s (spread 0.8%)</title></circle>
-<circle cx="507.5" cy="574.2" r="3" fill="#ff7f0e"><title>scroll_region v0.1.3: 47.8 MiB/s (spread 2.7%)</title></circle>
-<circle cx="682.5" cy="559.3" r="3" fill="#ff7f0e"><title>scroll_region v0.1.4: 63.2 MiB/s (spread 0.2%)</title></circle>
-<polyline points="157.5,545.1 332.5,491.0 507.5,548.3 682.5,520.0" fill="none" stroke="#17becf" stroke-width="2"/>
-<circle cx="157.5" cy="545.1" r="3" fill="#17becf"><title>cjk_wide v0.1.1: 78.1 MiB/s (spread 2.8%)</title></circle>
-<circle cx="332.5" cy="491.0" r="3" fill="#17becf"><title>cjk_wide v0.1.2: 134.4 MiB/s (spread 1.6%)</title></circle>
-<circle cx="507.5" cy="548.3" r="3" fill="#17becf"><title>cjk_wide v0.1.3: 74.7 MiB/s (spread 39.1%)</title></circle>
-<circle cx="682.5" cy="520.0" r="3" fill="#17becf"><title>cjk_wide v0.1.4: 104.2 MiB/s (spread 3.3%)</title></circle>
-<polyline points="157.5,530.2 332.5,463.0 507.5,528.3 682.5,503.0" fill="none" stroke="#8c564b" stroke-width="2"/>
-<circle cx="157.5" cy="530.2" r="3" fill="#8c564b"><title>dense_cells v0.1.1: 93.5 MiB/s (spread 2.4%)</title></circle>
-<circle cx="332.5" cy="463.0" r="3" fill="#8c564b"><title>dense_cells v0.1.2: 163.6 MiB/s (spread 3.3%)</title></circle>
-<circle cx="507.5" cy="528.3" r="3" fill="#8c564b"><title>dense_cells v0.1.3: 95.5 MiB/s (spread 5.5%)</title></circle>
-<circle cx="682.5" cy="503.0" r="3" fill="#8c564b"><title>dense_cells v0.1.4: 121.9 MiB/s (spread 0.6%)</title></circle>
-<polyline points="157.5,538.1 332.5,464.7 507.5,538.6 682.5,509.2" fill="none" stroke="#e377c2" stroke-width="2"/>
-<circle cx="157.5" cy="538.1" r="3" fill="#e377c2"><title>scrolling v0.1.1: 85.3 MiB/s (spread 2.3%)</title></circle>
-<circle cx="332.5" cy="464.7" r="3" fill="#e377c2"><title>scrolling v0.1.2: 161.7 MiB/s (spread 8.9%)</title></circle>
-<circle cx="507.5" cy="538.6" r="3" fill="#e377c2"><title>scrolling v0.1.3: 84.8 MiB/s (spread 5.3%)</title></circle>
-<circle cx="682.5" cy="509.2" r="3" fill="#e377c2"><title>scrolling v0.1.4: 115.4 MiB/s (spread 3.1%)</title></circle>
-<polyline points="157.5,596.7 332.5,579.5 507.5,596.2 682.5,596.0" fill="none" stroke="#7f7f7f" stroke-width="2"/>
-<circle cx="157.5" cy="596.7" r="3" fill="#7f7f7f"><title>sixel v0.1.1: 24.3 MiB/s (spread 5.6%)</title></circle>
-<circle cx="332.5" cy="579.5" r="3" fill="#7f7f7f"><title>sixel v0.1.2: 42.2 MiB/s (spread 6.0%)</title></circle>
-<circle cx="507.5" cy="596.2" r="3" fill="#7f7f7f"><title>sixel v0.1.3: 24.8 MiB/s (spread 18.2%)</title></circle>
-<circle cx="682.5" cy="596.0" r="3" fill="#7f7f7f"><title>sixel v0.1.4: 25.0 MiB/s (spread 3.1%)</title></circle>
-<polyline points="157.5,535.7 332.5,446.3 507.5,533.7 682.5,530.7" fill="none" stroke="#bcbd22" stroke-width="2"/>
-<circle cx="157.5" cy="535.7" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.1: 87.8 MiB/s (spread 5.1%)</title></circle>
-<circle cx="332.5" cy="446.3" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.2: 181.0 MiB/s (spread 8.3%)</title></circle>
-<circle cx="507.5" cy="533.7" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.3: 89.9 MiB/s (spread 6.1%)</title></circle>
-<circle cx="682.5" cy="530.7" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.4: 93.1 MiB/s (spread 2.8%)</title></circle>
-<circle cx="682.5" cy="599.7" r="3" fill="#111111"><title>grapheme_clusters v0.1.4: 21.1 MiB/s (spread 1.9%)</title></circle>
-<circle cx="682.5" cy="413.1" r="3" fill="#003f5c"><title>hyperlinks v0.1.4: 215.6 MiB/s (spread 5.1%)</title></circle>
-<circle cx="682.5" cy="518.8" r="3" fill="#e6ab02"><title>mode_churn v0.1.4: 105.5 MiB/s (spread 1.1%)</title></circle>
-<circle cx="682.5" cy="597.0" r="3" fill="#a0006b"><title>sixel_large v0.1.4: 23.9 MiB/s (spread 2.0%)</title></circle>
+<text x="62.0" y="384.0" text-anchor="end" fill="#444444">800.0</text>
+<text x="140.0" y="640.0" text-anchor="middle" fill="#444444">v0.1.1</text>
+<text x="280.0" y="640.0" text-anchor="middle" fill="#444444">v0.1.2</text>
+<text x="420.0" y="640.0" text-anchor="middle" fill="#444444">v0.1.3</text>
+<text x="560.0" y="640.0" text-anchor="middle" fill="#444444">v0.1.4</text>
+<text x="700.0" y="640.0" text-anchor="middle" fill="#444444">v0.2.0</text>
+<polyline points="140.0,596.5 280.0,576.6 420.0,595.6 560.0,591.9 700.0,507.1" fill="none" stroke="#1f77b4" stroke-width="2"/>
+<circle cx="140.0" cy="596.5" r="3" fill="#1f77b4"><title>plain_ascii v0.1.1: 78.3 MiB/s (spread 9.5%)</title></circle>
+<circle cx="280.0" cy="576.6" r="3" fill="#1f77b4"><title>plain_ascii v0.1.2: 144.6 MiB/s (spread 5.7%)</title></circle>
+<circle cx="420.0" cy="595.6" r="3" fill="#1f77b4"><title>plain_ascii v0.1.3: 81.4 MiB/s (spread 3.1%)</title></circle>
+<circle cx="560.0" cy="591.9" r="3" fill="#1f77b4"><title>plain_ascii v0.1.4: 93.6 MiB/s (spread 1.4%)</title></circle>
+<circle cx="700.0" cy="507.1" r="3" fill="#1f77b4"><title>plain_ascii v0.2.0: 376.2 MiB/s (spread 25.1%)</title></circle>
+<polyline points="140.0,594.4 280.0,572.3 420.0,594.4 560.0,585.9 700.0,464.0" fill="none" stroke="#d62728" stroke-width="2"/>
+<circle cx="140.0" cy="594.4" r="3" fill="#d62728"><title>long_lines v0.1.1: 85.3 MiB/s (spread 2.7%)</title></circle>
+<circle cx="280.0" cy="572.3" r="3" fill="#d62728"><title>long_lines v0.1.2: 159.1 MiB/s (spread 8.6%)</title></circle>
+<circle cx="420.0" cy="594.4" r="3" fill="#d62728"><title>long_lines v0.1.3: 85.4 MiB/s (spread 12.1%)</title></circle>
+<circle cx="560.0" cy="585.9" r="3" fill="#d62728"><title>long_lines v0.1.4: 113.7 MiB/s (spread 0.4%)</title></circle>
+<circle cx="700.0" cy="464.0" r="3" fill="#d62728"><title>long_lines v0.2.0: 519.9 MiB/s (spread 19.0%)</title></circle>
+<polyline points="140.0,580.9 280.0,552.9 420.0,581.1 560.0,568.9 700.0,571.8" fill="none" stroke="#2ca02c" stroke-width="2"/>
+<circle cx="140.0" cy="580.9" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.1: 130.4 MiB/s (spread 0.5%)</title></circle>
+<circle cx="280.0" cy="552.9" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.2: 223.7 MiB/s (spread 1.8%)</title></circle>
+<circle cx="420.0" cy="581.1" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.3: 129.6 MiB/s (spread 4.6%)</title></circle>
+<circle cx="560.0" cy="568.9" r="3" fill="#2ca02c"><title>heavy_sgr v0.1.4: 170.5 MiB/s (spread 2.3%)</title></circle>
+<circle cx="700.0" cy="571.8" r="3" fill="#2ca02c"><title>heavy_sgr v0.2.0: 160.8 MiB/s (spread 9.4%)</title></circle>
+<polyline points="140.0,586.8 280.0,558.2 420.0,588.3 560.0,573.9 700.0,564.0" fill="none" stroke="#9467bd" stroke-width="2"/>
+<circle cx="140.0" cy="586.8" r="3" fill="#9467bd"><title>tui_redraw v0.1.1: 110.8 MiB/s (spread 0.5%)</title></circle>
+<circle cx="280.0" cy="558.2" r="3" fill="#9467bd"><title>tui_redraw v0.1.2: 206.0 MiB/s (spread 4.4%)</title></circle>
+<circle cx="420.0" cy="588.3" r="3" fill="#9467bd"><title>tui_redraw v0.1.3: 105.7 MiB/s (spread 7.4%)</title></circle>
+<circle cx="560.0" cy="573.9" r="3" fill="#9467bd"><title>tui_redraw v0.1.4: 153.5 MiB/s (spread 13.6%)</title></circle>
+<circle cx="700.0" cy="564.0" r="3" fill="#9467bd"><title>tui_redraw v0.2.0: 186.6 MiB/s (spread 6.3%)</title></circle>
+<polyline points="140.0,605.5 280.0,595.1 420.0,605.7 560.0,601.0 700.0,524.0" fill="none" stroke="#ff7f0e" stroke-width="2"/>
+<circle cx="140.0" cy="605.5" r="3" fill="#ff7f0e"><title>scroll_region v0.1.1: 48.2 MiB/s (spread 2.0%)</title></circle>
+<circle cx="280.0" cy="595.1" r="3" fill="#ff7f0e"><title>scroll_region v0.1.2: 83.0 MiB/s (spread 0.8%)</title></circle>
+<circle cx="420.0" cy="605.7" r="3" fill="#ff7f0e"><title>scroll_region v0.1.3: 47.8 MiB/s (spread 2.7%)</title></circle>
+<circle cx="560.0" cy="601.0" r="3" fill="#ff7f0e"><title>scroll_region v0.1.4: 63.2 MiB/s (spread 0.2%)</title></circle>
+<circle cx="700.0" cy="524.0" r="3" fill="#ff7f0e"><title>scroll_region v0.2.0: 320.1 MiB/s (spread 12.5%)</title></circle>
+<polyline points="140.0,596.6 280.0,579.7 420.0,597.6 560.0,588.7 700.0,561.1" fill="none" stroke="#17becf" stroke-width="2"/>
+<circle cx="140.0" cy="596.6" r="3" fill="#17becf"><title>cjk_wide v0.1.1: 78.1 MiB/s (spread 2.8%)</title></circle>
+<circle cx="280.0" cy="579.7" r="3" fill="#17becf"><title>cjk_wide v0.1.2: 134.4 MiB/s (spread 1.6%)</title></circle>
+<circle cx="420.0" cy="597.6" r="3" fill="#17becf"><title>cjk_wide v0.1.3: 74.7 MiB/s (spread 39.1%)</title></circle>
+<circle cx="560.0" cy="588.7" r="3" fill="#17becf"><title>cjk_wide v0.1.4: 104.2 MiB/s (spread 3.3%)</title></circle>
+<circle cx="700.0" cy="561.1" r="3" fill="#17becf"><title>cjk_wide v0.2.0: 196.5 MiB/s (spread 7.4%)</title></circle>
+<polyline points="140.0,591.9 280.0,570.9 420.0,591.4 560.0,583.4 700.0,582.3" fill="none" stroke="#8c564b" stroke-width="2"/>
+<circle cx="140.0" cy="591.9" r="3" fill="#8c564b"><title>dense_cells v0.1.1: 93.5 MiB/s (spread 2.4%)</title></circle>
+<circle cx="280.0" cy="570.9" r="3" fill="#8c564b"><title>dense_cells v0.1.2: 163.6 MiB/s (spread 3.3%)</title></circle>
+<circle cx="420.0" cy="591.4" r="3" fill="#8c564b"><title>dense_cells v0.1.3: 95.5 MiB/s (spread 5.5%)</title></circle>
+<circle cx="560.0" cy="583.4" r="3" fill="#8c564b"><title>dense_cells v0.1.4: 121.9 MiB/s (spread 0.6%)</title></circle>
+<circle cx="700.0" cy="582.3" r="3" fill="#8c564b"><title>dense_cells v0.2.0: 125.8 MiB/s (spread 3.4%)</title></circle>
+<polyline points="140.0,594.4 280.0,571.5 420.0,594.6 560.0,585.4 700.0,441.7" fill="none" stroke="#e377c2" stroke-width="2"/>
+<circle cx="140.0" cy="594.4" r="3" fill="#e377c2"><title>scrolling v0.1.1: 85.3 MiB/s (spread 2.3%)</title></circle>
+<circle cx="280.0" cy="571.5" r="3" fill="#e377c2"><title>scrolling v0.1.2: 161.7 MiB/s (spread 8.9%)</title></circle>
+<circle cx="420.0" cy="594.6" r="3" fill="#e377c2"><title>scrolling v0.1.3: 84.8 MiB/s (spread 5.3%)</title></circle>
+<circle cx="560.0" cy="585.4" r="3" fill="#e377c2"><title>scrolling v0.1.4: 115.4 MiB/s (spread 3.1%)</title></circle>
+<circle cx="700.0" cy="441.7" r="3" fill="#e377c2"><title>scrolling v0.2.0: 594.3 MiB/s (spread 22.0%)</title></circle>
+<polyline points="140.0,612.7 280.0,607.3 420.0,612.6 560.0,612.5 700.0,607.4" fill="none" stroke="#7f7f7f" stroke-width="2"/>
+<circle cx="140.0" cy="612.7" r="3" fill="#7f7f7f"><title>sixel v0.1.1: 24.3 MiB/s (spread 5.6%)</title></circle>
+<circle cx="280.0" cy="607.3" r="3" fill="#7f7f7f"><title>sixel v0.1.2: 42.2 MiB/s (spread 6.0%)</title></circle>
+<circle cx="420.0" cy="612.6" r="3" fill="#7f7f7f"><title>sixel v0.1.3: 24.8 MiB/s (spread 18.2%)</title></circle>
+<circle cx="560.0" cy="612.5" r="3" fill="#7f7f7f"><title>sixel v0.1.4: 25.0 MiB/s (spread 3.1%)</title></circle>
+<circle cx="700.0" cy="607.4" r="3" fill="#7f7f7f"><title>sixel v0.2.0: 42.1 MiB/s (spread 9.4%)</title></circle>
+<polyline points="140.0,593.7 280.0,565.7 420.0,593.0 560.0,592.1 700.0,562.4" fill="none" stroke="#bcbd22" stroke-width="2"/>
+<circle cx="140.0" cy="593.7" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.1: 87.8 MiB/s (spread 5.1%)</title></circle>
+<circle cx="280.0" cy="565.7" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.2: 181.0 MiB/s (spread 8.3%)</title></circle>
+<circle cx="420.0" cy="593.0" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.3: 89.9 MiB/s (spread 6.1%)</title></circle>
+<circle cx="560.0" cy="592.1" r="3" fill="#bcbd22"><title>osc_9_7 v0.1.4: 93.1 MiB/s (spread 2.8%)</title></circle>
+<circle cx="700.0" cy="562.4" r="3" fill="#bcbd22"><title>osc_9_7 v0.2.0: 191.9 MiB/s (spread 11.3%)</title></circle>
+<polyline points="560.0,613.7 700.0,609.5" fill="none" stroke="#111111" stroke-width="2"/>
+<circle cx="560.0" cy="613.7" r="3" fill="#111111"><title>grapheme_clusters v0.1.4: 21.1 MiB/s (spread 1.9%)</title></circle>
+<circle cx="700.0" cy="609.5" r="3" fill="#111111"><title>grapheme_clusters v0.2.0: 35.0 MiB/s (spread 0.5%)</title></circle>
+<polyline points="560.0,555.3 700.0,400.2" fill="none" stroke="#003f5c" stroke-width="2"/>
+<circle cx="560.0" cy="555.3" r="3" fill="#003f5c"><title>hyperlinks v0.1.4: 215.6 MiB/s (spread 5.1%)</title></circle>
+<circle cx="700.0" cy="400.2" r="3" fill="#003f5c"><title>hyperlinks v0.2.0: 732.7 MiB/s (spread 19.7%)</title></circle>
+<polyline points="560.0,588.4 700.0,584.1" fill="none" stroke="#e6ab02" stroke-width="2"/>
+<circle cx="560.0" cy="588.4" r="3" fill="#e6ab02"><title>mode_churn v0.1.4: 105.5 MiB/s (spread 1.1%)</title></circle>
+<circle cx="700.0" cy="584.1" r="3" fill="#e6ab02"><title>mode_churn v0.2.0: 119.5 MiB/s (spread 4.5%)</title></circle>
+<polyline points="560.0,612.8 700.0,608.5" fill="none" stroke="#a0006b" stroke-width="2"/>
+<circle cx="560.0" cy="612.8" r="3" fill="#a0006b"><title>sixel_large v0.1.4: 23.9 MiB/s (spread 2.0%)</title></circle>
+<circle cx="700.0" cy="608.5" r="3" fill="#a0006b"><title>sixel_large v0.2.0: 38.4 MiB/s (spread 3.7%)</title></circle>
+<circle cx="700.0" cy="605.8" r="3" fill="#66a61e"><title>unique_styles v0.2.0: 47.5 MiB/s (spread 10.4%)</title></circle>
+<circle cx="700.0" cy="604.4" r="3" fill="#7570b3"><title>unique_links v0.2.0: 51.9 MiB/s (spread 13.0%)</title></circle>
+<circle cx="700.0" cy="581.5" r="3" fill="#b15928"><title>kitty_images v0.2.0: 128.2 MiB/s (spread 1.9%)</title></circle>
 <rect x="790.0" y="380.0" width="12" height="12" fill="#1f77b4"/>
 <text x="808.0" y="390.0" fill="#222222">plain_ascii</text>
 <rect x="790.0" y="401.0" width="12" height="12" fill="#d62728"/>
@@ -198,5 +246,11 @@
 <text x="808.0" y="642.0" fill="#222222">mode_churn</text>
 <rect x="790.0" y="653.0" width="12" height="12" fill="#a0006b"/>
 <text x="808.0" y="663.0" fill="#222222">sixel_large</text>
+<rect x="790.0" y="674.0" width="12" height="12" fill="#66a61e"/>
+<text x="808.0" y="684.0" fill="#222222">unique_styles</text>
+<rect x="790.0" y="695.0" width="12" height="12" fill="#7570b3"/>
+<text x="808.0" y="705.0" fill="#222222">unique_links</text>
+<rect x="790.0" y="716.0" width="12" height="12" fill="#b15928"/>
+<text x="808.0" y="726.0" fill="#222222">kitty_images</text>
 <text x="70" y="678.0" fill="#b00020">warning: 3 machines in this history; compare runs from one machine only</text>
 </svg>

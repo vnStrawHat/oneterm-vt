@@ -4,7 +4,7 @@ Releases are git tags `vX.Y.Z`; consumers depend by tag. Standard semver, three 
 
 ```toml
 [dependencies]
-oneterm-vt = { git = "https://github.com/vnStrawHat/oneterm-vt", tag = "v0.1.4" }
+oneterm-vt = { git = "https://github.com/vnStrawHat/oneterm-vt", tag = "v0.2.0" }
 ```
 
 | Kind | When |

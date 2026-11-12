@@ -4,13 +4,13 @@ An embeddable terminal core in Rust: VT parser, grid with scrollback, reflow, se
 damage-tracked snapshots, key and mouse encoders, Sixel and kitty graphics, and an optional
 pseudo-console. You bring the pixels.
 
-**Status:** v0.1.4. Built and tested on Linux, Windows and macOS.
+**Status:** v0.2.0. Built and tested on Linux, Windows and macOS.
 
 ## Use
 
 ```toml
 [dependencies]
-oneterm-vt = { git = "https://github.com/vnStrawHat/oneterm-vt", tag = "v0.1.4" }
+oneterm-vt = { git = "https://github.com/vnStrawHat/oneterm-vt", tag = "v0.2.0" }
 ```
 
 Guide: [docs/user/](docs/user/README.md). Semver promise: [docs/user/versioning.md](docs/user/versioning.md).

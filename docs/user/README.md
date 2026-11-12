@@ -16,7 +16,7 @@ working example, and names exact API items. Every Rust block is compiled by `car
 9. `pty` and `kitty-graphics` are default features; `default-features = false` leaves the engine alone.
 10. What is promised across versions: [`versioning.md`](versioning.md).
 
-**Status:** v0.1.4. Every chapter is written; every Rust block compiles in `cargo test --doc`.
+**Status:** v0.2.0. Every chapter is written; every Rust block compiles in `cargo test --doc`.
 
 ## Chapters
 
