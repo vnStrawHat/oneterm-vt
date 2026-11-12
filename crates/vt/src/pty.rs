@@ -123,7 +123,8 @@ impl Shell {
 /// to be named.
 #[derive(Clone, Debug, Default)]
 pub struct Options {
-    /// The program. `None`: `$SHELL`, else `/bin/sh` on Unix; `powershell` on Windows.
+    /// The program. `None`: `$SHELL`, else `/bin/sh` on Unix; Windows PowerShell by its full
+    /// path under `%SystemRoot%` on Windows.
     /// On Unix the arguments go to `exec` as they are. On Windows they are joined into one
     /// command line (see `escape_args`).
     pub shell: Option<Shell>,
@@ -144,9 +145,9 @@ pub struct Options {
     /// terminal signals are unblocked, or Ctrl-C is lost.
     #[cfg(unix)]
     pub child_signal_mask: Option<SignalMask>,
-    /// Windows only. `false` (default) joins the arguments verbatim, so the embedder owns the
-    /// quoting; `true` applies the C-runtime quoting rules and quotes the program when it
-    /// contains a space or tab.
+    /// Windows only. `false` (default) joins the arguments verbatim, so the embedder owns
+    /// their quoting; `true` applies the C-runtime quoting rules to them. The program is quoted
+    /// either way when it contains a space or tab.
     #[cfg(windows)]
     pub escape_args: bool,
 }

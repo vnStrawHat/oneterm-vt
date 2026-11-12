@@ -25,8 +25,19 @@ use super::{
 /// Capacity of each pipe ring.
 const PIPE_CAPACITY: usize = 1 << 20;
 
-/// What `Options::shell: None` starts.
+/// What `Options::shell: None` starts when `%SystemRoot%` is not set.
 const DEFAULT_PROGRAM: &str = "powershell";
+
+/// What `Options::shell: None` starts: Windows PowerShell by its full path, so the search
+/// order of `CreateProcessW` (the executable's folder and the current directory come before
+/// System32) cannot pick up another `powershell.exe`.
+fn default_program(system_root: Option<&OsStr>) -> String {
+    let root = system_root.and_then(OsStr::to_str).unwrap_or_default();
+    if root.is_empty() {
+        return DEFAULT_PROGRAM.to_owned();
+    }
+    format!(r"{root}\System32\WindowsPowerShell\v1.0\powershell.exe")
+}
 
 /// A client behind a ConPTY pseudo-console, polled through two pipe threads and a process wait.
 ///
@@ -41,15 +52,17 @@ pub struct PseudoConsole {
 }
 
 impl PseudoConsole {
-    /// Starts `options.shell` (default: `powershell`) behind a new pseudo-console of `size`.
+    /// Starts `options.shell` (default: Windows PowerShell under `%SystemRoot%`) behind a new
+    /// pseudo-console of `size`.
     /// Uses `conpty.dll` beside the executable when present, else the console host of the
     /// running Windows.
     pub fn spawn(options: &Options, size: WindowSize) -> io::Result<Self> {
         validate_env(&options.env)?;
         let size = coord(size)?;
+        let default = default_program(std::env::var_os("SystemRoot").as_deref());
         let (program, args) = match &options.shell {
             Some(shell) => (shell.program(), shell.args()),
-            None => (DEFAULT_PROGRAM, &[][..]),
+            None => (default.as_str(), &[][..]),
         };
         let command_line = cmdline(program, args, options.escape_args);
         let request = SpawnRequest {
@@ -173,11 +186,11 @@ fn win32_string(text: &OsStr) -> Vec<u16> {
 }
 
 /// The program, then each argument after a space: verbatim, or escaped with the C-runtime
-/// rules when `escape_args` is set (which also quotes a program name holding a space or tab,
-/// so `C:\Program Files\x.exe` cannot run `C:\Program.exe`).
+/// rules when `escape_args` is set. A program name holding a space or tab is always quoted:
+/// unquoted, `C:\Program Files\x.exe` would run `C:\Program.exe` if that existed.
 fn cmdline(program: &str, args: &[String], escape_args: bool) -> String {
     let mut line = String::new();
-    let needs_quotes = escape_args && program.contains([' ', '\t']) && !program.contains('"');
+    let needs_quotes = program.contains([' ', '\t']) && !program.contains('"');
     if needs_quotes {
         line.push('"');
         line.push_str(program);
@@ -272,22 +285,32 @@ mod tests {
     }
 
     #[test]
-    fn default_shell_is_powershell() {
+    fn default_shell_is_powershell_by_full_path() {
         let options = Options::default();
         assert!(options.shell.is_none());
-        assert_eq!(DEFAULT_PROGRAM, "powershell");
         assert_eq!(Shell::default().program(), "");
+        assert_eq!(
+            default_program(Some(OsStr::new("C:\\Windows"))),
+            "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+        );
+        // Without `%SystemRoot%` the name is left to the search path.
+        assert_eq!(default_program(None), "powershell");
+        assert_eq!(default_program(Some(OsStr::new(""))), "powershell");
     }
 
     #[test]
-    fn program_quoted_only_with_escape_args() {
+    fn program_with_a_space_is_always_quoted() {
         let program = "C:\\Program Files\\x.exe";
-        let args = ["a".to_owned()];
+        let args = ["a b".to_owned()];
         assert_eq!(
             cmdline(program, &args, true),
-            "\"C:\\Program Files\\x.exe\" a"
+            "\"C:\\Program Files\\x.exe\" \"a b\""
         );
-        assert_eq!(cmdline(program, &args, false), "C:\\Program Files\\x.exe a");
+        // The arguments stay verbatim without `escape_args`; the program is quoted either way.
+        assert_eq!(
+            cmdline(program, &args, false),
+            "\"C:\\Program Files\\x.exe\" a b"
+        );
         // A program that already holds a quote is left alone.
         assert_eq!(cmdline("a \"b", &[], true), "a \"b");
     }
