@@ -150,6 +150,26 @@ pub fn encode_wheel_event(
     write_report(protocol, code, mods, Phase::Down, ViewportCell { row, col })
 }
 
+/// The report for the window gaining (`focused`) or losing the keyboard focus, or `None` when
+/// the program did not ask for focus reports (`?1004`).
+///
+/// ```
+/// use oneterm_vt::ModeSnapshot;
+/// use oneterm_vt::input::encode_focus;
+///
+/// let mut modes = ModeSnapshot::default();
+/// assert_eq!(encode_focus(true, &modes), None);
+/// modes.focus_reporting = true; // `CSI ? 1004 h`
+/// assert_eq!(encode_focus(true, &modes), Some(&b"\x1b[I"[..]));
+/// assert_eq!(encode_focus(false, &modes), Some(&b"\x1b[O"[..]));
+/// ```
+pub fn encode_focus(focused: bool, modes: &ModeSnapshot) -> Option<&'static [u8]> {
+    if !modes.focus_reporting {
+        return None;
+    }
+    Some(if focused { b"\x1b[I" } else { b"\x1b[O" })
+}
+
 /// Whether SGR ends the report with `M` or `m`.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Phase {

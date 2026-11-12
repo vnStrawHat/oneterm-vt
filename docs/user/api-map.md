@@ -8,7 +8,7 @@ and its payload). The last row of a group lists its functions and constants.
 
 | Item | What it is for | Chapter |
 |---|---|---|
-| `Terminal` | the engine: `feed` bytes, `resize`, `snapshot_update`, `encode_key`; `grid_mut` and `interner_mut` for hand-written cells | [quickstart](quickstart.md) |
+| `Terminal` | the engine: `feed` bytes, `resize`, `snapshot_update`, `encode_key`, `encode_paste`, `encode_focus`, `color_reply`; `grid_mut` and `interner_mut` for hand-written cells | [quickstart](quickstart.md) |
 | `Config` | how a `Terminal` is built: scrollback, product name, OSC routes | [quickstart](quickstart.md) |
 | `OscRoute`, `OscRoutes` | per OSC number: handle it, forward it to you, or drop it | [events](events.md) |
 | `Mode`, `ModeState` | a terminal mode, and how a program set it (DECRQM answers) | [conformance](conformance.md) |
@@ -122,7 +122,7 @@ and its payload). The last row of a group lists its functions and constants.
 
 | Item | What it is for | Chapter |
 |---|---|---|
-| `search::GridText` | a copy of the scrollback text you search without the lock | [search](search.md) |
+| `search::GridText` | a copy of the scrollback text you search without the lock; `as_str` is the plain-text dump | [search](search.md) |
 | `search::SearchPattern`, `search::SearchOptions` | literal or regex (`regex` feature); case and word options | [search](search.md) |
 | `search::SearchMatch` | one hit, across wrapped rows | [search](search.md) |
 | function, constant | `search_grid_text`; `MAX_MATCHES` | [search](search.md) |
@@ -134,7 +134,7 @@ and its payload). The last row of a group lists its functions and constants.
 | `input::KeySpec`, `input::NamedKey`, `input::KeyMods` | what was pressed and with which modifiers | [input](input.md) |
 | `input::KeyEvent`, `input::KeyEventKind` | a key press, repeat or release with text | [input](input.md) |
 | `input::TerminalMouseButton`, `input::MouseModifiers` | mouse button and modifiers for the encoders | [input](input.md) |
-| functions | `encode_key`, `encode_key_event`, `encode_mouse_press`, `encode_mouse_release`, `encode_mouse_move`, `encode_wheel_event` | [input](input.md) |
+| functions | `encode_key`, `encode_key_event`, `encode_mouse_press`, `encode_mouse_release`, `encode_mouse_move`, `encode_wheel_event`, `encode_paste`, `encode_focus` | [input](input.md) |
 
 ## `pty` (feature `pty`)
 

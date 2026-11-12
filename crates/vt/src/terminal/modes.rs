@@ -465,6 +465,7 @@ impl State {
             app_cursor: modes.get(Mode::AppCursor),
             app_keypad: modes.get(Mode::AppKeypad),
             bracketed_paste: modes.get(Mode::BracketedPaste),
+            focus_reporting: modes.get(Mode::FocusInOut),
             insert: modes.get(Mode::Insert),
             show_cursor: modes.get(Mode::ShowCursor),
             alternate_scroll: modes.get(Mode::AlternateScroll),

@@ -18,6 +18,8 @@ let text = GridText::from_terminal(&term); // under your lock; the copy needs no
 let found = search_grid_text(&text, SearchPattern::Literal("world"), SearchOptions::default());
 assert_eq!(found.len(), 1);
 assert_eq!((found[0].start_col, found[0].end_col), (6, 11));
+// The copy is also the plain-text dump of the scrollback and screen, one logical line per `\n`.
+assert!(text.as_str().starts_with("Hello World\n"));
 ```
 
 ## What a match means

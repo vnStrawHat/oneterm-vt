@@ -22,7 +22,7 @@ use crate::grid::{
 };
 use crate::input::{self, KeyEvent, KeyMods, KeySpec};
 use crate::intern::Interner;
-use crate::parser::Parser;
+use crate::parser::{Parser, StringTerm};
 use crate::selection::{
     DEFAULT_SEMANTIC_ESCAPE_CHARS, Invalidation, Selection, SelectionKind, SelectionRange, Side,
 };
@@ -339,7 +339,8 @@ impl Terminal {
     /// Parses `bytes` and applies them: clears `batch`, fills it with the events in byte order
     /// and returns this call's counters (also kept for [`stats`](Self::stats)).
     ///
-    /// Any chunking of one stream gives the same screen and the same events. `now` times
+    /// Any chunking of one stream gives the same screen and the same events, except where a
+    /// `GraphicReleased` lands: images are swept at the end of each call. `now` times
     /// synchronized output (`?2026`): a block opened here holds frames from `now` on (see
     /// [`SyncState`]). The engine reads no clock itself.
     #[cfg_attr(
@@ -532,6 +533,25 @@ impl Terminal {
         self.state.colors.get(key)
     }
 
+    /// The bytes that answer a [`VtEvent::ColorQuery`](crate::VtEvent::ColorQuery) for `key`
+    /// from this terminal's own colours: the program's override when it set one, else the
+    /// theme of [`set_theme_colors`](Self::set_theme_colors). Echo the query's `terminator`.
+    ///
+    /// `None` for a selection colour no program set: the theme has no slot for it, so answer
+    /// with [`ColorKey::color_reply`] from your own colours, or stay silent.
+    pub fn color_reply(&self, key: ColorKey, terminator: StringTerm) -> Option<Vec<u8>> {
+        let theme = &self.state.theme;
+        let themed = match key {
+            ColorKey::Palette(index) => theme.indexed.get(usize::from(index)).copied(),
+            ColorKey::Foreground => Some(theme.foreground),
+            ColorKey::Background => Some(theme.background),
+            ColorKey::Cursor => Some(theme.cursor),
+            ColorKey::SelectionBackground | ColorKey::SelectionForeground => None,
+        };
+        let color = self.state.colors.get(key).or(themed)?;
+        Some(key.color_reply(color, terminator))
+    }
+
     /// Every colour override.
     pub fn colors(&self) -> &ColorOverrides {
         &self.state.colors
@@ -599,6 +619,20 @@ impl Terminal {
     /// or `modifyOtherKeys`; see [`input::encode_key_event`].
     pub fn encode_key_event(&self, event: &KeyEvent) -> Option<Vec<u8>> {
         input::encode_key_event(event, &self.mode_snapshot())
+    }
+
+    /// The bytes to send for pasted `text` against this terminal's own modes: bracketed when
+    /// the program asked for it (`?2004`), control characters filtered either way. Empty
+    /// when nothing is left to send; see [`input::encode_paste`].
+    pub fn encode_paste(&self, text: &str) -> Vec<u8> {
+        input::encode_paste(text, &self.mode_snapshot())
+    }
+
+    /// The bytes to send when the window gains (`focused`) or loses the keyboard focus;
+    /// `None` unless the program asked for focus reports (`?1004`). See
+    /// [`input::encode_focus`].
+    pub fn encode_focus(&self, focused: bool) -> Option<&'static [u8]> {
+        input::encode_focus(focused, &self.mode_snapshot())
     }
 
     /// The mouse protocol a program asked for, if any; the same as

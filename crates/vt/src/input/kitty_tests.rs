@@ -7,36 +7,43 @@ const NONE: KeyMods = KeyMods {
     shift: false,
     ctrl: false,
     alt: false,
+    super_key: false,
 };
 const SHIFT: KeyMods = KeyMods {
     shift: true,
     ctrl: false,
     alt: false,
+    super_key: false,
 };
 const CTRL: KeyMods = KeyMods {
     shift: false,
     ctrl: true,
     alt: false,
+    super_key: false,
 };
 const ALT: KeyMods = KeyMods {
     shift: false,
     ctrl: false,
     alt: true,
+    super_key: false,
 };
 const SHIFT_ALT: KeyMods = KeyMods {
     shift: true,
     ctrl: false,
     alt: true,
+    super_key: false,
 };
 const CTRL_ALT: KeyMods = KeyMods {
     shift: false,
     ctrl: true,
     alt: true,
+    super_key: false,
 };
 const CTRL_SHIFT: KeyMods = KeyMods {
     shift: true,
     ctrl: true,
     alt: false,
+    super_key: false,
 };
 
 fn text(text: &str) -> KeySpec {
@@ -111,6 +118,7 @@ const ALL_MODS: [KeyMods; 8] = [
         shift: true,
         ctrl: true,
         alt: true,
+        super_key: false,
     },
 ];
 
@@ -688,4 +696,53 @@ fn unshifted_follows_the_pc101_layout_and_lowercases() {
     assert_eq!(unshifted("Éa"), Some(u32::from('é')));
     assert_eq!(unshifted("ab"), Some(u32::from('a')));
     assert_eq!(unshifted(""), None);
+}
+
+const SUPER: KeyMods = KeyMods {
+    shift: false,
+    ctrl: false,
+    alt: false,
+    super_key: true,
+};
+
+#[test]
+fn super_is_reported_by_kitty_and_ignored_by_the_legacy_table() {
+    // Super is bit 8 of the modifier field, so the parameter is 1 + 8.
+    assert_eq!(encode(&press(text("a"), SUPER), "D"), bytes("\x1b[97;9u"));
+    assert_eq!(
+        encode(&press(named(NamedKey::ArrowUp), SUPER), "D"),
+        bytes("\x1b[1;9A")
+    );
+    let ctrl_super = KeyMods {
+        ctrl: true,
+        ..SUPER
+    };
+    assert_eq!(
+        encode(&press(text("a"), ctrl_super), "D"),
+        bytes("\x1b[97;13u")
+    );
+    // No kitty flags: the legacy forms have no bit for Super.
+    assert_eq!(encode(&press(text("a"), SUPER), ""), bytes("a"));
+    assert_eq!(
+        encode(&press(named(NamedKey::ArrowUp), SUPER), ""),
+        bytes("\x1b[A")
+    );
+}
+
+#[test]
+fn the_unshifted_key_of_the_layout_wins_over_the_guess() {
+    // Ctrl+Shift+7 on a German layout produces `/`; its key is `7`, not the `/` key.
+    let mut event = press(text("/"), CTRL_SHIFT);
+    assert_eq!(encode(&event, "D"), bytes("\x1b[47;6u"));
+    event.unshifted = Some('7');
+    assert_eq!(encode(&event, "D"), bytes("\x1b[55;6u"));
+
+    let modify_other_keys = ModeSnapshot {
+        modify_other_keys: 2,
+        ..ModeSnapshot::default()
+    };
+    assert_eq!(
+        encode_key_event(&event, &modify_other_keys),
+        bytes("\x1b[27;6;55~")
+    );
 }

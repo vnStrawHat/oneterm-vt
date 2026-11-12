@@ -6,7 +6,9 @@ use super::kitty::{self, Encoded};
 
 const ESC: u8 = 0x1b;
 
-/// The modifiers held with a key.
+/// The modifiers held with a key. Build it with the struct-update form,
+/// `KeyMods { ctrl: true, ..KeyMods::default() }`: a new modifier is a new field, and that
+/// form keeps compiling.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct KeyMods {
     /// Shift is held.
@@ -15,6 +17,9 @@ pub struct KeyMods {
     pub ctrl: bool,
     /// Alt (Option) is held.
     pub alt: bool,
+    /// Super (the Windows or Command key) is held. Only the kitty keyboard protocol reports
+    /// it; the legacy and `modifyOtherKeys` encodings have no bit for it and ignore it.
+    pub super_key: bool,
 }
 
 /// A key that does not produce text by itself. Keypad, lock, media and modifier keys have no
@@ -197,6 +202,11 @@ pub struct KeyEvent {
     /// The character the key has on a PC-101 layout at the same physical position. Sent with
     /// `REPORT_ALTERNATE_KEYS`.
     pub base_layout: Option<char>,
+    /// The character the key produces without Shift on the current layout: the key code of
+    /// a [`KeySpec::Character`] in kitty and `modifyOtherKeys` reports. `None` derives it
+    /// from the text (lower case, and US PC-101 punctuation), which is wrong for shifted
+    /// punctuation on other layouts; fill it when your platform knows the key.
+    pub unshifted: Option<char>,
     /// The text the event produced, sent with `REPORT_ASSOCIATED_TEXT`. `None` falls back to the
     /// [`KeySpec::Character`] payload when neither Ctrl nor Alt is held.
     pub text: Option<String>,
@@ -211,6 +221,7 @@ impl KeyEvent {
             kind: KeyEventKind::Press,
             shifted: None,
             base_layout: None,
+            unshifted: None,
             text: None,
         }
     }
@@ -343,9 +354,9 @@ enum PlainForm {
 /// with modifiers.
 fn csi_letter(letter: char, m: u8, plain: PlainForm) -> Vec<u8> {
     match (m > 1, plain) {
-        (true, _) => format!("[1;{m}{letter}").into_bytes(),
-        (false, PlainForm::Ss3) => format!("O{letter}").into_bytes(),
-        (false, PlainForm::Csi) => format!("[{letter}").into_bytes(),
+        (true, _) => format!("\x1b[1;{m}{letter}").into_bytes(),
+        (false, PlainForm::Ss3) => format!("\x1bO{letter}").into_bytes(),
+        (false, PlainForm::Csi) => format!("\x1b[{letter}").into_bytes(),
     }
 }
 

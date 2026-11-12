@@ -508,3 +508,11 @@ mod regex_pattern {
         assert_eq!(regex_hits(&term, "a").len(), MAX_MATCHES);
     }
 }
+
+#[test]
+fn the_copy_is_readable_as_text() {
+    // Six columns, four rows: the first line wraps, the second ends before its trailing blanks.
+    let term = terminal(6, 4, "wrapped line\r\nab  \r\n\u{4e16}x".as_bytes());
+    let copy = GridText::from_terminal(&term);
+    assert_eq!(copy.as_str(), "wrapped line\nab\n\u{4e16}x\n");
+}

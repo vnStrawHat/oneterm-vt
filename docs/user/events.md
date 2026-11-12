@@ -38,7 +38,7 @@ redraw, not damage.
 | Event | Meaning | You |
 |---|---|---|
 | `Reply(ByteSpan)` | an answer the program asked for | write the bytes to the program, in order |
-| `ColorQuery { key, terminator }` | OSC 4/10/11/12/17/19 with `?` | write `key.color_reply(rgb, terminator)` |
+| `ColorQuery { key, terminator }` | OSC 4/10/11/12/17/19 with `?` | write `term.color_reply(key, terminator)` |
 | `ClipboardStore { selection, text }` | OSC 52 write, decoded UTF-8 | policy: set the clipboard or refuse |
 | `ClipboardLoad { selection }` | OSC 52 `?` | policy: answer with your own OSC 52 or ignore |
 | `Title(span)` / `TitleReset` | OSC 0/2, or `CSI 23 t` popping a title | show it / restore your default |
@@ -58,24 +58,26 @@ redraw, not damage.
 
 ## Answering a colour query
 
-The engine keeps only the override layer a program set (`Terminal::color`); the theme underneath is
-yours. `ColorKey` is exhaustive: match it without a wildcard, so a new key breaks your build instead of
-falling to "no reply". Resolve the colour, then let `ColorKey::color_reply` build the bytes: they are API.
+Programs ask for the background to pick a light or dark scheme, and wait for the answer.
+`Terminal::color_reply` builds it from the override a program set, else from the theme you gave
+`set_theme_colors`; the bytes are API. It is `None` only for a selection colour nobody set (the theme
+has no slot for it): answer that one with `ColorKey::color_reply` and your own colour, or not at all.
 
 ```rust
 use std::time::Instant;
-use oneterm_vt::{Config, EventBatch, Rgb, Size, Terminal, VtEvent};
+use oneterm_vt::{Config, EventBatch, Palette, Rgb, Size, Terminal, VtEvent};
 
 let mut term = Terminal::new(Size { rows: 4, cols: 20 }, Config::default());
+let mut theme = Palette::new();
+theme.background = Rgb { r: 30, g: 30, b: 30 };
+term.set_theme_colors(&theme);
+
 let mut batch = EventBatch::new();
 term.feed(b"\x1b]11;?\x07", &mut batch, Instant::now());
-
-let theme_background = Rgb { r: 30, g: 30, b: 30 };
 let mut reply = Vec::new();
 for event in batch.iter() {
     if let VtEvent::ColorQuery { key, terminator } = event {
-        let color = term.color(*key).unwrap_or(theme_background);
-        reply = key.color_reply(color, *terminator);
+        reply.extend(term.color_reply(*key, *terminator).unwrap_or_default());
     }
 }
 assert_eq!(reply, b"\x1b]11;rgb:1e1e/1e1e/1e1e\x07");

@@ -840,6 +840,7 @@ pub oneterm_vt::input::KeyEvent::kind: oneterm_vt::input::KeyEventKind
 pub oneterm_vt::input::KeyEvent::mods: oneterm_vt::input::KeyMods
 pub oneterm_vt::input::KeyEvent::shifted: core::option::Option<char>
 pub oneterm_vt::input::KeyEvent::text: core::option::Option<alloc::string::String>
+pub oneterm_vt::input::KeyEvent::unshifted: core::option::Option<char>
 impl oneterm_vt::input::KeyEvent
 pub fn oneterm_vt::input::KeyEvent::new(oneterm_vt::input::KeySpec, oneterm_vt::input::KeyMods) -> oneterm_vt::input::KeyEvent
 impl core::clone::Clone for oneterm_vt::input::KeyEvent
@@ -861,6 +862,7 @@ pub struct oneterm_vt::input::KeyMods
 pub oneterm_vt::input::KeyMods::alt: bool
 pub oneterm_vt::input::KeyMods::ctrl: bool
 pub oneterm_vt::input::KeyMods::shift: bool
+pub oneterm_vt::input::KeyMods::super_key: bool
 impl core::clone::Clone for oneterm_vt::input::KeyMods
 pub fn oneterm_vt::input::KeyMods::clone(&self) -> oneterm_vt::input::KeyMods
 impl core::cmp::Eq for oneterm_vt::input::KeyMods
@@ -901,11 +903,13 @@ impl core::marker::Unpin for oneterm_vt::input::MouseModifiers
 impl core::marker::UnsafeUnpin for oneterm_vt::input::MouseModifiers
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::input::MouseModifiers
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::input::MouseModifiers
+pub fn oneterm_vt::input::encode_focus(bool, &oneterm_vt::ModeSnapshot) -> core::option::Option<&'static [u8]>
 pub fn oneterm_vt::input::encode_key(&oneterm_vt::input::KeySpec, oneterm_vt::input::KeyMods, &oneterm_vt::ModeSnapshot) -> core::option::Option<alloc::vec::Vec<u8>>
 pub fn oneterm_vt::input::encode_key_event(&oneterm_vt::input::KeyEvent, &oneterm_vt::ModeSnapshot) -> core::option::Option<alloc::vec::Vec<u8>>
 pub fn oneterm_vt::input::encode_mouse_move(usize, usize, core::option::Option<oneterm_vt::input::TerminalMouseButton>, oneterm_vt::ModeSnapshot, oneterm_vt::input::MouseModifiers) -> alloc::vec::Vec<u8>
 pub fn oneterm_vt::input::encode_mouse_press(usize, usize, oneterm_vt::input::TerminalMouseButton, oneterm_vt::ModeSnapshot, oneterm_vt::input::MouseModifiers) -> alloc::vec::Vec<u8>
 pub fn oneterm_vt::input::encode_mouse_release(usize, usize, oneterm_vt::input::TerminalMouseButton, oneterm_vt::ModeSnapshot, oneterm_vt::input::MouseModifiers) -> alloc::vec::Vec<u8>
+pub fn oneterm_vt::input::encode_paste(&str, &oneterm_vt::ModeSnapshot) -> alloc::vec::Vec<u8>
 pub fn oneterm_vt::input::encode_wheel_event(usize, usize, f64, oneterm_vt::ModeSnapshot, oneterm_vt::input::MouseModifiers) -> alloc::vec::Vec<u8>
 pub mod oneterm_vt::intern
 pub struct oneterm_vt::intern::Extras
@@ -1484,6 +1488,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::search::SearchP
 impl<'a> core::panic::unwind_safe::UnwindSafe for oneterm_vt::search::SearchPattern<'a>
 pub struct oneterm_vt::search::GridText
 impl oneterm_vt::search::GridText
+pub fn oneterm_vt::search::GridText::as_str(&self) -> &str
 pub fn oneterm_vt::search::GridText::from_terminal(&oneterm_vt::Terminal) -> oneterm_vt::search::GridText
 pub fn oneterm_vt::search::GridText::oldest(&self) -> oneterm_vt::grid::RowId
 pub fn oneterm_vt::search::GridText::rows(&self) -> usize
@@ -2723,6 +2728,7 @@ pub oneterm_vt::ModeSnapshot::alternate_scroll: bool
 pub oneterm_vt::ModeSnapshot::app_cursor: bool
 pub oneterm_vt::ModeSnapshot::app_keypad: bool
 pub oneterm_vt::ModeSnapshot::bracketed_paste: bool
+pub oneterm_vt::ModeSnapshot::focus_reporting: bool
 pub oneterm_vt::ModeSnapshot::insert: bool
 pub oneterm_vt::ModeSnapshot::keyboard_flags: oneterm_vt::KeyboardFlags
 pub oneterm_vt::ModeSnapshot::modify_other_keys: u8
@@ -3312,11 +3318,14 @@ pub struct oneterm_vt::Terminal
 impl oneterm_vt::Terminal
 pub fn oneterm_vt::Terminal::active_charset(&self) -> oneterm_vt::grid::Charset
 pub fn oneterm_vt::Terminal::color(&self, oneterm_vt::ColorKey) -> core::option::Option<oneterm_vt::Rgb>
+pub fn oneterm_vt::Terminal::color_reply(&self, oneterm_vt::ColorKey, oneterm_vt::StringTerm) -> core::option::Option<alloc::vec::Vec<u8>>
 pub fn oneterm_vt::Terminal::colors(&self) -> &oneterm_vt::ColorOverrides
 pub fn oneterm_vt::Terminal::config(&self) -> &oneterm_vt::Config
 pub fn oneterm_vt::Terminal::cursor_style(&self) -> oneterm_vt::CursorStyle
+pub fn oneterm_vt::Terminal::encode_focus(&self, bool) -> core::option::Option<&'static [u8]>
 pub fn oneterm_vt::Terminal::encode_key(&self, &oneterm_vt::input::KeySpec, oneterm_vt::input::KeyMods) -> core::option::Option<alloc::vec::Vec<u8>>
 pub fn oneterm_vt::Terminal::encode_key_event(&self, &oneterm_vt::input::KeyEvent) -> core::option::Option<alloc::vec::Vec<u8>>
+pub fn oneterm_vt::Terminal::encode_paste(&self, &str) -> alloc::vec::Vec<u8>
 pub fn oneterm_vt::Terminal::feed(&mut self, &[u8], &mut oneterm_vt::EventBatch, std::time::Instant) -> oneterm_vt::FeedStats
 pub fn oneterm_vt::Terminal::grid(&self) -> &oneterm_vt::grid::TerminalGrid
 pub fn oneterm_vt::Terminal::grid_mut(&mut self) -> &mut oneterm_vt::grid::TerminalGrid

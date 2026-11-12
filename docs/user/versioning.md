@@ -4,7 +4,7 @@ Releases are git tags `vX.Y.Z`; consumers depend by tag. Standard semver, three 
 
 ```toml
 [dependencies]
-oneterm-vt = { git = "https://github.com/vnStrawHat/oneterm-vt", tag = "v0.1.0" }
+oneterm-vt = { git = "https://github.com/vnStrawHat/oneterm-vt", tag = "v0.1.4" }
 ```
 
 | Kind | When |
@@ -23,6 +23,7 @@ Details:
 - The meaning of each `FeedStats` counter is API; counting something different is a major bump.
 - `polling` is the one public dependency (under `pty`); a `polling` major bump is a `major` bump here.
 - `Config` is built as `Config { field: value, ..Config::default() }`; a new `Config` field is a minor change.
+  `input::KeyMods` follows the same rule: a new modifier is a new field and a minor change.
 - MSRV: 1.96.0 (`rust-version`); raising it is a major change.
 
 Not promised: grid internals reachable through `grid::Screen`, exact `SeqNo` values, allocation
@@ -45,11 +46,11 @@ disagree. Refresh both with `scripts/public-api.sh update`, read the diff, and p
 |---|---|
 | no change | per the behaviour rules above only |
 | only added lines | minor, except the next two rows |
-| added variant of an enum, or `pub` field of a struct (not `Config`), whose declaration line lacks `#[non_exhaustive]`; added trait method without a default | major |
+| added variant of an enum, or `pub` field of a struct (not `Config` or `KeyMods`), whose declaration line lacks `#[non_exhaustive]`; added trait method without a default | major |
 | any removed or changed line, including a lost `impl Send` / `Sync` / `Unpin` | major |
 
 The behaviour-only rules above (reply bytes, encoder bytes, `FeedStats` meaning) are not visible
-in the snapshot and still apply. `git diff v0.1.0 -- crates/vt/public-api.*.txt` shows the whole
+in the snapshot and still apply. `git diff <tag> -- crates/vt/public-api.*.txt` shows the whole
 surface change since a release.
 
 ## How a release is cut

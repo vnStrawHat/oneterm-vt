@@ -67,15 +67,22 @@ pub(super) fn encode(event: &KeyEvent, modes: &ModeSnapshot) -> Encoded {
     }
 }
 
-/// A text key without Ctrl or Alt: the program gets its text, not an escape code.
+/// A text key without Ctrl, Alt or Super: the program gets its text, not an escape code.
 fn generates_text(event: &KeyEvent) -> bool {
-    matches!(event.key, KeySpec::Character(_)) && !(event.mods.ctrl || event.mods.alt)
+    let chord = event.mods.ctrl || event.mods.alt || event.mods.super_key;
+    matches!(event.key, KeySpec::Character(_)) && !chord
+}
+
+/// The key code of a `Character`: the unshifted key the embedder named, else a guess from
+/// the text.
+fn character_code(event: &KeyEvent, text: &str) -> Option<u32> {
+    event.unshifted.map(u32::from).or_else(|| unshifted(text))
 }
 
 /// The kitty form of `event`, or `None` when its key has no code.
 fn report(event: &KeyEvent, flags: KeyboardFlags) -> Option<Vec<u8>> {
     let form = match &event.key {
-        KeySpec::Character(text) => Form::CsiU(unshifted(text)?),
+        KeySpec::Character(text) => Form::CsiU(character_code(event, text)?),
         KeySpec::Named(named) => named_form(*named)?,
     };
     let kind = if flags.contains(KeyboardFlags::REPORT_EVENT_TYPES) {
@@ -87,7 +94,8 @@ fn report(event: &KeyEvent, flags: KeyboardFlags) -> Option<Vec<u8>> {
     } else {
         1
     };
-    let modifiers = modifier_byte(event.mods);
+    // The kitty modifier field adds Super (8) to the three bits the legacy forms carry.
+    let modifiers = modifier_byte(event.mods) + 8 * u8::from(event.mods.super_key);
     let mut out = String::from("\x1b[");
     match form {
         Form::CsiU(code) => {
@@ -239,7 +247,7 @@ pub(super) fn modify_other_keys(event: &KeyEvent, modes: &ModeSnapshot) -> Optio
         return None;
     }
     let code = match &event.key {
-        KeySpec::Character(text) => unshifted(text)?,
+        KeySpec::Character(text) => character_code(event, text)?,
         KeySpec::Named(NamedKey::Enter) => 13,
         KeySpec::Named(NamedKey::Tab) => 9,
         KeySpec::Named(NamedKey::Backspace) => 127,

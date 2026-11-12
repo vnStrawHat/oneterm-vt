@@ -79,9 +79,12 @@ release.kind = KeyEventKind::Release;
 assert_eq!(term.encode_key_event(&release).as_deref(), Some(&b"\x1b[97;1:3u"[..]));
 ```
 
-Fill `KeyEvent::shifted` (the character with Shift), `base_layout` (the PC-101 key at that position)
-and `text` (what the event typed) when you know them. Ceilings: three modifiers, the 38 `NamedKey`s,
-PC-101 un-shifting, associated text of at most 32 scalars with no control character.
+Fill `KeyEvent::shifted` (the character with Shift), `base_layout` (the PC-101 key at that position),
+`unshifted` (the character without Shift on the current layout) and `text` (what the event typed) when
+you know them. Without `unshifted` the key code of a character is guessed from its text with the US
+PC-101 table, which is wrong for shifted punctuation on other layouts. `KeyMods::super_key` is reported
+by the kitty protocol only (modifier bit 8). Ceilings: four modifiers, the 38 `NamedKey`s, associated
+text of at most 32 scalars with no control character.
 
 ## Mouse
 
@@ -114,7 +117,9 @@ delta sends nothing. `mouse_reporting()` of `None` means the event is yours (sel
 
 ## Checklist
 
-- Wrap pastes in `\x1b[200~` ... `\x1b[201~` when `mode_snapshot().bracketed_paste`.
+- Send pastes through `term.encode_paste(text)`: it brackets them when the program asked (`?2004`) and
+  drops control characters either way, so pasted text cannot close the bracket (`\x1b[201~`) or run a
+  sequence of its own. Never write clipboard text to the PTY unfiltered.
 - Turn the wheel into arrow keys via `encode_key` when `alt_screen && alternate_scroll && mouse.is_none()`.
-- Send `\x1b[I` / `\x1b[O` on focus changes when `term.mode(Mode::FocusInOut)`.
+- On a focus change write `term.encode_focus(focused)`; it is `None` unless the program asked (`?1004`).
 - Write the bytes to the PTY outside your lock.

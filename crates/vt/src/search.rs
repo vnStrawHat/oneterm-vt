@@ -184,6 +184,14 @@ impl GridText {
         copy
     }
 
+    /// The copied text: the whole scrollback and screen as logical lines, each ended by
+    /// `'\n'`. Rows joined by a soft wrap run together, an unwrapped row stops at its last
+    /// non-blank cell, and a cluster is written whole. This is the plain-text dump of the
+    /// active screen.
+    pub fn as_str(&self) -> &str {
+        &self.text
+    }
+
     /// The oldest live row id at copy time.
     pub fn oldest(&self) -> RowId {
         self.oldest

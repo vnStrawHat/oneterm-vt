@@ -54,6 +54,8 @@ pub struct ModeSnapshot {
     pub app_keypad: bool,
     /// `?2004`: pasted text is bracketed.
     pub bracketed_paste: bool,
+    /// `?1004`: the program wants a report when the window gains or loses the focus.
+    pub focus_reporting: bool,
     /// `4`: printing inserts instead of overwriting.
     pub insert: bool,
     /// `?25`: the cursor is shown.
@@ -78,6 +80,7 @@ impl Default for ModeSnapshot {
             app_cursor: false,
             app_keypad: false,
             bracketed_paste: false,
+            focus_reporting: false,
             insert: false,
             show_cursor: true,
             alternate_scroll: true,

@@ -2529,3 +2529,72 @@ fn an_ascii_word_under_2027_wraps_and_overwrites_like_the_scalar_path() {
     }
     assert_eq!(clusters.cursor(), scalars.cursor());
 }
+
+#[test]
+fn color_reply_answers_from_the_override_then_the_theme() {
+    use crate::parser::StringTerm;
+    use crate::snapshot::Palette;
+    use crate::terminal::ColorKey;
+
+    let mut session = Session::new(20, 4);
+    let reply = |session: &Session, key| {
+        session
+            .term
+            .color_reply(key, StringTerm::Bel)
+            .map(|bytes| String::from_utf8(bytes).unwrap())
+    };
+    // The default theme: a light grey foreground.
+    assert_eq!(
+        reply(&session, ColorKey::Foreground).as_deref(),
+        Some("\x1b]10;rgb:d8d8/d8d8/d8d8\x07")
+    );
+    let mut theme = Palette::new();
+    theme.background = Rgb { r: 1, g: 2, b: 3 };
+    theme.indexed[200] = Rgb {
+        r: 0xaa,
+        g: 0xbb,
+        b: 0xcc,
+    };
+    session.term.set_theme_colors(&theme);
+    assert_eq!(
+        reply(&session, ColorKey::Background).as_deref(),
+        Some("\x1b]11;rgb:0101/0202/0303\x07")
+    );
+    assert_eq!(
+        reply(&session, ColorKey::Palette(200)).as_deref(),
+        Some("\x1b]4;200;rgb:aaaa/bbbb/cccc\x07")
+    );
+    // A program's override wins over the theme.
+    session.feed(b"\x1b]11;#102030\x07\x1b]17;#405060\x07");
+    assert_eq!(
+        session
+            .term
+            .color_reply(ColorKey::Background, StringTerm::St),
+        Some(b"\x1b]11;rgb:1010/2020/3030\x1b\\".to_vec())
+    );
+    assert_eq!(
+        reply(&session, ColorKey::SelectionBackground).as_deref(),
+        Some("\x1b]17;rgb:4040/5050/6060\x07")
+    );
+    // The theme has no selection colours: nothing to answer with.
+    assert_eq!(reply(&session, ColorKey::SelectionForeground), None);
+}
+
+#[test]
+fn paste_and_focus_follow_the_modes_the_program_set() {
+    let mut session = Session::new(20, 4);
+    assert_eq!(session.term.encode_focus(true), None);
+    assert_eq!(session.term.encode_paste("a\nb"), b"a\rb");
+
+    session.feed(b"\x1b[?1004h\x1b[?2004h");
+    assert!(session.term.mode_snapshot().focus_reporting);
+    assert_eq!(session.term.encode_focus(true), Some(&b"\x1b[I"[..]));
+    assert_eq!(session.term.encode_focus(false), Some(&b"\x1b[O"[..]));
+    assert_eq!(
+        session.term.encode_paste("a\x1b[201~\nb"),
+        b"\x1b[200~a[201~\nb\x1b[201~"
+    );
+
+    session.feed(b"\x1b[?1004l");
+    assert_eq!(session.term.encode_focus(false), None);
+}

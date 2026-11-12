@@ -85,11 +85,9 @@ pub struct SnapshotPlacement {
 ///
 /// A state belongs to one terminal; every consumer (a window, a minimap) keeps its own, and
 /// two states over one terminal never consume each other's damage. To point a state at
-/// another terminal, call [`invalidate`](Self::invalidate) first. A state owns values only and
-/// The watermark check only detects a grid younger than the state; a state reused across
-/// terminals must call [`invalidate`](Self::invalidate) first, otherwise identical ids and
-/// sequence numbers can hide stale rows.
-/// is `Send` and `Sync`.
+/// another terminal, call [`invalidate`](Self::invalidate) first: the watermark check only
+/// detects a grid younger than the state, so identical ids and sequence numbers could hide
+/// stale rows. A state owns values only and is `Send` and `Sync`.
 #[derive(Debug, Default)]
 pub struct SnapshotState {
     /// The terminal's `generation` at the last copy; `None` until the first update.

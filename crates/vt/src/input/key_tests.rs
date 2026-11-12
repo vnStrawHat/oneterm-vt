@@ -6,31 +6,37 @@ const NONE: KeyMods = KeyMods {
     shift: false,
     ctrl: false,
     alt: false,
+    super_key: false,
 };
 const SHIFT: KeyMods = KeyMods {
     shift: true,
     ctrl: false,
     alt: false,
+    super_key: false,
 };
 const CTRL: KeyMods = KeyMods {
     shift: false,
     ctrl: true,
     alt: false,
+    super_key: false,
 };
 const ALT: KeyMods = KeyMods {
     shift: false,
     ctrl: false,
     alt: true,
+    super_key: false,
 };
 const CTRL_ALT: KeyMods = KeyMods {
     shift: false,
     ctrl: true,
     alt: true,
+    super_key: false,
 };
 const SHIFT_ALT: KeyMods = KeyMods {
     shift: true,
     ctrl: false,
     alt: true,
+    super_key: false,
 };
 
 fn text(text: &str) -> KeySpec {
@@ -256,6 +262,7 @@ fn worked_rows() -> Vec<(KeySpec, KeyMods, bool, Option<Vec<u8>>)> {
         shift: true,
         ctrl: true,
         alt: false,
+        super_key: false,
     };
     vec![
         (text("c"), CTRL, false, bytes("\x03")),
