@@ -107,6 +107,9 @@ pub struct Summary {
     pub status_counts: BTreeMap<String, StatusCounts>,
     pub intersection: Vec<String>,
     pub geomean_ratio_to_oneterm: BTreeMap<String, f64>,
+    /// The median of the same ratios: one outlier fixture moves the geomean, not this.
+    #[serde(default)]
+    pub median_ratio_to_oneterm: BTreeMap<String, f64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -156,6 +159,16 @@ pub fn fill_ratios(rows: &mut [GridRow]) {
     }
 }
 
+/// The middle value of `sorted` (the mean of the two middle ones for an even count).
+fn median(sorted: &[f64]) -> Option<f64> {
+    let middle = sorted.len() / 2;
+    let upper = *sorted.get(middle)?;
+    if sorted.len() % 2 == 1 {
+        return Some(upper);
+    }
+    Some((sorted.get(middle - 1)? + upper) / 2.0)
+}
+
 /// Status counts per engine, the intersection and the geomeans over exactly it. Engines are
 /// those of `engines`; an engine that is `ok` on extra fixtures gets no extra terms.
 pub fn summarize(rows: &[GridRow], engines: &[String]) -> Summary {
@@ -184,22 +197,25 @@ pub fn summarize(rows: &[GridRow], engines: &[String]) -> Summary {
         .map(|f| f.name.to_string())
         .collect();
     let mut geomean_ratio_to_oneterm = BTreeMap::new();
+    let mut median_ratio_to_oneterm = BTreeMap::new();
     if !intersection.is_empty() {
         for engine in engines {
-            let logs: Vec<f64> = intersection
+            let mut ratios: Vec<f64> = intersection
                 .iter()
                 .filter_map(|fixture| {
                     rows.iter()
                         .find(|r| &r.engine == engine && &r.fixture == fixture)?
                         .ratio_to_oneterm
                 })
-                .map(f64::ln)
                 .collect();
-            if logs.len() == intersection.len() {
-                geomean_ratio_to_oneterm.insert(
-                    engine.clone(),
-                    (logs.iter().sum::<f64>() / logs.len() as f64).exp(),
-                );
+            if ratios.len() != intersection.len() {
+                continue;
+            }
+            let log_sum: f64 = ratios.iter().copied().map(f64::ln).sum();
+            geomean_ratio_to_oneterm.insert(engine.clone(), (log_sum / ratios.len() as f64).exp());
+            ratios.sort_by(f64::total_cmp);
+            if let Some(middle) = median(&ratios) {
+                median_ratio_to_oneterm.insert(engine.clone(), middle);
             }
         }
     }
@@ -207,5 +223,6 @@ pub fn summarize(rows: &[GridRow], engines: &[String]) -> Summary {
         status_counts,
         intersection,
         geomean_ratio_to_oneterm,
+        median_ratio_to_oneterm,
     }
 }

@@ -145,6 +145,11 @@ fn geomean_covers_only_the_intersection() {
     assert!((geomean["avt"] - expected_avt).abs() < 1e-9);
     let expected_vt100 = (0.97f64 * 0.5).sqrt();
     assert!((geomean["vt100"] - expected_vt100).abs() < 1e-9);
+    // The median of two ratios is their mean.
+    let median = &results.summary.median_ratio_to_oneterm;
+    assert!((median["oneterm"] - 1.0).abs() < 1e-9);
+    assert!((median["avt"] - 1.25).abs() < 1e-9);
+    assert!((median["vt100"] - 0.735).abs() < 1e-9);
 }
 
 #[test]

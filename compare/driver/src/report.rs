@@ -94,7 +94,8 @@ const METHOD: &str = "\
 - Markers: `≈` tie with the fastest (gap below the larger spread), `†` accepted divergence,
   `≠` diverged (never charted), `?` unverified (no golden, or memory), `n/a` capability not
   supported, `fail` crash, timeout or inconsistent end state. Bold: fastest verified cell.
-- Geomean: only over the core fixtures on which every engine of the run is `ok` or `accepted`.
+- Geomean and median: only over the core fixtures on which every engine of the run is `ok` or
+  `accepted`.
 ";
 
 /// The methodology block with this run's repetition counts filled in.
@@ -242,10 +243,23 @@ fn push_grid(out: &mut String, results: &Results) {
             .collect::<Vec<_>>()
             .join(", ")
     );
-    out.push_str("| engine | geomean ratio |\n|---|---:|\n");
+    out.push_str(
+        "The median is the middle fixture's ratio: a single fixture with an extreme ratio moves the \
+         geomean, not the median. Read both.\n\n",
+    );
+    out.push_str("| engine | geomean ratio | median ratio |\n|---|---:|---:|\n");
     for name in &names {
         if let Some(ratio) = summary.geomean_ratio_to_oneterm.get(*name) {
-            let _ = writeln!(out, "| {} | {ratio:.2} |", engine_label(results, name));
+            // A results file written before the median existed has none.
+            let median = summary
+                .median_ratio_to_oneterm
+                .get(*name)
+                .map_or_else(|| "-".to_owned(), |median| format!("{median:.2}"));
+            let _ = writeln!(
+                out,
+                "| {} | {ratio:.2} | {median} |",
+                engine_label(results, name)
+            );
         }
     }
 }

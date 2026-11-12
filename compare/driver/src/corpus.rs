@@ -50,7 +50,8 @@ const fn needs(name: &'static str, capability: &'static str) -> FixtureInfo {
     }
 }
 
-/// Corpus order (corpus.md): the 14 release fixtures, then the 9 compare-only ones.
+/// Corpus order (corpus.md): the first 14 release fixtures, then the 9 compare-only ones.
+/// Release fixtures added later (`unique_styles`, `unique_links`) are not in corpus v1.
 pub const FIXTURES: [FixtureInfo; 23] = [
     core("plain_ascii"),
     core("long_lines"),

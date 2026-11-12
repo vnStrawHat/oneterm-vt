@@ -35,7 +35,8 @@ are not quoted in the root README or `docs/user/`.
               "first_difference": null } ],
   "summary": { "status_counts": { "ghostty": { "ok": 0, "accepted": 0, "diverged": 0,
                  "unverified": 0, "unsupported": 0, "failed": 0 } },
-               "intersection": ["plain_ascii"], "geomean_ratio_to_oneterm": { "ghostty": 0.0 } },
+               "intersection": ["plain_ascii"], "geomean_ratio_to_oneterm": { "ghostty": 0.0 },
+               "median_ratio_to_oneterm": { "ghostty": 0.0 } },
   "wall_time_s": 0
 }
 ```
@@ -65,8 +66,8 @@ line, 200 chars). `labels`: adapter notes shown beside the engine name (`+ring` 
 3. **Grid table**: one row per fixture (corpus order), one column per engine, cell = MiB/s
    with `≈` (tie with the fastest), `†` (accepted), `≠` (diverged), `?` (unverified, ungated
    fixture), `n/a`, `fail`; the fastest verified cell in bold; a `spread` row-max column.
-   Footer: per engine the status counts; then one geomean of `ratio_to_oneterm` per engine over
-   the intersection (criteria.md "Summary"), with the intersection's fixtures listed.
+   Footer: per engine the status counts; then the geomean and the median of `ratio_to_oneterm`
+   per engine over the intersection (criteria.md "Summary"), with the intersection's fixtures listed.
 4. Memory table (`steady_mib` per engine per fixture, `peak_mib` max), marked `?`.
 5. Appendix: every `diverged`/`failed` pair with `first_difference` or `error`.
 

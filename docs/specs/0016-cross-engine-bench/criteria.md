@@ -28,7 +28,9 @@ Summary (no per-engine geomeans over different fixture subsets):
 - per engine: count of fixtures `ok` / `accepted` / `diverged` / `unverified` / `n/a` / `fail`;
 - one geomean table over the **intersection**: the core fixtures on which every engine in
   the run is `ok` or `accepted`; per engine the geomean of `ratio_to_oneterm` over exactly
-  those fixtures, with the intersection's size and names printed above it.
+  those fixtures, with the intersection's size and names printed above it. The median of
+  the same ratios stands beside it: one fixture with an extreme ratio moves the geomean
+  (in the 2026-10-30 run `long_osc` alone took rio from about 1.04 to 0.70), not the median.
 
 ## Statistics
 
