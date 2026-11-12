@@ -20,8 +20,9 @@
 //!   matches spanning wrapped rows.
 //! - [`input`]: key and mouse events as the bytes the program expects, honouring DECCKM, the kitty
 //!   keyboard protocol, `modifyOtherKeys` and the mouse modes.
-//! - Sixel images are decoded to RGBA, anchored to the cells they cover and released with an
-//!   event when those cells are gone.
+//! - Sixel images, and with the default `kitty-graphics` feature the kitty graphics protocol,
+//!   are decoded to RGBA, anchored to the cells they cover and released with an event when
+//!   those cells are gone.
 //! - With the default `pty` feature, [`pty`] starts a shell behind a pseudo-console (ConPTY on
 //!   Windows, `openpty` on Unix) that an embedder polls with `polling`.
 //!
@@ -97,6 +98,10 @@ mod user_guide_search {}
 #[cfg(doctest)]
 #[doc = include_str!("../../../docs/user/graphics.md")]
 mod user_guide_graphics {}
+
+#[cfg(all(doctest, feature = "kitty-graphics"))]
+#[doc = include_str!("../../../docs/user/graphics-kitty.md")]
+mod user_guide_graphics_kitty {}
 
 #[cfg(doctest)]
 #[doc = include_str!("../../../docs/user/resize.md")]

@@ -1,8 +1,8 @@
 # oneterm-vt
 
 An embeddable terminal core in Rust: VT parser, grid with scrollback, reflow, selection,
-damage-tracked snapshots, key and mouse encoders, Sixel, and an optional pseudo-console.
-You bring the pixels.
+damage-tracked snapshots, key and mouse encoders, Sixel and kitty graphics, and an optional
+pseudo-console. You bring the pixels.
 
 **Status:** v0.1.4. Built and tested on Linux, Windows and macOS.
 

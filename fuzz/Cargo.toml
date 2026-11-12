@@ -9,8 +9,9 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-# No `pty`: nothing spawns. `vt-paranoid` turns silent grid corruption into a crash.
-oneterm-vt = { path = "../crates/vt", default-features = false, features = ["vt-paranoid"] }
+# No `pty`: nothing spawns. `vt-paranoid` turns silent grid corruption into a crash;
+# `kitty-graphics` puts the image decoders under the `feed` target.
+oneterm-vt = { path = "../crates/vt", default-features = false, features = ["vt-paranoid", "kitty-graphics"] }
 
 [[bin]]
 name = "parser"

@@ -60,10 +60,17 @@ pub struct SnapshotCursor {
 }
 
 /// An image placed on the grid, as a renderer sees it: where its top-left cell is now.
+///
+/// To draw it, take the pixels of `image`, cut out `source_size` pixels at `source_origin`,
+/// stretch them to `display_size` and put them at the origin of the top-left cell plus
+/// `pixel_offset`.
+#[non_exhaustive]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SnapshotPlacement {
-    /// The image.
+    /// The placement: the id its cells carry.
     pub id: GraphicId,
+    /// The pixels it shows: the id of a `GraphicData`. Equal to `id` for a Sixel image.
+    pub image: GraphicId,
     /// The row of the image's top-left cell.
     pub row: RowId,
     /// The column of the image's top-left cell.
@@ -72,8 +79,19 @@ pub struct SnapshotPlacement {
     pub cols: u16,
     /// Rows covered.
     pub rows: u16,
-    /// The image size in pixels, `(width, height)`.
+    /// The size of the whole image in pixels, `(width, height)`.
     pub pixel_size: (u32, u32),
+    /// The top-left corner of the part of the image that is shown, in image pixels.
+    pub source_origin: (u32, u32),
+    /// The size of that part, in image pixels.
+    pub source_size: (u32, u32),
+    /// Where the picture starts inside its top-left cell, in pixels.
+    pub pixel_offset: (u16, u16),
+    /// The size to draw the shown part at, in device pixels of the cell size it was placed
+    /// with.
+    pub display_size: (u32, u32),
+    /// The layer: higher is drawn later, and a layer below 0 goes under the text.
+    pub z_index: i32,
 }
 
 /// One consumer's view of one terminal, reused across frames.
@@ -332,11 +350,17 @@ impl SnapshotState {
             if let Some(pos) = grid.anchors().get(placement.anchor) {
                 self.scratch.push(SnapshotPlacement {
                     id: placement.id,
+                    image: placement.image,
                     row: pos.row,
                     col: pos.col,
                     cols: placement.cols,
                     rows: placement.rows,
                     pixel_size: placement.pixel_size,
+                    source_origin: placement.source_origin,
+                    source_size: placement.source_size,
+                    pixel_offset: placement.pixel_offset,
+                    display_size: placement.display_size,
+                    z_index: placement.z_index,
                 });
             }
         }
@@ -444,11 +468,17 @@ mod tests {
         let mut state = SnapshotState::new();
         state.placements.push(SnapshotPlacement {
             id: GraphicId(7),
+            image: GraphicId(7),
             row: RowId(10),
             col: 4,
             cols: 3,
             rows: 2,
             pixel_size: (30, 20),
+            source_origin: (0, 0),
+            source_size: (30, 20),
+            pixel_offset: (0, 0),
+            display_size: (30, 20),
+            z_index: 0,
         });
         let offset = |row: u64, col: u16| state.graphic_offset(GraphicId(7), RowId(row), col);
         assert_eq!(offset(10, 4), Some((0, 0)));

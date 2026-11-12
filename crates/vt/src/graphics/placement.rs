@@ -13,6 +13,9 @@ use super::{
 use crate::grid::{AnchorId, RowFlags, RowId, Screen, TerminalGrid};
 use crate::intern::{ExtrasId, GraphicId, Interner};
 
+#[cfg(feature = "kitty-graphics")]
+use super::image_store::StoredImage;
+
 /// The cell size an image is measured against: `cell_pixels` when both axes are set, else
 /// [`VIRTUAL_CELL`]. A half-set size falls back whole, so nothing divides by zero.
 pub(crate) fn effective_cell(cell_pixels: (u16, u16)) -> (u16, u16) {
@@ -73,12 +76,12 @@ pub(crate) fn stamp_row(
     }
 }
 
-/// Where a placement is, as cell ranges.
-struct Extent {
-    top: u64,
-    bottom: u64,
-    left: u32,
-    right: u32,
+/// Where a placement is, as cell ranges: rows `top..bottom`, columns `left..right`.
+pub(crate) struct Extent {
+    pub(crate) top: u64,
+    pub(crate) bottom: u64,
+    pub(crate) left: u32,
+    pub(crate) right: u32,
 }
 
 impl Extent {
@@ -97,47 +100,138 @@ fn pixel_bytes(size: (u32, u32)) -> usize {
         .saturating_mul(4)
 }
 
+/// The live placements, oldest first (draw order).
+///
+/// The oldest one is the one that usually goes (a stream of images that scroll away evicts
+/// it at the placement ceiling), so the front is dropped by moving a start index; the dead
+/// front is cut off once it is as long as the live part.
+#[derive(Debug, Default)]
+pub(crate) struct PlacementList {
+    items: Vec<Placement>,
+    /// The index of the oldest live placement in `items`.
+    start: usize,
+}
+
+impl std::ops::Deref for PlacementList {
+    type Target = [Placement];
+
+    fn deref(&self) -> &[Placement] {
+        self.items.get(self.start..).unwrap_or(&[])
+    }
+}
+
+impl PlacementList {
+    /// Adds `placement` as the newest one.
+    fn push(&mut self, placement: Placement) {
+        self.items.push(placement);
+    }
+
+    /// Takes placement `index` out; `None` when there is none.
+    fn remove(&mut self, index: usize) -> Option<Placement> {
+        let at = self.start + index;
+        let placement = *self.items.get(at)?;
+        if index > 0 {
+            self.items.remove(at);
+            return Some(placement);
+        }
+        self.start += 1;
+        if self.start * 2 >= self.items.len() {
+            self.items.drain(..self.start);
+            self.start = 0;
+        }
+        Some(placement)
+    }
+}
+
 impl GraphicsState {
+    /// Whether a live placement shows the image `image`.
+    fn shows(&self, image: GraphicId) -> bool {
+        self.placements.iter().any(|p| p.image == image)
+    }
+
+    /// Whether a live placement other than `placement` (which is not in the list) shows its
+    /// image. A picture that is its own image, as every Sixel one, is never shared, so the
+    /// common case walks nothing.
+    fn shared(&self, placement: &Placement) -> bool {
+        placement.image != placement.id && self.shows(placement.image)
+    }
+
     /// Adds `placement` as the newest one, first releasing the oldest placements until it fits
-    /// both the placement count and the pixel budget of live images.
+    /// both the placement count and the pixel budget of live images. An image that another
+    /// placement already shows costs nothing more.
     pub(crate) fn admit(&mut self, placement: Placement, grid: &mut TerminalGrid) {
         let bytes = pixel_bytes(placement.pixel_size);
-        let budget = LIVE_MAX_BYTES.saturating_sub(bytes);
-        while !self.placements.is_empty()
-            && (self.placements.len() >= MAX_PLACEMENTS || self.live_bytes > budget)
-        {
+        loop {
+            // Asked again each round: a release may have ended the last other placement.
+            let added = if self.shared(&placement) { 0 } else { bytes };
+            let fits = self.placements.len() < MAX_PLACEMENTS
+                && self.live_bytes.saturating_add(added) <= LIVE_MAX_BYTES;
+            if fits || self.placements.is_empty() {
+                self.live_bytes = self.live_bytes.saturating_add(added);
+                break;
+            }
             self.release(0, grid);
         }
-        self.live_bytes = self.live_bytes.saturating_add(bytes);
         self.placements.push(placement);
     }
 
-    /// Removes placement `index` and queues its `GraphicReleased`.
+    /// Removes placement `index` and queues its `GraphicReleased`; the image it showed
+    /// follows when this was its last placement and the program cannot place it again.
     pub(crate) fn release(&mut self, index: usize, grid: &mut TerminalGrid) {
-        if index >= self.placements.len() {
+        let Some(placement) = self.placements.remove(index) else {
+            return;
+        };
+        grid.anchors_mut().release(placement.anchor);
+        self.released.push(placement.id);
+        #[cfg(feature = "kitty-graphics")]
+        self.kitty
+            .refs
+            .retain(|entry| entry.graphic != placement.id);
+        if self.shared(&placement) {
             return;
         }
-        let placement = self.placements.remove(index);
         self.live_bytes = self
             .live_bytes
             .saturating_sub(pixel_bytes(placement.pixel_size));
-        grid.anchors_mut().release(placement.anchor);
-        self.released.push(placement.id);
+        #[cfg(feature = "kitty-graphics")]
+        if placement.image != placement.id && !self.kitty.store.holds(placement.image) {
+            self.released.push(placement.image);
+        }
+    }
+
+    /// Queues `GraphicReleased` for the images the store gave up, so the embedder frees
+    /// their pixels. One that a placement still shows goes with its last placement; one
+    /// that was never handed out needs no event.
+    #[cfg(feature = "kitty-graphics")]
+    pub(crate) fn retire(&mut self, forgotten: impl IntoIterator<Item = StoredImage>) {
+        for stored in forgotten {
+            if stored.delivered && !self.shows(stored.data.id) {
+                self.released.push(stored.data.id);
+            }
+        }
+    }
+
+    /// Releases the placement of image `id`, if it is live.
+    #[cfg(feature = "kitty-graphics")]
+    pub(crate) fn release_id(&mut self, id: GraphicId, grid: &mut TerminalGrid) {
+        if let Some(index) = self.placements.iter().position(|p| p.id == id) {
+            self.release(index, grid);
+        }
+    }
+
+    /// Where the placement of image `id` is now.
+    #[cfg(feature = "kitty-graphics")]
+    pub(crate) fn extent_of(&self, id: GraphicId, grid: &TerminalGrid) -> Option<Extent> {
+        extent_of(self.placements.iter().find(|p| p.id == id)?, grid)
     }
 
     fn extent(&self, index: usize, grid: &TerminalGrid) -> Option<Extent> {
-        let placement = self.placements.get(index)?;
-        let pos = grid.anchors().get(placement.anchor)?;
-        Some(Extent {
-            top: pos.row.0,
-            bottom: pos.row.0.saturating_add(u64::from(placement.rows)),
-            left: u32::from(pos.col),
-            right: u32::from(pos.col) + u32::from(placement.cols),
-        })
+        extent_of(self.placements.get(index)?, grid)
     }
 
-    /// Releases every older placement whose extent lies inside the newest one's: a redrawn
-    /// frame replaces its predecessor at once instead of waiting for the rows to go.
+    /// Releases every older placement whose extent lies inside that of the newest, unless it
+    /// is on a layer above it: a redrawn frame replaces its predecessor at once instead of
+    /// waiting for the rows to go.
     pub(crate) fn release_covered(&mut self, grid: &mut TerminalGrid) {
         let Some(newest) = self.placements.len().checked_sub(1) else {
             return;
@@ -145,17 +239,26 @@ impl GraphicsState {
         let Some(outer) = self.extent(newest, grid) else {
             return;
         };
+        let layer = self.placements.get(newest).map_or(0, |p| p.z_index);
+        // Usually nothing is covered: one pass over the older placements finds that out.
         // The newest placement stays last while older ones are removed before it.
-        let mut index = 0;
-        while index + 1 < self.placements.len() {
-            let covered = self
-                .extent(index, grid)
-                .is_some_and(|inner| outer.contains(&inner));
-            if covered {
-                self.release(index, grid);
-            } else {
-                index += 1;
-            }
+        let mut checked = 0;
+        loop {
+            let older = self
+                .placements
+                .split_last()
+                .map_or(&[][..], |(_, older)| older);
+            let rest = older.get(checked..).unwrap_or(&[]);
+            let anchors = &*grid;
+            let covered = |older: &Placement| {
+                older.z_index <= layer
+                    && extent_of(older, anchors).is_some_and(|inner| outer.contains(&inner))
+            };
+            let Some(found) = rest.iter().position(covered) else {
+                return;
+            };
+            checked += found;
+            self.release(checked, grid);
         }
     }
 
@@ -173,7 +276,7 @@ impl GraphicsState {
     }
 
     /// Queues `image` for `take_graphics`. While the queue would pass its byte ceiling the
-    /// oldest pending image is dropped and its placement released; returns how many.
+    /// oldest pending image is dropped and its placements released; returns how many images.
     pub(crate) fn push_pending(&mut self, image: Arc<GraphicData>, grid: &mut TerminalGrid) -> u32 {
         let bytes = image.rgba.len().max(std::mem::size_of::<GraphicData>());
         let mut dropped = 0u32;
@@ -184,15 +287,29 @@ impl GraphicsState {
             self.pending_bytes = self
                 .pending_bytes
                 .saturating_sub(oldest.rgba.len().max(std::mem::size_of::<GraphicData>()));
-            if let Some(index) = self.placements.iter().position(|p| p.id == oldest.id) {
+            while let Some(index) = self.placements.iter().position(|p| p.image == oldest.id) {
                 self.release(index, grid);
             }
+            // A stored image is queued again by its next placement.
+            #[cfg(feature = "kitty-graphics")]
+            self.kitty.store.mark_undelivered(oldest.id);
             dropped = dropped.saturating_add(1);
         }
         self.pending_bytes = self.pending_bytes.saturating_add(bytes);
         self.pending.push(image);
         dropped
     }
+}
+
+/// Where `placement` is now; `None` when its anchor is gone.
+fn extent_of(placement: &Placement, grid: &TerminalGrid) -> Option<Extent> {
+    let pos = grid.anchors().get(placement.anchor)?;
+    Some(Extent {
+        top: pos.row.0,
+        bottom: pos.row.0.saturating_add(u64::from(placement.rows)),
+        left: u32::from(pos.col),
+        right: u32::from(pos.col) + u32::from(placement.cols),
+    })
 }
 
 /// Whether a placement of `rows` rows anchored at `anchor` still shows an image: its anchor is

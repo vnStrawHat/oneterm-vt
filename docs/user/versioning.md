@@ -22,6 +22,7 @@ Details:
   reply, never its shape.
 - The meaning of each `FeedStats` counter is API; counting something different is a major bump.
 - `polling` is the one public dependency (under `pty`); a `polling` major bump is a `major` bump here.
+- `png` and `miniz_oxide` (under `kitty-graphics`) are private: no type of theirs is in the API.
 - `Config` is built as `Config { field: value, ..Config::default() }`; a new `Config` field is a minor change.
   `input::KeyMods` follows the same rule: a new modifier is a new field and a minor change.
 - MSRV: 1.96.0 (`rust-version`); raising it is a major change.

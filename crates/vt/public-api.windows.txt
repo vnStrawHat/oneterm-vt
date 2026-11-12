@@ -2889,9 +2889,15 @@ impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::ParamSpans
 #[non_exhaustive] pub struct oneterm_vt::Placement
 pub oneterm_vt::Placement::anchor: oneterm_vt::grid::AnchorId
 pub oneterm_vt::Placement::cols: u16
+pub oneterm_vt::Placement::display_size: (u32, u32)
 pub oneterm_vt::Placement::id: oneterm_vt::intern::GraphicId
+pub oneterm_vt::Placement::image: oneterm_vt::intern::GraphicId
+pub oneterm_vt::Placement::pixel_offset: (u16, u16)
 pub oneterm_vt::Placement::pixel_size: (u32, u32)
 pub oneterm_vt::Placement::rows: u16
+pub oneterm_vt::Placement::source_origin: (u32, u32)
+pub oneterm_vt::Placement::source_size: (u32, u32)
+pub oneterm_vt::Placement::z_index: i32
 impl core::clone::Clone for oneterm_vt::Placement
 pub fn oneterm_vt::Placement::clone(&self) -> oneterm_vt::Placement
 impl core::cmp::Eq for oneterm_vt::Placement
@@ -3177,13 +3183,19 @@ impl core::marker::Unpin for oneterm_vt::SnapshotCursor
 impl core::marker::UnsafeUnpin for oneterm_vt::SnapshotCursor
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::SnapshotCursor
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::SnapshotCursor
-pub struct oneterm_vt::SnapshotPlacement
+#[non_exhaustive] pub struct oneterm_vt::SnapshotPlacement
 pub oneterm_vt::SnapshotPlacement::col: u16
 pub oneterm_vt::SnapshotPlacement::cols: u16
+pub oneterm_vt::SnapshotPlacement::display_size: (u32, u32)
 pub oneterm_vt::SnapshotPlacement::id: oneterm_vt::intern::GraphicId
+pub oneterm_vt::SnapshotPlacement::image: oneterm_vt::intern::GraphicId
+pub oneterm_vt::SnapshotPlacement::pixel_offset: (u16, u16)
 pub oneterm_vt::SnapshotPlacement::pixel_size: (u32, u32)
 pub oneterm_vt::SnapshotPlacement::row: oneterm_vt::grid::RowId
 pub oneterm_vt::SnapshotPlacement::rows: u16
+pub oneterm_vt::SnapshotPlacement::source_origin: (u32, u32)
+pub oneterm_vt::SnapshotPlacement::source_size: (u32, u32)
+pub oneterm_vt::SnapshotPlacement::z_index: i32
 impl core::clone::Clone for oneterm_vt::SnapshotPlacement
 pub fn oneterm_vt::SnapshotPlacement::clone(&self) -> oneterm_vt::SnapshotPlacement
 impl core::cmp::Eq for oneterm_vt::SnapshotPlacement

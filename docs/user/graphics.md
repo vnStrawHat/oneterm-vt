@@ -1,9 +1,10 @@
-# Graphics (Sixel)
+# Graphics
 
-A program draws an image with Sixel (`DCS q ... ST`). The engine decodes it to RGBA, anchors it to
-the cells it covers and tells you when those cells are gone. It never rescales, draws or uploads:
-pixels come from `Terminal::take_graphics`, positions from `SnapshotState::placements`, the end of an
-image from `VtEvent::GraphicReleased`.
+A program draws an image with Sixel (`DCS q ... ST`) or with the kitty graphics protocol
+(`APC G ... ST`, see [graphics-kitty](graphics-kitty.md)). The engine decodes it to RGBA, anchors a
+placement to the cells it covers and tells you when it is gone. It never crops, rescales, draws or
+uploads: pixels come from `Terminal::take_graphics`, positions from `SnapshotState::placements`,
+the end of an image or a placement from `VtEvent::GraphicReleased`.
 
 ## Example: one pixel from bytes to texture and back
 
@@ -27,31 +28,34 @@ for image in term.take_graphics() {
 }
 for event in batch.iter() {
     if let VtEvent::GraphicReleased(id) = event {
-        textures.remove(id); // free
+        textures.remove(id); // free; an id you hold no texture for is a placement
     }
 }
 term.snapshot_update(&mut state, now);
 let placement = state.placements()[0];
 assert_eq!((placement.cols, placement.rows), (1, 1)); // one 8x16 cell
-assert!(textures.contains_key(&placement.id));
-assert_eq!(state.rows()[0].cells[0].graphic, Some(placement.id));
+assert!(textures.contains_key(&placement.image)); // the pixels this placement shows
+assert_eq!(state.rows()[0].cells[0].graphic, Some(placement.id)); // cells name the placement
 
 term.feed(b"\x1bc", &mut batch, now); // RIS: the grid is empty again
-assert!(batch.iter().any(|event| *event == VtEvent::GraphicReleased(placement.id)));
+assert!(batch.iter().any(|event| *event == VtEvent::GraphicReleased(placement.image)));
 ```
 
-## Lifecycle
+## Images and placements
 
 ```text
-DCS q ... ST --decode--> GraphicData (RGBA)  --take_graphics--> your texture, keyed by GraphicId
-             --place at the cursor--> Placement + cells that name the GraphicId
-                 --snapshot_update--> SnapshotPlacement { row, col, cols, rows, pixel_size }
-   rows leave the grid / are erased / evicted --> VtEvent::GraphicReleased(id) --> free the texture
+pixels  --decode--> GraphicData { id, rgba }  --take_graphics--> your texture, keyed by its id
+        --place at the cursor--> Placement { id, image, .. } + cells that name the placement id
+              --snapshot_update--> SnapshotPlacement { row, col, cols, rows, image, source, .. }
+   rows leave the grid / are erased / evicted --> GraphicReleased(placement), GraphicReleased(image)
 ```
 
-A placement is an anchor on its top-left cell: it scrolls into history, follows IL / DL / SU / SD and
-survives reflow with its rows. It lives while its anchor lives and a row of its extent still carries
-an image cell. Text printed over an image cell replaces that cell only.
+- A placement is an anchor on its top-left cell: it scrolls into history, follows IL / DL / SU /
+  SD and survives reflow with its rows. It lives while its anchor lives and a row of its extent
+  still carries an image cell. Text printed over an image cell replaces that cell only.
+- `Placement::image` names the pixels. A Sixel image is its own placement (`image == id`); a
+  kitty image has an id of its own and may be shown by many placements. An image is released
+  after its last placement, or, if a program stored it, when the program deletes or replaces it.
 
 ## Embedder checklist
 
@@ -59,23 +63,10 @@ an image cell. Text printed over an image cell replaces that cell only.
   frees), then `snapshot_update`. `take_graphics` is the only drain; each image is handed out once,
   even one released before you took it (the release that follows frees it).
 - Call `Terminal::set_cell_pixels(width, height)` on every font or DPI change.
-- Key textures by `GraphicId`. Ids start at 1 and are never reused, not even after RIS.
-- `GraphicReleased` arrives in the next `feed`, an empty one included, and before `Repaint`. Which
-  images are released, and in which `feed`, can depend on where the input was split: the pending
-  ceiling and the sweep both run per `feed`.
-
-## Geometry
-
-- Footprint: `ceil(pixels / cell)` per axis against `set_cell_pixels`; when either axis is 0 the
-  `VIRTUAL_CELL` (10 x 20) is used for both. Columns are clipped to the screen, rows are not
-  clipped at the bottom. The footprint is fixed when the image is placed.
-- Cursor: it walks `bands above the last * 6 / cell_height` rows and keeps its column (the DEC
-  rule, not "column 0 below the image"). It ends on the image's last row, or below it when the
-  payload ends in `-` and the cell height divides the image.
-- Raster attributes (`"Pan;Pad;Ph;Pv`) set the image size; data past it is cropped and missing
-  data is transparent. Without them the painted extent is the size.
-- `CSI 14 t` answers `rows * cell_height ; cols * cell_width` of the effective cell, so a program
-  that asks before you call `set_cell_pixels` sees `VIRTUAL_CELL`.
+- Key textures by `GraphicData::id`, draw `placement.image`. Ids start at 1 and are never reused.
+- `GraphicReleased(id)`: forget what you keyed by `id`. It arrives in the next `feed`, an empty one
+  included, and before `Repaint`. Which images are released, and in which `feed`, can depend on
+  where the input was split: the pending ceiling and the sweep both run per `feed`.
 
 ## Drawing
 
@@ -91,29 +82,41 @@ term.snapshot_update(&mut state, now);
 
 let row = &state.rows()[1];
 let id = row.cells[2].graphic.expect("the cell is covered");
-let (dx, dy) = state.graphic_offset(id, row.id, 2).expect("the image is live");
-assert_eq!((dx, dy), (2, 1)); // draw the texture at cell_origin - (dx, dy) * cell_size
+let (dx, dy) = state.graphic_offset(id, row.id, 2).expect("the placement is live");
+assert_eq!((dx, dy), (2, 1)); // draw the picture at cell_origin - (dx, dy) * cell_size
 ```
 
+- The picture of a placement: `source_size` pixels of `image` at `source_origin`, stretched to
+  `display_size`, at the top-left cell's origin plus `pixel_offset`. Sixel shows the whole image
+  unscaled; kitty may cut and stretch. `z_index` below 0 goes under the text.
 - By cells (recommended): for a cell with `graphic: Some(id)`, `graphic_offset(id, row.id, col)`
-  gives `(dx, dy)` in cells; position the texture at `cell_origin - (dx, dy) * cell_size`, one image
-  pixel per device pixel, clipped to that cell. Cells whose text replaced the image, and rows split
-  by IL, then draw correctly. `None` means the image was released: draw nothing.
-- By placement (simpler, ignores overwrites): the texture at the placement's top-left cell, clipped to
-  `cols x rows`. `placements()` lists both screens, oldest first. Draw text on top of image cells.
+  gives `(dx, dy)` in cells; draw the picture at `cell_origin - (dx, dy) * cell_size`, clipped to
+  that cell. Cells whose text replaced the image, and rows split by IL, then draw correctly.
+  `None` means the placement was released: draw nothing.
+- By placement (simpler, ignores overwrites): the picture at the placement's top-left cell, clipped
+  to `cols x rows`. `placements()` lists both screens, oldest first. Draw text on top.
+
+## Geometry (Sixel)
+
+- Footprint: `ceil(pixels / cell)` per axis against `set_cell_pixels`; when either axis is 0 the
+  `VIRTUAL_CELL` (10 x 20) is used for both. Columns are clipped to the screen, rows are not
+  clipped at the bottom. The footprint is fixed when the image is placed.
+- Cursor: it walks `bands above the last * 6 / cell_height` rows and keeps its column (the DEC
+  rule). It ends on the image's last row, or below it when the payload ends in `-` and the cell
+  height divides the image.
+- Raster attributes (`"Pan;Pad;Ph;Pv`) set the image size; data past it is cropped and missing
+  data is transparent. `CSI 14 t` answers with the effective cell, `VIRTUAL_CELL` until you set one.
 
 ## Ceilings
 
 | Ceiling | Value | Past it |
 |---|---|---|
-| image side | 4096 px | pixels past it are dropped |
-| `DCS` payload | 16 MiB | aborted, no image (`aborted_dcs`) |
-| waiting for `take_graphics` | 128 MiB of pixels (each image counts at least its struct size) | oldest dropped and released (`graphics_dropped`) |
+| image side | 4096 px | Sixel: pixels past it are dropped; kitty: refused |
+| `DCS` / `APC` payload | 16 MiB | aborted, no image (`aborted_dcs` for DCS) |
+| waiting for `take_graphics` | 128 MiB of pixels | oldest dropped, its placements released (`graphics_dropped`) |
 | live placements | 256 | the oldest is released |
-| pixels of live images | 256 MiB together | the oldest placements are released, so the textures you keep stay within it |
+| pixels of placed images | 256 MiB, each image once | the oldest placements are released |
 
-A newer image over an older one's whole extent releases it at once. See [limits](limits.md).
-
-## Not supported
-
-Background select (`P2`), pixel aspect, DECSDM (`?80`), XTSMGRAPHICS, `CSI 16 t`, other image protocols.
+A newer placement over an older one's whole extent releases it at once, unless the older one is on
+a higher layer. See [limits](limits.md). Not supported: Sixel background select (`P2`), pixel
+aspect, DECSDM (`?80`), XTSMGRAPHICS, `CSI 16 t`, OSC 1337 images.

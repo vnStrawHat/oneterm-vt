@@ -13,7 +13,7 @@ working example, and names exact API items. Every Rust block is compiled by `car
 6. Write every `VtEvent::Reply` back to the program, in order.
 7. Draw from a reused `SnapshotState`, never from the grid under your lock.
 8. Turn keys into bytes with `Terminal::encode_key`; it follows the program's modes.
-9. `pty` is a default feature; `default-features = false` leaves the engine alone.
+9. `pty` and `kitty-graphics` are default features; `default-features = false` leaves the engine alone.
 10. What is promised across versions: [`versioning.md`](versioning.md).
 
 **Status:** v0.1.4. Every chapter is written; every Rust block compiles in `cargo test --doc`.
@@ -28,7 +28,7 @@ working example, and names exact API items. Every Rust block is compiled by `car
 | 03 | [`events.md`](events.md) | `EventBatch` and every `VtEvent`; answering `Reply`, `ColorQuery` (`ColorKey::color_reply`), `ClipboardLoad`; `OscRoutes` |
 | 04 | [`input.md`](input.md) | `input::encode_key_event` / `Terminal::encode_key`: the four-rung ladder (legacy, `modifyOtherKeys`, kitty flags), `KeyEvent` fields; `encode_mouse_*` per reporting mode and encoding; what the embedder still owes (paste, focus, alternate scroll) |
 | 05 | [`search.md`](search.md) | `search::GridText` and `search_grid_text`: copy under the lock, search without it; matches across wrapped rows, `SearchMatch` to viewport rows, `MAX_MATCHES`; `regex` feature |
-| 06 | [`graphics.md`](graphics.md) | Sixel lifecycle: `Terminal::take_graphics` (`GraphicData`), `Placement` / `SnapshotPlacement`, drawing by cells with `graphic_offset`, `VtEvent::GraphicReleased`, `set_cell_pixels` and `VIRTUAL_CELL`, ceilings |
+| 06 | [`graphics.md`](graphics.md) | image lifecycle (Sixel and kitty): `Terminal::take_graphics` (`GraphicData`), `Placement` / `SnapshotPlacement`, images and placements, drawing by cells with `graphic_offset`, `VtEvent::GraphicReleased`, `set_cell_pixels` and `VIRTUAL_CELL`, ceilings |
 | 07 | [`resize.md`](resize.md) | `grid::TerminalGrid::resize`, `ResizePolicy` (PTY vs ConPTY), `ResizeOutcome`; what reflow keeps, what dies |
 | 08 | [`limits.md`](limits.md) | every ceiling on hostile input and what happens past it; each `FeedStats` counter |
 | 09 | [`conformance.md`](conformance.md) | supported sequences and modes, inert modes and their DECRQM answers, the DECRQCRA gate, known gaps |
@@ -41,12 +41,14 @@ working example, and names exact API items. Every Rust block is compiled by `car
 | 16 | [`grid.md`](grid.md) | `grid::TerminalGrid` and `Screen`: rows and `RowId`s, scrollback, viewport, reading rows |
 | 17 | [`selection.md`](selection.md) | `Selection`, `SelectionKind`, `Side`: ranges, word/line/block expansion, copied text, `Invalidation` before erases |
 | 18 | [`snapshot.md`](snapshot.md) | `SnapshotState` and `SnapshotUpdate` (`Full` / `Partial { scrolled }` / `Unchanged`), rows and style runs, `Palette` and theme vs OSC overrides, `ModeSnapshot`, `MouseProtocol` |
+| 19 | [`graphics-kitty.md`](graphics-kitty.md) | the kitty graphics protocol: actions, data formats, replies, what differs from kitty, ceilings, the `kitty-graphics` feature |
 
 ## Features
 
 | Feature | Default | Adds |
 |---|---|---|
 | `pty` | on | `oneterm_vt::pty` (ConPTY / `openpty`); deps `polling` + `windows-sys` or `libc` |
+| `kitty-graphics` | on | the kitty graphics protocol (`APC G`); deps `png` + `miniz_oxide` |
 | `regex` | off | `search::SearchPattern::Regex`; dep `regex` |
 | `vt-paranoid` | off | whole-history integrity walk after every mutation; tests and fuzzing only |
 | `hotpath-profiling` | off | `hotpath::measure` sites on hot paths; dep `hotpath` |

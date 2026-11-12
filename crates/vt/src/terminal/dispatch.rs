@@ -187,7 +187,7 @@ impl Handler<'_> {
         }
         if let Some(decoder) = decoder {
             if let Some(image) = decoder.finish() {
-                self.place(image);
+                self.place_sixel(image);
             }
             return;
         }
@@ -260,8 +260,30 @@ impl Dispatch for Handler<'_> {
         self.dcs_close(aborted);
     }
 
+    #[cfg(not(feature = "kitty-graphics"))]
     fn apc_start(&mut self, _introducer: u8) {
         self.begin_control();
         self.unhandled();
+    }
+
+    #[cfg(feature = "kitty-graphics")]
+    fn apc_start(&mut self, introducer: u8) {
+        self.begin_control();
+        self.state.graphics.kitty.start(introducer);
+    }
+
+    #[cfg(feature = "kitty-graphics")]
+    fn apc_put(&mut self, byte: u8) {
+        self.state.graphics.kitty.put(byte);
+    }
+
+    #[cfg(feature = "kitty-graphics")]
+    fn apc_end(&mut self, aborted: bool) {
+        use crate::graphics::kitty::Outcome;
+        match self.state.graphics.kitty.end(aborted) {
+            Outcome::Ignored => self.unhandled(),
+            Outcome::Chunk => {}
+            Outcome::Command(load) => self.kitty_command(load),
+        }
     }
 }

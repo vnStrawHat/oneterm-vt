@@ -47,7 +47,8 @@ assert_eq!(answer(&mut term, b"\x1b[?9999$p"), b"\x1b[?9999;0$y"); // unknown
 | reports | `DA1 DA2 DA3 DSR CPR DECXCPR XTVERSION DECRQSS DECRQCRA XTGETTCAP`, `CSI 14 t`, `CSI 18 t` |
 | window | `CSI 22 t` / `CSI 23 t` title stack |
 | OSC | `0 1 2 4 7 8 9 9;4 10 11 12 17 19 22 50 52 104 110 111 112 133`; others routable with `OscRoutes` |
-| DCS | `q` (Sixel, see [graphics](graphics.md)), `$ q` (DECRQSS), `+ q` (XTGETTCAP); APC, SOS and PM are consumed and counted |
+| DCS | `q` (Sixel, see [graphics](graphics.md)), `$ q` (DECRQSS), `+ q` (XTGETTCAP) |
+| APC | `G` (kitty graphics, see [graphics-kitty](graphics-kitty.md): `a=q t T p d`, direct data, RGB / RGBA / PNG, zlib, chunks); any other APC, and every SOS and PM, is consumed and counted |
 
 Modes with a live effect: `?1 ?5 ?6 ?7 ?12 ?25 ?45 ?47 ?69 ?1047 ?1048 ?1049 ?2027` and `4`, and
 `?2026` (synchronized output, see [threading](threading.md)). Modes the engine stores and you read

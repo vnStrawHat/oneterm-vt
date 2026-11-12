@@ -50,6 +50,8 @@ jobs:
           cargo clippy -p oneterm-vt --all-targets --no-default-features -- -D warnings
           cargo clippy -p oneterm-vt --all-targets --features hotpath-profiling -- -D warnings
           cargo test -p oneterm-vt --no-default-features
+          cargo clippy -p oneterm-vt --all-targets --no-default-features --features kitty-graphics -- -D warnings
+          cargo test -p oneterm-vt --no-default-features --features kitty-graphics
           deps="$(cargo tree -p oneterm-vt -e normal --no-default-features --prefix none --format '{p}' \
             | awk 'NR > 1 { print $1 }' | sort -u | tr '\n' ' ')"
           [ "$deps" = "bitflags log memchr rustc-hash unicode-segmentation unicode-width " ] \

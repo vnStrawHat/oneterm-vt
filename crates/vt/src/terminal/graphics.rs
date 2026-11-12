@@ -1,4 +1,4 @@
-//! Images on the terminal: placing a decoded Sixel at the cursor and reclaiming extras ids.
+//! Images on the terminal: placing decoded pixels at the cursor and reclaiming extras ids.
 //!
 //! The bookkeeping that needs no line feed (footprints, stamping, release causes, the pixel
 //! queue) lives in `crate::graphics`; the cursor walk runs the dispatcher's own line feed so
@@ -16,6 +16,34 @@ use crate::intern::{Extras, ExtrasId, GraphicId};
 
 use super::State;
 use super::dispatch::Handler;
+
+/// The pixels a new placement shows.
+pub(super) enum Picture {
+    /// Fresh pixels that belong to this placement alone: they take its id.
+    Own { size: (u32, u32), rgba: Vec<u8> },
+    /// An image with an id of its own, which other placements may show too. `deliver` hands
+    /// it to the embedder, who has not seen it yet.
+    #[cfg(feature = "kitty-graphics")]
+    Shared {
+        data: Arc<GraphicData>,
+        deliver: bool,
+    },
+}
+
+/// How a picture sits on the grid; each protocol has its own rules for it.
+pub(super) struct Layout {
+    /// Columns covered, already clipped at the right edge of the screen.
+    pub(super) cols: u16,
+    /// Rows covered.
+    pub(super) rows: u16,
+    /// Line feeds the cursor makes while the rows are stamped.
+    pub(super) walk: u16,
+    pub(super) source_origin: (u32, u32),
+    pub(super) source_size: (u32, u32),
+    pub(super) pixel_offset: (u16, u16),
+    pub(super) display_size: (u32, u32),
+    pub(super) z_index: i32,
+}
 
 impl State {
     /// Interns `value` in the extras table, first freeing the ids no cell names when the
@@ -60,22 +88,48 @@ impl State {
 }
 
 impl Handler<'_> {
-    /// Places a decoded image at the cursor of the active screen.
-    ///
-    /// The cursor walks `band_pixels / cell_height` rows through the line feed (column kept),
-    /// the cells of the footprint name the image, and the placement is queued for the embedder.
-    pub(super) fn place(&mut self, image: DecodedSixel) {
+    /// Places a decoded Sixel image at the cursor: the footprint is what the pixels need, and
+    /// the cursor walks `band_pixels / cell_height` rows (the DEC rule).
+    pub(super) fn place_sixel(&mut self, image: DecodedSixel) {
         let cell = effective_cell(self.state.cell_pixels);
         // `effective_cell` never returns a zero axis.
         let walk = u16::try_from(image.band_pixels / u32::from(cell.1)).unwrap_or(u16::MAX);
-        let (cursor, screen_cols) = {
+        let room = {
             let screen = self.state.grid.screen();
-            (screen.cursor().pos, screen.cols())
+            screen.cols().saturating_sub(screen.cursor().pos.col)
         };
         let size = (image.width, image.height);
-        let (cols, rows) = cells_for(size, cell, screen_cols.saturating_sub(cursor.col));
-        let id = GraphicId(self.state.graphics.next_id);
-        self.state.graphics.next_id = self.state.graphics.next_id.saturating_add(1);
+        let (cols, rows) = cells_for(size, cell, room);
+        let layout = Layout {
+            cols,
+            rows,
+            walk,
+            source_origin: (0, 0),
+            source_size: size,
+            pixel_offset: (0, 0),
+            display_size: size,
+            z_index: 0,
+        };
+        let rgba = image.rgba;
+        self.place(Picture::Own { size, rgba }, layout);
+    }
+
+    /// Places `picture` at the cursor of the active screen and returns the id of the
+    /// placement.
+    ///
+    /// The cursor walks `layout.walk` rows through the line feed (column kept), the cells of
+    /// the footprint name the placement, and pixels the embedder has not seen are queued.
+    pub(super) fn place(&mut self, picture: Picture, layout: Layout) -> GraphicId {
+        let Layout {
+            cols, rows, walk, ..
+        } = layout;
+        let cursor = self.state.grid.screen().cursor().pos;
+        let id = self.state.graphics.next_graphic_id();
+        let (image, pixel_size) = match &picture {
+            Picture::Own { size, .. } => (id, *size),
+            #[cfg(feature = "kitty-graphics")]
+            Picture::Shared { data, .. } => (data.id, (data.width, data.height)),
+        };
         let only = self.state.intern_extras(Extras {
             hyperlink: None,
             graphic: Some(id),
@@ -85,10 +139,16 @@ impl Handler<'_> {
         let anchor = grid.anchors_mut().register(AnchorKind::Graphic(id), cursor);
         let placement = Placement {
             id,
+            image,
             anchor,
             cols,
             rows,
-            pixel_size: size,
+            pixel_size,
+            source_origin: layout.source_origin,
+            source_size: layout.source_size,
+            pixel_offset: layout.pixel_offset,
+            display_size: layout.display_size,
+            z_index: layout.z_index,
         };
         graphics.admit(placement, grid);
 
@@ -113,13 +173,25 @@ impl Handler<'_> {
             ..
         } = &mut *self.state;
         graphics.release_covered(grid);
-        let data = Arc::new(GraphicData {
-            id,
-            width: image.width,
-            height: image.height,
-            rgba: image.rgba,
-        });
-        let dropped = graphics.push_pending(data, grid);
-        stats.graphics_dropped = stats.graphics_dropped.saturating_add(dropped);
+        let unseen = match picture {
+            Picture::Own { size, rgba } => Some(Arc::new(GraphicData {
+                id,
+                width: size.0,
+                height: size.1,
+                rgba,
+            })),
+            #[cfg(feature = "kitty-graphics")]
+            Picture::Shared {
+                data,
+                deliver: true,
+            } => Some(data),
+            #[cfg(feature = "kitty-graphics")]
+            Picture::Shared { .. } => None,
+        };
+        if let Some(data) = unseen {
+            let dropped = graphics.push_pending(data, grid);
+            stats.graphics_dropped = stats.graphics_dropped.saturating_add(dropped);
+        }
+        id
     }
 }

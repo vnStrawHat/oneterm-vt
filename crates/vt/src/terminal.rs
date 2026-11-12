@@ -34,6 +34,8 @@ mod color;
 mod csi;
 mod dispatch;
 mod graphics;
+#[cfg(feature = "kitty-graphics")]
+mod kitty;
 mod modes;
 mod osc;
 mod osc_routes;

@@ -1,6 +1,6 @@
 [package]
 name = "oneterm-vt"
-description = "An embeddable terminal core: VT parser, grid with scrollback, reflow, selection, damage-tracked snapshots, Sixel and an optional pseudo-console transport."
+description = "An embeddable terminal core: VT parser, grid with scrollback, reflow, selection, damage-tracked snapshots, Sixel and kitty graphics, and an optional pseudo-console transport."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,9 @@ license.workspace = true
 publish.workspace = true
 
 [features]
-default = ["pty"]
+default = ["pty", "kitty-graphics"]
+# The kitty graphics protocol (`APC G`): PNG and zlib payloads need the two decoder crates.
+kitty-graphics = ["dep:png", "dep:miniz_oxide"]
 # Pseudo-console transport (ConPTY / openpty), pollable with `polling`.
 pty = ["dep:polling", "dep:windows-sys", "dep:libc"]
 # Widens the integrity walk to the whole history wherever the walk runs; for tests, fuzzing and CI only.
@@ -28,6 +30,9 @@ log.workspace = true            # pty diagnostics; one of the six no-default lea
 memchr.workspace = true
 # PUBLIC dependency under `pty`: Poller, Event and PollMode appear in EventedReadWrite.
 polling = { workspace = true, optional = true }
+# Feature `kitty-graphics`: the two decoders the kitty graphics protocol needs.
+miniz_oxide = { workspace = true, optional = true }
+png = { workspace = true, optional = true }
 # Optional: the `regex` feature's matcher; default features kept (Unicode classes, perf).
 regex = { workspace = true, optional = true }
 rustc-hash.workspace = true

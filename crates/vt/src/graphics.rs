@@ -1,5 +1,5 @@
-//! Images: Sixel decoded to RGBA, anchored to the cells they cover, released when those cells
-//! are gone.
+//! Images: Sixel and the kitty graphics protocol decoded to RGBA, anchored to the cells they
+//! cover, released when those cells are gone.
 //!
 //! Three rules shape everything here:
 //!
@@ -11,8 +11,8 @@
 //!    a row of its extent still carries the `HAS_GRAPHIC` hint. A counter would miss row resets,
 //!    blanking scrolls, alternate-screen wipes and reflow.
 //!
-//! The decoder produces RGBA pixels and nothing else; format-specific knowledge stops at
-//! [`sixel`].
+//! A decoder produces RGBA pixels and nothing else; format-specific knowledge stops at
+//! [`sixel`] and, with the `kitty-graphics` feature, at `kitty`.
 
 use std::sync::Arc;
 
@@ -22,6 +22,10 @@ use crate::intern::GraphicId;
 
 use self::sixel::SixelDecoder;
 
+#[cfg(feature = "kitty-graphics")]
+pub(crate) mod image_store;
+#[cfg(feature = "kitty-graphics")]
+pub(crate) mod kitty;
 pub(crate) mod placement;
 pub(crate) mod sixel;
 
@@ -48,7 +52,7 @@ pub(crate) const LIVE_MAX_BYTES: usize = 256 << 20;
 /// image never painted are transparent (`[0, 0, 0, 0]`).
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct GraphicData {
-    /// The image; the same id names its [`Placement`] and its cells.
+    /// The image: what [`Placement::image`] names.
     pub id: GraphicId,
     /// Width in pixels.
     pub width: u32,
@@ -64,19 +68,38 @@ pub struct GraphicData {
 /// `SnapshotState::placements`, which resolves it). `cols` is already clipped at the right
 /// edge; `rows` is the full height and is not clipped at the bottom. The footprint is fixed
 /// when the image is placed: later `set_cell_pixels` calls do not change it.
+///
+/// To draw it, take the pixels of `image` (a [`GraphicData`]), cut out `source_size` pixels
+/// at `source_origin`, stretch them to `display_size` and put them at the origin of the
+/// top-left cell plus `pixel_offset`. A Sixel image is its own placement (`image == id`),
+/// is shown whole at its own size, without offset, on layer 0.
 #[non_exhaustive]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Placement {
-    /// The image.
+    /// The placement: the id its cells carry.
     pub id: GraphicId,
+    /// The pixels it shows: the id of a [`GraphicData`]. Several placements of one kitty
+    /// image share it; for a Sixel image it equals `id`.
+    pub image: GraphicId,
     /// The anchor of the top-left cell.
     pub anchor: AnchorId,
     /// Columns covered, clipped to the screen width at placement time.
     pub cols: u16,
     /// Rows covered.
     pub rows: u16,
-    /// The decoded size in pixels, `(width, height)`.
+    /// The size of the whole image in pixels, `(width, height)`.
     pub pixel_size: (u32, u32),
+    /// The top-left corner of the part of the image that is shown, in image pixels.
+    pub source_origin: (u32, u32),
+    /// The size of that part, in image pixels.
+    pub source_size: (u32, u32),
+    /// Where the picture starts inside its top-left cell, in pixels.
+    pub pixel_offset: (u16, u16),
+    /// The size to draw the shown part at, in device pixels of the cell size it was placed
+    /// with.
+    pub display_size: (u32, u32),
+    /// The layer: higher is drawn later, and a layer below 0 goes under the text.
+    pub z_index: i32,
 }
 
 /// The graphics side of a terminal's state.
@@ -88,13 +111,16 @@ pub(crate) struct GraphicsState {
     /// The RGBA bytes held by `pending`.
     pub(crate) pending_bytes: usize,
     /// Live placements, oldest first (draw order).
-    pub(crate) placements: Vec<Placement>,
-    /// The RGBA bytes of the images in `placements`.
+    pub(crate) placements: placement::PlacementList,
+    /// The RGBA bytes of the images `placements` show, each image counted once.
     pub(crate) live_bytes: usize,
     /// Ids released since the last feed delivered them, in release order.
     pub(crate) released: Vec<GraphicId>,
     /// The open `DCS q` string, if any.
     pub(crate) decoder: Option<SixelDecoder>,
+    /// The kitty graphics protocol: the `APC` reader, the stored images, who placed what.
+    #[cfg(feature = "kitty-graphics")]
+    pub(crate) kitty: kitty::KittyState,
 }
 
 impl GraphicsState {
@@ -103,11 +129,20 @@ impl GraphicsState {
             next_id: 1,
             pending: Vec::new(),
             pending_bytes: 0,
-            placements: Vec::new(),
+            placements: placement::PlacementList::default(),
             live_bytes: 0,
             released: Vec::new(),
             decoder: None,
+            #[cfg(feature = "kitty-graphics")]
+            kitty: kitty::KittyState::default(),
         }
+    }
+
+    /// The next image or placement id; ids are never reused.
+    pub(crate) fn next_graphic_id(&mut self) -> GraphicId {
+        let id = GraphicId(self.next_id);
+        self.next_id = self.next_id.saturating_add(1);
+        id
     }
 
     /// RIS: forgets queued pixels and the open decoder. Placements stay until the end-of-feed
@@ -116,6 +151,11 @@ impl GraphicsState {
         self.pending.clear();
         self.pending_bytes = 0;
         self.decoder = None;
+        #[cfg(feature = "kitty-graphics")]
+        {
+            let forgotten = self.kitty.reset();
+            self.retire(forgotten);
+        }
     }
 
     /// Moves every pending release into `batch` as `GraphicReleased` events, in order.

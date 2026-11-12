@@ -78,8 +78,8 @@ and its payload). The last row of a group lists its functions and constants.
 
 | Item | What it is for | Chapter |
 |---|---|---|
-| `GraphicData` | decoded Sixel pixels, taken once with `take_graphics` | [graphics](graphics.md) |
-| `Placement`, `SnapshotPlacement` | where an image sits on the grid, and as a renderer sees it | [graphics](graphics.md) |
+| `GraphicData` | decoded image pixels (Sixel, kitty), taken once with `take_graphics` | [graphics](graphics.md) |
+| `Placement`, `SnapshotPlacement` | where a picture sits on the grid, which image and which part of it, and as a renderer sees it | [graphics](graphics.md) |
 | `VIRTUAL_CELL` | cell pixel size assumed until you call `set_cell_pixels` | [graphics](graphics.md) |
 
 ## `parser`
@@ -101,7 +101,7 @@ and its payload). The last row of a group lists its functions and constants.
 | `intern::StyleId`, `intern::ExtrasId` (also `ExtrasId`), `intern::Extras` (also `Extras`) | a cell style id and its link or image extras | [cells-and-styles](cells-and-styles.md) |
 | `intern::GraphemeArena`, `intern::GraphemeId`, `intern::GraphemeRemap` | storage and ids of multi-scalar clusters | [cells-and-styles](cells-and-styles.md) |
 | `intern::Hyperlink` (also `Hyperlink`), `intern::HyperlinkId` (also `HyperlinkId`), `intern::HyperlinkTable` | OSC 8 links | [cells-and-styles](cells-and-styles.md) |
-| `intern::GraphicId` (also `GraphicId`) | identity of an image, named by `GraphicReleased` | [graphics](graphics.md) |
+| `intern::GraphicId` (also `GraphicId`) | identity of an image or a placement, named by `GraphicReleased` | [graphics](graphics.md) |
 | constants | `GRAPHEME_SWEEP_CHARS`, `GRAPHEME_SWEEP_ENTRIES` | [cells-and-styles](cells-and-styles.md) |
 
 ## `grid`

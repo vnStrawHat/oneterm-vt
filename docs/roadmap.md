@@ -101,3 +101,11 @@ examples, then the Release workflow with version `0.1.0`.
   Rust block compiles; fuzz runs 10 min clean; `perf/history/<platform>/v0.1.0.json` and
   `perf/chart-<platform>.svg` for `linux`, `windows`, `macos` committed; tag `v0.1.0` created by
   the Release workflow.
+
+**14. Kitty graphics** (feature `kitty-graphics`, default on): `APC G` images through the
+placement pipeline of phase 10; images shared by their placements. Spec
+[0020](specs/0020-kitty-graphics/README.md).
+- Public: `Placement` and `SnapshotPlacement` fields `image, source_origin, source_size,
+  pixel_offset, display_size, z_index`; dependencies `png` and `miniz_oxide` under the feature.
+- Accept: every action and refusal of the spec answers as specified; hostile payloads stay
+  inside the caps; the `--no-default-features` dependency set of phase 11 is unchanged.

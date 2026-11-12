@@ -38,7 +38,7 @@ assert_eq!(stats.bytes, 10);
 | a parameter value | 65,535 | saturates; each consumer clamps | - |
 | OSC payload | 2 KiB; 8 MiB for a number given `OscRoutes::large` and not `Drop` | tail dropped, `truncated` set; a truncated OSC 8 or OSC 7 is rejected, so no link opens | `truncated_osc` |
 | OSC parameters | 16 from the parser, the last re-split on `;` | one span per `;` for builtins and forwarded OSCs; at most payload bytes + 1 spans, plus up to 15 for the separators the parser already split | - |
-| DCS / APC payload | 16 MiB | aborted, no answer | `aborted_dcs` (DCS) |
+| DCS / APC payload | 16 MiB | aborted, no answer; a chunked kitty image in flight is dropped | `aborted_dcs` (DCS) |
 | DECRQSS / XTGETTCAP payload | 8 KiB | no answer | `unhandled_sequences` (once) |
 | XTGETTCAP names | 16 per request, 128 bytes each | the name is dropped, never cut | `unhandled_sequences` (once) |
 | title stack / kitty flag stack | 16 / 8 | the oldest is dropped | - |
@@ -47,11 +47,14 @@ assert_eq!(stats.bytes, 10);
 | grapheme arena | 262,144 entries, 1,048,576 scalars; swept after a feed once it doubled; keeps at most half of each cap, newest rows first; a refused or dropped cluster keeps its base glyph | the cell keeps its base glyph, the new marks are dropped | `grapheme_table_exhausted` |
 | styles | 1,048,576 (about 23 MiB when full); an entry is freed once no cell names it (swept at 65,536 styles in use, then at twice what the last sweep kept; when full, after 4,096 refused styles, doubling up to 262,144 while sweeps free little) | the default style | `style_table_exhausted` |
 | extras | 65,536; an entry is freed once no cell names it (swept every 4,096 new entries) | no link or image | `hyperlink_table_exhausted` |
-| image side | 4096 px per axis | pixels past it are dropped | - |
-| image decode buffer | 64 MiB (4096 x 4096 RGBA) | cannot be exceeded | - |
-| images waiting for `take_graphics` | 128 MiB of pixels (each image counts at least its struct size) | the oldest is dropped and released | `graphics_dropped` |
+| image side | 4096 px per axis | Sixel: pixels past it are dropped; kitty: refused (`EINVAL`) | `unhandled_sequences` (kitty) |
+| image decode buffer | 64 MiB (4096 x 4096 RGBA) | cannot be exceeded; a kitty payload past it is refused (`EFBIG`), a zlib stream is cut at the image size | `unhandled_sequences` (kitty) |
+| kitty graphics control data | 512 bytes | the command is ignored | `unhandled_sequences` |
+| stored kitty images | 128 MiB of pixels and 1,024 images, both screens together | the oldest is forgotten; its placements stay | - |
+| rows of one kitty placement | the screen height, or `4096 / cell height` if more | clamped | - |
+| images waiting for `take_graphics` | 128 MiB of pixels (each image counts at least its struct size) | the oldest is dropped and its placements released | `graphics_dropped` |
 | image placements | 256 live | the oldest is released | - |
-| pixels of live images | 256 MiB together | the oldest placements are released (`GraphicReleased`) | - |
+| pixels of placed images | 256 MiB together, each image counted once | the oldest placements are released (`GraphicReleased`) | - |
 | hyperlinks | 65,536 links, 4 MiB of text, in use at once; a link is freed once no cell names it (swept when the table is full, at most once per 1,024 new links) | the link is dropped, the text prints | `hyperlink_table_exhausted` |
 | REP | 65,535 prints per sequence | clamped | - |
 | product name | 64 bytes after dropping control characters | cut at a character | - |

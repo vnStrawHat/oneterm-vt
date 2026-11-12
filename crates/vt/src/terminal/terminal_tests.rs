@@ -1262,6 +1262,16 @@ fn apc_and_unknown_dcs_are_unhandled() {
     assert_eq!(s.feed(b"\x1bPzdata\x1b\\").unhandled_sequences, 1);
 }
 
+#[cfg(not(feature = "kitty-graphics"))]
+#[test]
+fn without_the_feature_a_graphics_command_is_one_more_apc() {
+    let mut s = Session::new(10, 2);
+    let stats = s.feed(b"\x1b_Ga=T,i=1,f=24,s=1,v=1;AAAA\x1b\\");
+    assert_eq!(stats.unhandled_sequences, 1);
+    assert_eq!(s.replies(), "");
+    assert!(s.term.placements().is_empty());
+}
+
 #[test]
 fn a_cancelled_dcs_counts_as_aborted() {
     let mut s = Session::new(10, 2);
