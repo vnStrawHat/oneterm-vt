@@ -14,8 +14,8 @@ The tool is `vt-bench` (`crates/vt-bench`, a developer binary that is not part o
 | 5 | `rss` | live heap after 10 000 scrollback rows of plain, unicode, styled and mixed text | bytes/row |
 
 Tier 2 is the headline: it is what every byte of terminal output costs an embedder. Tiers 1-3
-run sixteen deterministic streams at 160x45: `plain_ascii`, `long_lines`, `heavy_sgr`, `tui_redraw`,
-`scroll_region`, `cjk_wide`, `dense_cells`, `scrolling`, `sixel`, `osc_9_7`, and six newer ones,
+run seventeen deterministic streams at 160x45: `plain_ascii`, `long_lines`, `heavy_sgr`, `tui_redraw`,
+`scroll_region`, `cjk_wide`, `dense_cells`, `scrolling`, `sixel`, `osc_9_7`, and seven newer ones,
 absent from the numbers below until a release records them:
 
 - `grapheme_clusters`: emoji ZWJ, VS16, skin tones, flags and combining marks under `?2027`.
@@ -26,6 +26,8 @@ absent from the numbers below until a release records them:
   entry per cell and is swept again and again while most of its styles are still on the grid.
 - `unique_links`: an `OSC 8` link nobody opened before on every line, so the link table fills
   and is swept.
+- `kitty_images`: kitty graphics, RGBA images of 48x48 to 128x96 in 4096-character chunks,
+  each placed three times; base64 and the placement bookkeeping dominate.
 
 ## What is not measured
 

@@ -1,4 +1,4 @@
-//! The deterministic benchmark streams: sixteen release generators and nine compare-only ones, no RNG state.
+//! The deterministic benchmark streams: seventeen release generators and nine compare-only ones, no RNG state.
 
 use std::fmt::Write as _;
 use std::fs;
@@ -20,7 +20,7 @@ const SIXEL_UNIT: &[u8] =
     b"\x1bPq\"1;1;12;12#0;2;100;0;0#1;2;0;100;0#0~~~~~~~~~~~~-#1~~~~~~~~~~~~\x1b\\\r\n";
 const OSC_UNIT: &[u8] = b"\x1b]9;7;state=running;title=build\x07building the workspace\r\n";
 
-pub(crate) const FIXTURES: [Fixture; 16] = [
+pub(crate) const FIXTURES: [Fixture; 17] = [
     Fixture {
         name: "plain_ascii",
         about: "plain ASCII log lines",
@@ -100,6 +100,11 @@ pub(crate) const FIXTURES: [Fixture; 16] = [
         name: "unique_links",
         about: "an OSC 8 link nobody opened before on every line: the link table swept",
         make: unique_links,
+    },
+    Fixture {
+        name: "kitty_images",
+        about: "kitty graphics: chunked RGBA images of 48x48 to 128x96, placed again by id",
+        make: kitty_images,
     },
 ];
 
@@ -661,6 +666,67 @@ fn unique_styles(target: usize) -> Vec<u8> {
     })
 }
 
+/// Image sizes `kitty_images` cycles through, the largest first (so the first unit is the
+/// longest): thumbnails, so the 300 kB a render run feeds hold several whole images.
+const KITTY_SIZES: [(u32, u32); 3] = [(128, 96), (96, 64), (48, 48)];
+/// Image ids in use: a ninth image replaces the first, as a program redrawing its pictures.
+const KITTY_IDS: usize = 8;
+/// Base64 characters per chunk, the size the protocol asks programs to send.
+const KITTY_CHUNK: usize = 4096;
+
+/// Appends `data` as padded base64.
+fn base64(data: &[u8], out: &mut Vec<u8>) {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    for chunk in data.chunks(3) {
+        let byte = |index: usize| u32::from(chunk.get(index).copied().unwrap_or(0));
+        let group = byte(0) << 16 | byte(1) << 8 | byte(2);
+        for index in 0..4 {
+            out.push(if index <= chunk.len() {
+                ALPHABET[(group >> (18 - 6 * index)) as usize & 63]
+            } else {
+                b'='
+            });
+        }
+    }
+}
+
+/// One line per unit: an RGBA image sent in 4096-character chunks and placed (`a=T`), then
+/// placed twice more by its id, scaled over 10 x 4 cells. Nothing is answered (`q=2`).
+fn kitty_images(target: usize) -> Vec<u8> {
+    let mut pixels = Vec::new();
+    let mut text = Vec::new();
+    build(target, b"", |i, out| {
+        let (width, height) = KITTY_SIZES[i % KITTY_SIZES.len()];
+        let id = i % KITTY_IDS + 1;
+        pixels.clear();
+        for pixel in 0..u64::from(width * height) {
+            // Runs of sixteen pixels share a colour, as flat areas of a picture do.
+            let colour = scramble(((i as u64) << 32) | (pixel / 16)).to_le_bytes();
+            pixels.extend_from_slice(&[colour[0], colour[1], colour[2], 255]);
+        }
+        text.clear();
+        base64(&pixels, &mut text);
+        let last = text.len().div_ceil(KITTY_CHUNK) - 1;
+        for (index, chunk) in text.chunks(KITTY_CHUNK).enumerate() {
+            let more = u8::from(index < last);
+            if index == 0 {
+                put(
+                    out,
+                    format_args!("\x1b_Ga=T,q=2,f=32,i={id},s={width},v={height},m={more};"),
+                );
+            } else {
+                put(out, format_args!("\x1b_Gm={more};"));
+            }
+            out.extend_from_slice(chunk);
+            out.extend_from_slice(b"\x1b\\");
+        }
+        for _ in 0..2 {
+            put(out, format_args!("\x1b_Ga=p,q=2,i={id},c=10,r=4\x1b\\"));
+        }
+        out.extend_from_slice(b"\r\n");
+    })
+}
+
 /// One link per line that no earlier line named: the hyperlink table fills and the engine
 /// frees the links whose rows left the history.
 fn unique_links(target: usize) -> Vec<u8> {
@@ -677,7 +743,7 @@ fn unique_links(target: usize) -> Vec<u8> {
 /// Which streams `fixtures` writes.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum FixtureSet {
-    /// The sixteen release streams.
+    /// The seventeen release streams.
     Release,
     /// The release streams plus the compare-only ones, in corpus order.
     Corpus,
@@ -758,7 +824,8 @@ mod tests {
                 "mode_churn",
                 "sixel_large",
                 "unique_styles",
-                "unique_links"
+                "unique_links",
+                "kitty_images"
             ]
         );
     }
@@ -841,7 +908,7 @@ mod tests {
         for fixture in FIXTURES.iter().chain(&COMPARE_FIXTURES) {
             let first = (fixture.make)(100_000);
             assert_eq!(first, (fixture.make)(100_000), "{}", fixture.name);
-            // Unit sizes vary (SGR numbers grow, URIs differ); 4096 covers every unit but a Sixel image.
+            // Unit sizes vary (SGR numbers grow, URIs differ); 4096 covers every unit but an image.
             let longest_unit = (fixture.make)(1).len().max(4096);
             assert!(first.len() >= 100_000, "{}", fixture.name);
             assert!(first.len() < 100_000 + longest_unit, "{}", fixture.name);
@@ -980,7 +1047,7 @@ mod tests {
 
     #[test]
     fn select_none_stays_on_the_release_fixtures_and_names_find_both() {
-        assert_eq!(select(None).unwrap().len(), 16);
+        assert_eq!(select(None).unwrap().len(), 17);
         let compare = select(Some("csi_mix")).unwrap();
         assert_eq!(compare[0].name, "csi_mix");
         let release = select(Some("plain_ascii")).unwrap();
@@ -997,9 +1064,9 @@ mod tests {
         let mut sorted = names.clone();
         sorted.sort_unstable();
         sorted.dedup();
-        assert_eq!(sorted.len(), 25);
+        assert_eq!(sorted.len(), 26);
         assert_eq!(
-            names[16..],
+            names[17..],
             [
                 "cursor_motion",
                 "light_cells",
@@ -1166,16 +1233,16 @@ mod tests {
             write_fixtures(&base.join("release"), 1, FixtureSet::Release)
                 .unwrap()
                 .len(),
-            16
+            17
         );
-        assert_eq!(count(&base.join("release")), 16);
+        assert_eq!(count(&base.join("release")), 17);
         assert_eq!(
             write_fixtures(&base.join("corpus"), 1, FixtureSet::Corpus)
                 .unwrap()
                 .len(),
-            25
+            26
         );
-        assert_eq!(count(&base.join("corpus")), 25);
+        assert_eq!(count(&base.join("corpus")), 26);
     }
 }
 

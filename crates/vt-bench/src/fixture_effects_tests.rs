@@ -213,6 +213,32 @@ fn unique_styles_keep_a_style_per_cell() {
 }
 
 #[test]
+fn kitty_images_are_placed_three_times_and_handed_out_once() {
+    // 1 MiB: a cycle of three images is about 111 kB.
+    let (fed, bytes) = feed_fixture("kitty_images", 1 << 20, CHUNK);
+    let units = bytes.windows(6).filter(|w| w == b"_Ga=T,").count();
+    assert!(units >= 24, "{units} images");
+    assert_eq!(fed.refused, 0);
+    assert_eq!(
+        fed.images.len(),
+        units,
+        "one image per unit, however often it is placed"
+    );
+    // The newest unit: its image and three placements of it.
+    let placements = fed.term.placements();
+    let newest = placements.last().expect("placements");
+    assert_eq!(
+        placements
+            .iter()
+            .filter(|p| p.image == newest.image)
+            .count(),
+        3
+    );
+    assert_eq!((newest.cols, newest.rows), (10, 4));
+    assert_eq!(fed.images.last().map(|image| image.id), Some(newest.image));
+}
+
+#[test]
 fn unique_links_are_swept_instead_of_refused() {
     // 8 MiB is about 140,000 links against a table of 65,536; only 10,045 rows are live.
     let (fed, _) = feed_fixture("unique_links", 1 << 23, CHUNK);

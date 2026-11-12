@@ -92,7 +92,8 @@ The chart reads `version`, `platform`, `machine`, `tiers.tier1_parser` (optional
 combining marks under `?2027`), `hyperlinks` (`OSC 8` links with 200-1000 byte URIs), `mode_churn`
 (alt screen and mode toggles, a TUI opening and closing), `sixel_large` (640x480 to 1024x768
 images), `unique_styles` (a 24-bit colour of its own for every cell, so the style table grows
-with the grid), `unique_links` (a new `OSC 8` link on every line, so the link table is swept).
+with the grid), `unique_links` (a new `OSC 8` link on every line, so the link table is swept),
+`kitty_images` (kitty graphics: chunked RGBA images of 48x48 to 128x96, placed three times).
 Deterministic generators; no files. Each fixture carries any mode it needs in its own bytes.
 A record written before a fixture existed lacks its row: `grid --check` shows it as `no baseline`
 and does not judge it.
@@ -110,7 +111,7 @@ Machine: Intel Core i7-12700 (12C/20T), Windows 11, rustc 1.96.0, release profil
 | tui_redraw | 126 | sixel | 47 |
 | scroll_region | 61 | osc_9_7 | 102 |
 
-The six newest fixtures have no target yet.
+The seven newest fixtures have no target yet.
 
 ## Waivers
 
