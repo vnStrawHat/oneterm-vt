@@ -18,7 +18,7 @@ impl Shell { pub fn new(program: String, args: Vec<String>) -> Self }  // verbat
 
 #[derive(Clone, Debug, Default)]                // no PartialEq: `sigset_t` has no portable eq
 pub struct Options {
-    pub shell: Option<Shell>,                   // None: Unix `$SHELL` else `/bin/sh`; Windows PowerShell by full path under `%SystemRoot%`
+    pub shell: Option<Shell>,                   // None: Unix `$SHELL` else `/bin/sh`; Windows `cmd.exe` by full path under `%SystemRoot%`
     pub working_directory: Option<PathBuf>,
     pub env: HashMap<String, String>,
     pub glyph_width: GlyphWidth,

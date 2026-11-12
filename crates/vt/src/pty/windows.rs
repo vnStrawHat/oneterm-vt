@@ -26,17 +26,17 @@ use super::{
 const PIPE_CAPACITY: usize = 1 << 20;
 
 /// What `Options::shell: None` starts when `%SystemRoot%` is not set.
-const DEFAULT_PROGRAM: &str = "powershell";
+const DEFAULT_PROGRAM: &str = "cmd";
 
-/// What `Options::shell: None` starts: Windows PowerShell by its full path, so the search
+/// What `Options::shell: None` starts: the command interpreter by its full path, so the search
 /// order of `CreateProcessW` (the executable's folder and the current directory come before
-/// System32) cannot pick up another `powershell.exe`.
+/// System32) cannot pick up another `cmd.exe`.
 fn default_program(system_root: Option<&OsStr>) -> String {
     let root = system_root.and_then(OsStr::to_str).unwrap_or_default();
     if root.is_empty() {
         return DEFAULT_PROGRAM.to_owned();
     }
-    format!(r"{root}\System32\WindowsPowerShell\v1.0\powershell.exe")
+    format!(r"{root}\System32\cmd.exe")
 }
 
 /// A client behind a ConPTY pseudo-console, polled through two pipe threads and a process wait.
@@ -52,7 +52,7 @@ pub struct PseudoConsole {
 }
 
 impl PseudoConsole {
-    /// Starts `options.shell` (default: Windows PowerShell under `%SystemRoot%`) behind a new
+    /// Starts `options.shell` (default: `cmd.exe` under `%SystemRoot%`) behind a new
     /// pseudo-console of `size`.
     /// Uses `conpty.dll` beside the executable when present, else the console host of the
     /// running Windows.
@@ -285,17 +285,17 @@ mod tests {
     }
 
     #[test]
-    fn default_shell_is_powershell_by_full_path() {
+    fn default_shell_is_cmd_by_full_path() {
         let options = Options::default();
         assert!(options.shell.is_none());
         assert_eq!(Shell::default().program(), "");
         assert_eq!(
             default_program(Some(OsStr::new("C:\\Windows"))),
-            "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+            "C:\\Windows\\System32\\cmd.exe"
         );
         // Without `%SystemRoot%` the name is left to the search path.
-        assert_eq!(default_program(None), "powershell");
-        assert_eq!(default_program(Some(OsStr::new(""))), "powershell");
+        assert_eq!(default_program(None), "cmd");
+        assert_eq!(default_program(Some(OsStr::new(""))), "cmd");
     }
 
     #[test]

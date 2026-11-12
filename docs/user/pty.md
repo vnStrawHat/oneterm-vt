@@ -103,7 +103,7 @@ is dropped.
 
 | | Unix | Windows (10 1809+) |
 |---|---|---|
-| default shell | `$SHELL`, else `/bin/sh` | Windows PowerShell, by its full path under `%SystemRoot%` |
+| default shell | `$SHELL`, else `/bin/sh` | `cmd.exe`, by its full path under `%SystemRoot%` |
 | arguments | passed to `exec` as they are | one command line; `Options::escape_args` (default `false`) quotes them; a program path with a space is always quoted |
 | `child_signal_mask` | `SignalMask::current()` on a thread with signals unblocked, else Ctrl-C is lost | n/a |
 | working directory | best effort; an invalid path keeps the inherited one | an invalid path fails `spawn` |

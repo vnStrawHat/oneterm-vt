@@ -41,7 +41,7 @@ pub struct PseudoConsole {           // field order IS drop order (D3)
 ## Command line (`cmdline`, `push_escaped_arg`)
 
 `program`, then for each arg `' '` + (escaped if `escape_args`, else verbatim). Default program
-Windows PowerShell by its full path under `%SystemRoot%` (plain `powershell` without that variable). The program is always wrapped in `"` when it contains a space or tab and
+`cmd.exe` by its full path under `%SystemRoot%` (plain `cmd` without that variable). The program is always wrapped in `"` when it contains a space or tab and
 no `"` (**D5**; the program token ends at the next quote, no backslash escapes). Arg escaping:
 
 - quote iff the arg is empty or contains `' '` or `'\t'`;

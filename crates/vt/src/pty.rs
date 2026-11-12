@@ -123,7 +123,7 @@ impl Shell {
 /// to be named.
 #[derive(Clone, Debug, Default)]
 pub struct Options {
-    /// The program. `None`: `$SHELL`, else `/bin/sh` on Unix; Windows PowerShell by its full
+    /// The program. `None`: `$SHELL`, else `/bin/sh` on Unix; `cmd.exe` by its full
     /// path under `%SystemRoot%` on Windows.
     /// On Unix the arguments go to `exec` as they are. On Windows they are joined into one
     /// command line (see `escape_args`).
