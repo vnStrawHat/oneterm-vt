@@ -3,7 +3,7 @@
 //! One [`Interner`] belongs to one terminal and is shared by its screens, so an id never
 //! changes meaning when the screens swap. Overflow is handled in two ways:
 //!
-//! - **Hyperlinks never move; style and extras ids are reclaimed by a full-grid sweep.** A
+//! - **Style, extras and hyperlink ids never move and are reclaimed by a full-grid sweep.** A
 //!   full table reuses, inserts, or falls back: an issued id resolves to the same value while a
 //!   cell, pen or saved cursor names it, and the terminal frees it once none does (every image
 //!   takes one extras entry) so the next new value can reuse the slot.
@@ -23,7 +23,7 @@
 //! | [`GraphemeArena`] cluster | 16 scalars | cut at 16 scalars; counted as truncated |
 //! | [`GraphemeArena`] entries | 262,144 including id 0 | a new cluster gets id 0 (`" "`); counted |
 //! | [`GraphemeArena`] scalars | 1,048,576 | same |
-//! | [`HyperlinkTable`] links | 65,536 | `intern` returns `None`; counted |
+//! | [`HyperlinkTable`] links | 65,536 in use | `intern` returns `None`; counted |
 //! | [`HyperlinkTable`] text | 4 MiB of id and URI bytes | same |
 
 use std::hash::{Hash, Hasher};
@@ -47,6 +47,10 @@ const GRAPHEME_MAX_CHARS: usize = 1 << 20;
 const HYPERLINK_CAPACITY: usize = 1 << 16;
 /// Most `id` plus `uri` bytes held by a [`HyperlinkTable`].
 const HYPERLINK_MAX_BYTES: usize = 4 << 20;
+/// The longest `id` plus `uri` one OSC 8 can carry: its payload cap.
+const HYPERLINK_LONGEST: usize = crate::parser::OSC_INLINE;
+/// New links after which a full [`HyperlinkTable`] is worth sweeping again.
+const HYPERLINK_SWEEP_INTERVAL: u32 = 1024;
 
 /// Arena entry count at which [`GraphemeArena::needs_sweep`] first turns true.
 pub const GRAPHEME_SWEEP_ENTRIES: usize = 65_536;
@@ -523,10 +527,12 @@ pub struct Hyperlink {
 /// A link is identified by its `(id, uri)` pair; a link without an id is identified by its
 /// URI alone, so a program redrawing one link every frame holds one entry. At 65,536 links or
 /// 4 MiB of text, [`intern`](Self::intern) returns `None` and the caller drops the link
-/// attribute but still prints the text.
+/// attribute but still prints the text. An id never moves; it is reused only after its owner
+/// swept it as unreferenced (the terminal does this when the table is about to refuse a link).
 #[derive(Debug, Default)]
 pub struct HyperlinkTable {
-    links: Vec<Hyperlink>,
+    /// `None` is a swept slot waiting in `free`.
+    links: Vec<Option<Hyperlink>>,
     /// Explicit links by [`explicit_key`].
     explicit: FxHashMap<Box<str>, u32>,
     /// Reused buffer for the key of a lookup, so a known link costs no allocation.
@@ -535,6 +541,10 @@ pub struct HyperlinkTable {
     next_implicit: u32,
     bytes: usize,
     exhausted: u32,
+    /// Swept slots, offered to the next new link.
+    free: Vec<u32>,
+    /// New links since the last sweep, the refused ones included.
+    since_sweep: u32,
 }
 
 impl HyperlinkTable {
@@ -554,6 +564,7 @@ impl HyperlinkTable {
         if let Some(&index) = known {
             return Some(HyperlinkId(index));
         }
+        self.since_sweep = self.since_sweep.saturating_add(1);
         let generated;
         let link_id = match explicit_id {
             Some(id) => id,
@@ -563,17 +574,29 @@ impl HyperlinkTable {
             }
         };
         let added = link_id.len() + uri.len();
-        if self.links.len() >= HYPERLINK_CAPACITY || self.bytes + added > HYPERLINK_MAX_BYTES {
+        if self.len() >= HYPERLINK_CAPACITY || self.bytes + added > HYPERLINK_MAX_BYTES {
             self.exhausted = self.exhausted.saturating_add(1);
             return None;
         }
-        // Fits: `links.len() < HYPERLINK_CAPACITY == 1 << 16`.
-        let index = self.links.len() as u32;
-        self.links.push(Hyperlink {
+        let link = Hyperlink {
             id: Box::from(link_id),
             uri: Box::from(uri),
             implicit: explicit_id.is_none(),
-        });
+        };
+        let index = match self.free.pop() {
+            Some(index) => {
+                if let Some(slot) = self.links.get_mut(index as usize) {
+                    *slot = Some(link);
+                }
+                index
+            }
+            None => {
+                // Fits: `links.len() <= HYPERLINK_CAPACITY == 1 << 16`.
+                let index = self.links.len() as u32;
+                self.links.push(Some(link));
+                index
+            }
+        };
         match explicit_id {
             Some(_) => {
                 // `key` still holds this link's key from the lookup above.
@@ -588,19 +611,19 @@ impl HyperlinkTable {
         Some(HyperlinkId(index))
     }
 
-    /// Returns the link behind `id`, or `None` for an unknown id.
+    /// Returns the link behind `id`, or `None` for an unknown or swept id.
     pub fn resolve(&self, id: HyperlinkId) -> Option<&Hyperlink> {
-        self.links.get(id.0 as usize)
+        self.links.get(id.0 as usize)?.as_ref()
     }
 
     /// Returns the number of links.
     pub fn len(&self) -> usize {
-        self.links.len()
+        self.links.len() - self.free.len()
     }
 
     /// Whether the table holds no link.
     pub fn is_empty(&self) -> bool {
-        self.links.is_empty()
+        self.len() == 0
     }
 
     /// Returns how many new links were refused because the table was full.
@@ -614,8 +637,43 @@ impl HyperlinkTable {
         self.links.clear();
         self.explicit.clear();
         self.implicit.clear();
+        self.free.clear();
         self.next_implicit = 0;
         self.bytes = 0;
+        self.since_sweep = 0;
+    }
+
+    /// Whether the next new link may be refused and enough new links arrived since the last
+    /// sweep that freeing the unreferenced ones is worth a walk over the grid.
+    pub(crate) fn needs_sweep(&self) -> bool {
+        let nearly_full = self.len() >= HYPERLINK_CAPACITY
+            || self.bytes + HYPERLINK_LONGEST > HYPERLINK_MAX_BYTES;
+        nearly_full && self.since_sweep >= HYPERLINK_SWEEP_INTERVAL
+    }
+
+    /// Frees every link whose id is not in `live`: forgets it and offers the slot to the next
+    /// new link. Ids are never renumbered. The caller passes every id a cell, pen or saved
+    /// cursor still holds, and must drop any copy of a freed id it made.
+    pub(crate) fn sweep_unreferenced(&mut self, live: &FxHashSet<u32>) {
+        for index in 0..self.links.len() {
+            // Fits: `index < links.len() <= HYPERLINK_CAPACITY == 1 << 16`.
+            let id = index as u32;
+            if live.contains(&id) {
+                continue;
+            }
+            let Some(link) = self.links.get_mut(index).and_then(Option::take) else {
+                continue;
+            };
+            if link.implicit {
+                self.implicit.remove(&*link.uri);
+            } else {
+                explicit_key(&mut self.key, &link.id, &link.uri);
+                self.explicit.remove(self.key.as_str());
+            }
+            self.bytes = self.bytes.saturating_sub(link.id.len() + link.uri.len());
+            self.free.push(id);
+        }
+        self.since_sweep = 0;
     }
 }
 

@@ -6,7 +6,7 @@
 use std::time::Instant;
 
 use oneterm_vt::parser::{DCS_MAX_BYTES, MAX_OSC_PARAMS, OSC_INLINE, OSC_LARGE};
-use oneterm_vt::{Config, EventBatch, FeedStats, OscRoute, Size, Terminal, VtEvent};
+use oneterm_vt::{Config, EventBatch, FeedStats, OscRoute, Size, SnapshotState, Terminal, VtEvent};
 
 const MIB: usize = 1024 * 1024;
 const BATCH_SOFT: usize = MIB;
@@ -358,4 +358,45 @@ fn ten_thousand_of_every_query_answer_in_order_and_release_the_arena() {
     assert!(batch.arena_capacity() > BATCH_SOFT);
     feed(&mut term, &mut batch, b"a");
     assert!(batch.arena_capacity() <= BATCH_SOFT);
+}
+
+/// 6,000 links of 1,900 bytes each are 11 MiB of URIs, against a 4 MiB table: only the links
+/// still on the grid count, and a snapshot never shows the URI an id had before it was reused.
+#[test]
+fn hyperlinks_are_reclaimed_once_their_cells_are_gone() {
+    let config = Config {
+        scrollback_limit: 100,
+        ..Config::default()
+    };
+    let mut term = terminal(40, 8, config);
+    let mut batch = EventBatch::new();
+    let mut state = SnapshotState::new();
+    let now = Instant::now();
+    let padding = "p".repeat(1_900);
+    let mut dropped = 0;
+    for n in 0..6_000 {
+        let line = format!("\x1b]8;;https://example.com/{n}/{padding}\x1b\\link\x1b]8;;\x1b\\\r\n");
+        dropped += feed(&mut term, &mut batch, line.as_bytes()).hyperlink_table_exhausted;
+        // Every link is seen by the snapshot state while it is on screen.
+        term.snapshot_update(&mut state, now);
+    }
+    assert_eq!(
+        dropped, 0,
+        "links were dropped although their cells were gone"
+    );
+    // The table refills between sweeps, never past its 4 MiB of text.
+    assert!(term.interner().hyperlinks.len() <= 4 * MIB / padding.len());
+
+    feed(
+        &mut term,
+        &mut batch,
+        b"\x1b]8;;https://example.com/last\x1b\\y\x1b]8;;\x1b\\",
+    );
+    term.snapshot_update(&mut state, now);
+    let row = usize::from(state.cursor().row.expect("the cursor is on screen"));
+    let id = state.rows()[row].cells[0]
+        .hyperlink
+        .expect("the cell holds a link");
+    let link = state.hyperlink(id).expect("the snapshot resolved the link");
+    assert_eq!(&*link.uri, "https://example.com/last");
 }

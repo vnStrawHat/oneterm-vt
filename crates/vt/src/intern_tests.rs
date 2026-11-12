@@ -623,3 +623,40 @@ fn sweep_keeps_lookups_working() {
     }
     assert_eq!(arena.entries(), entries);
 }
+
+#[test]
+fn hyperlink_sweep_frees_and_reuses_ids() {
+    let mut table = HyperlinkTable::default();
+    let a = table.intern(Some("a"), "https://a").unwrap();
+    let b = table.intern(None, "https://b").unwrap();
+    let c = table.intern(None, "https://c").unwrap();
+    table.sweep_unreferenced(&FxHashSet::from_iter([b.0]));
+    assert_eq!(table.len(), 1);
+    assert_eq!(table.resolve(a), None);
+    assert_eq!(table.resolve(c), None);
+    assert_eq!(table.resolve(b).map(|link| &*link.uri), Some("https://b"));
+    // A swept link is new again and takes a freed slot; a kept one is still known.
+    let again = table.intern(Some("a"), "https://a").unwrap();
+    assert!(again == a || again == c);
+    assert_eq!(table.resolve(again).map(|link| &*link.id), Some("a"));
+    assert_eq!(table.intern(None, "https://b"), Some(b));
+    assert_eq!(table.len(), 2);
+    assert_eq!(table.exhausted(), 0);
+}
+
+#[test]
+fn hyperlink_sweep_gives_the_bytes_back() {
+    let mut table = HyperlinkTable::default();
+    let uri = "u".repeat(2048);
+    assert!(!table.needs_sweep());
+    for n in 0..2044 {
+        assert!(table.intern(Some(&format!("{n:04}")), &uri).is_some());
+    }
+    assert!(table.needs_sweep());
+    table.sweep_unreferenced(&FxHashSet::default());
+    assert!(table.is_empty());
+    // Nothing new arrived since the sweep, so another one is not due.
+    assert!(!table.needs_sweep());
+    assert!(table.intern(Some("2044"), &uri).is_some());
+    assert_eq!(table.exhausted(), 0);
+}

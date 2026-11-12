@@ -177,6 +177,7 @@ impl Handler<'_> {
         } else {
             let id = link_id(link_params);
             let state = &mut *self.state;
+            state.sweep_hyperlinks_if_due();
             state.interner.hyperlinks.intern(id, &state.scratch)
         };
         self.set_pen_hyperlink(link);

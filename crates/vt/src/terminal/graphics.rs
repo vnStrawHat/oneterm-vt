@@ -6,6 +6,8 @@
 
 use std::sync::Arc;
 
+use rustc_hash::FxHashSet;
+
 use crate::graphics::placement::{cells_for, effective_cell, stamp_row};
 use crate::graphics::sixel::DecodedSixel;
 use crate::graphics::{GraphicData, Placement};
@@ -33,6 +35,26 @@ impl State {
         }
         self.grid.live_extras_ids(&mut self.live_ids);
         self.interner.extras.sweep_unreferenced(&self.live_ids);
+    }
+
+    /// Frees every hyperlink that no cell, pen or saved cursor names, when the table is about
+    /// to refuse a link and enough new ones arrived since the last sweep. Call it before the
+    /// intern: the link about to be interned is in no cell yet.
+    pub(super) fn sweep_hyperlinks_if_due(&mut self) {
+        if !self.interner.hyperlinks.needs_sweep() {
+            return;
+        }
+        self.grid.live_extras_ids(&mut self.live_ids);
+        let interner = &self.interner;
+        let live: FxHashSet<u32> = self
+            .live_ids
+            .iter()
+            .filter_map(|id| interner.resolve_extras(ExtrasId(*id)).hyperlink)
+            .map(|link| link.0)
+            .collect();
+        self.interner.hyperlinks.sweep_unreferenced(&live);
+        // A freed id names another link from now on: snapshot states drop the links they cached.
+        self.bump_generation();
     }
 }
 
