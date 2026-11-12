@@ -134,7 +134,7 @@ and its payload). The last row of a group lists its functions and constants.
 | `input::KeySpec`, `input::NamedKey`, `input::KeyMods` | what was pressed and with which modifiers | [input](input.md) |
 | `input::KeyEvent`, `input::KeyEventKind` | a key press, repeat or release with text | [input](input.md) |
 | `input::TerminalMouseButton`, `input::MouseModifiers` | mouse button and modifiers for the encoders | [input](input.md) |
-| functions | `encode_key`, `encode_key_event`, `encode_mouse_press`, `encode_mouse_release`, `encode_mouse_move`, `encode_wheel_event`, `encode_paste`, `encode_focus` | [input](input.md) |
+| functions | `encode_key`, `encode_key_event`, `encode_mouse_press`, `encode_mouse_release`, `encode_mouse_move`, `encode_wheel_event`, `encode_horizontal_wheel_event`, `encode_paste`, `encode_focus` | [input](input.md) |
 
 ## `pty` (feature `pty`)
 

@@ -16,6 +16,7 @@ pub enum MouseReporting {
 }
 
 /// How mouse reports are written.
+#[non_exhaustive]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
 pub enum MouseEncoding {
     /// Three bytes after `CSI M`, each offset by 32.
@@ -27,6 +28,8 @@ pub enum MouseEncoding {
     Sgr,
     /// `?1015`: `CSI b ; x ; y M`.
     Urxvt,
+    /// `?1016`: the `Sgr` form with the pointer in pixels instead of cells.
+    SgrPixels,
 }
 
 /// Mouse reporting as a program set it: what to report and how to write it.

@@ -52,7 +52,7 @@ assert_eq!(answer(&mut term, b"\x1b[?9999$p"), b"\x1b[?9999;0$y"); // unknown
 Modes with a live effect: `?1 ?5 ?6 ?7 ?12 ?25 ?45 ?47 ?1047 ?1048 ?1049 ?2027` and `4`, and
 `?2026` (synchronized output, see [threading](threading.md)). Modes the engine stores and you read
 (`Terminal::mode`, `Terminal::mode_snapshot`): `?9 ?1000 ?1002 ?1003 ?1004 ?1005 ?1006 ?1007 ?1015
-?1042 ?2004`. Mouse protocols are exclusive on `h`, as are the three encodings.
+?1016 ?1042 ?2004`. Mouse protocols are exclusive on `h`, as are the four encodings.
 
 Alternate screens: `?47` and `?1047` do not save the cursor, `?1047` clears on leave,
 `?1049` saves the primary cursor and clears on entry. `SGR 21` is double underline, not "bold off".

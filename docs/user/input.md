@@ -83,8 +83,12 @@ Fill `KeyEvent::shifted` (the character with Shift), `base_layout` (the PC-101 k
 `unshifted` (the character without Shift on the current layout) and `text` (what the event typed) when
 you know them. Without `unshifted` the key code of a character is guessed from its text with the US
 PC-101 table, which is wrong for shifted punctuation on other layouts. `KeyMods::super_key` is reported
-by the kitty protocol only (modifier bit 8). Ceilings: four modifiers, the 38 `NamedKey`s, associated
+by the kitty protocol only (modifier bit 8). Ceilings: four modifiers, the 55 `NamedKey`s, associated
 text of at most 32 scalars with no control character.
+
+Send a numeric-keypad key as its `NamedKey::Keypad*` variant when your platform tells it from the main
+block. It types its character like the main-block key, except that it sends `SS3` and a letter under
+`DECKPAM` (`ESC =`, no modifier held) and its own code (57399 and up) under the kitty protocol.
 
 ## Mouse
 
@@ -114,6 +118,9 @@ clamps to the viewport, the encoders do not). The snapshot is passed by value. A
 Encodings: `Default` (raw bytes, ceiling 223), `Utf8` (`?1005`, 2015), `Sgr` (`?1006`, none, release is
 `m`), `Urxvt` (`?1015`, decimal, release is button 3); a larger coordinate clamps. A zero or NaN wheel
 delta sends nothing. `mouse_reporting()` of `None` means the event is yours (selection, scrolling).
+`encode_horizontal_wheel_event` reports a tilt or a sideways swipe (buttons 6 and 7), and the buttons
+`Back` and `Forward` are xterm's 8 and 9. Under `SgrPixels` (`?1016`) pass the pointer in pixels from
+the top-left corner of the grid, y for `row` and x for `col`, to every mouse encoder.
 
 ## Checklist
 

@@ -47,7 +47,13 @@ pub(super) fn encode(event: &KeyEvent, modes: &ModeSnapshot) -> Encoded {
         event.key,
         KeySpec::Named(NamedKey::Enter | NamedKey::Tab | NamedKey::Backspace)
     );
-    let reportable = report_types && (report_all || !(legacy_c0 || generates_text(event)));
+    // A keypad key types its character like a text key; keypad Enter has none of its own.
+    let keypad_text = matches!(
+        event.key,
+        KeySpec::Named(key) if key.keypad_index().is_some() && key != NamedKey::KeypadEnter
+    ) && !chord(event);
+    let textual = generates_text(event) || keypad_text;
+    let reportable = report_types && (report_all || !(legacy_c0 || textual));
 
     if event.kind == KeyEventKind::Release && !reportable {
         return Encoded::Silent;
@@ -55,9 +61,7 @@ pub(super) fn encode(event: &KeyEvent, modes: &ModeSnapshot) -> Encoded {
     let applies = !flags.is_empty()
         && (report_all
             || (!legacy_c0 && event.kind != KeyEventKind::Press && reportable)
-            || (!legacy_c0
-                && flags.contains(KeyboardFlags::DISAMBIGUATE_ESC_CODES)
-                && !generates_text(event)));
+            || (!legacy_c0 && flags.contains(KeyboardFlags::DISAMBIGUATE_ESC_CODES) && !textual));
     if !applies {
         return Encoded::Legacy;
     }
@@ -69,8 +73,12 @@ pub(super) fn encode(event: &KeyEvent, modes: &ModeSnapshot) -> Encoded {
 
 /// A text key without Ctrl, Alt or Super: the program gets its text, not an escape code.
 fn generates_text(event: &KeyEvent) -> bool {
-    let chord = event.mods.ctrl || event.mods.alt || event.mods.super_key;
-    matches!(event.key, KeySpec::Character(_)) && !chord
+    matches!(event.key, KeySpec::Character(_)) && !chord(event)
+}
+
+/// Whether a modifier that turns a text key into a shortcut is held.
+fn chord(event: &KeyEvent) -> bool {
+    event.mods.ctrl || event.mods.alt || event.mods.super_key
 }
 
 /// The key code of a `Character`: the unshifted key the embedder named, else a guess from
@@ -149,6 +157,10 @@ fn named_form(key: NamedKey) -> Option<Form> {
         NamedKey::ArrowLeft => Form::Letter('D'),
         NamedKey::Home => Form::Letter('H'),
         NamedKey::End => Form::Letter('F'),
+        // KP_0 is 57399; the rest follow in the order of the keypad table.
+        keypad if keypad.keypad_index().is_some() => {
+            Form::CsiU(57399 + u32::try_from(keypad.keypad_index()?).ok()?)
+        }
         function => match function.function_number()? {
             1 => Form::Letter('P'),
             2 => Form::Letter('Q'),

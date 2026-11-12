@@ -414,3 +414,67 @@ fn wheel_without_vertical_delta_sends_nothing() {
         );
     }
 }
+
+#[test]
+fn back_and_forward_are_buttons_eight_and_nine() {
+    use TerminalMouseButton::{Back, Forward};
+    let sgr = snapshot(Normal, Sgr);
+    assert_eq!(
+        encode_mouse_press(0, 0, Back, sgr, NO_MODS),
+        b"\x1b[<128;1;1M"
+    );
+    assert_eq!(
+        encode_mouse_release(0, 0, Forward, sgr, NO_MODS),
+        b"\x1b[<129;1;1m"
+    );
+    assert_eq!(
+        encode_mouse_press(2, 4, Forward, sgr, CTRL),
+        b"\x1b[<145;5;3M"
+    );
+    // The raw form adds 32 to the code as to any other.
+    let plain = snapshot(Normal, Plain);
+    assert_eq!(
+        encode_mouse_press(0, 0, Back, plain, NO_MODS),
+        [0x1b, b'[', b'M', 160, 33, 33]
+    );
+    let dragging = snapshot(ButtonEvent, Sgr);
+    assert_eq!(
+        encode_mouse_move(1, 1, Some(Back), dragging, NO_MODS),
+        b"\x1b[<160;2;2M"
+    );
+}
+
+#[test]
+fn the_horizontal_wheel_is_buttons_six_and_seven() {
+    let sgr = snapshot(Normal, Sgr);
+    assert_eq!(
+        encode_horizontal_wheel_event(0, 0, -1.0, sgr, NO_MODS),
+        b"\x1b[<66;1;1M"
+    );
+    assert_eq!(
+        encode_horizontal_wheel_event(0, 0, 2.5, sgr, SHIFT),
+        b"\x1b[<71;1;1M"
+    );
+    assert!(encode_horizontal_wheel_event(0, 0, 0.0, sgr, NO_MODS).is_empty());
+    assert!(encode_horizontal_wheel_event(0, 0, f64::NAN, sgr, NO_MODS).is_empty());
+    assert!(encode_horizontal_wheel_event(0, 0, 1.0, snapshot(X10, Plain), NO_MODS).is_empty());
+    assert!(encode_horizontal_wheel_event(0, 0, 1.0, ModeSnapshot::default(), NO_MODS).is_empty());
+}
+
+#[test]
+fn sgr_pixels_reports_what_the_caller_measured() {
+    let pixels = snapshot(AnyEvent, MouseEncoding::SgrPixels);
+    // y 37, x 412, zero-based: the report is one-based like the cell form.
+    assert_eq!(
+        encode_mouse_press(37, 412, Left, pixels, NO_MODS),
+        b"\x1b[<0;413;38M"
+    );
+    assert_eq!(
+        encode_mouse_release(37, 412, Left, pixels, NO_MODS),
+        b"\x1b[<0;413;38m"
+    );
+    assert_eq!(
+        encode_mouse_move(5000, 9000, None, pixels, NO_MODS),
+        b"\x1b[<35;9001;5001M"
+    );
+}

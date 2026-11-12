@@ -23,7 +23,7 @@ mod paste;
 
 pub use key::{KeyEvent, KeyEventKind, KeyMods, KeySpec, NamedKey, encode_key, encode_key_event};
 pub use mouse::{
-    MouseModifiers, TerminalMouseButton, encode_focus, encode_mouse_move, encode_mouse_press,
-    encode_mouse_release, encode_wheel_event,
+    MouseModifiers, TerminalMouseButton, encode_focus, encode_horizontal_wheel_event,
+    encode_mouse_move, encode_mouse_press, encode_mouse_release, encode_wheel_event,
 };
 pub use paste::encode_paste;

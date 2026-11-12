@@ -22,8 +22,12 @@ pub struct KeyMods {
     pub super_key: bool,
 }
 
-/// A key that does not produce text by itself. Keypad, lock, media and modifier keys have no
-/// variant: they are not encoded.
+/// A key that does not produce text by itself, or a key of the numeric keypad. Lock, media and
+/// modifier keys have no variant: they are not encoded.
+///
+/// Send a keypad key as its `Keypad*` variant when you can tell it from the main block: the
+/// program then gets the application sequence under `DECKPAM` and the kitty keypad code,
+/// and otherwise exactly what the main-block key sends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum NamedKey {
@@ -103,6 +107,40 @@ pub enum NamedKey {
     F23,
     /// Function key 24.
     F24,
+    /// Keypad 0.
+    Keypad0,
+    /// Keypad 1.
+    Keypad1,
+    /// Keypad 2.
+    Keypad2,
+    /// Keypad 3.
+    Keypad3,
+    /// Keypad 4.
+    Keypad4,
+    /// Keypad 5.
+    Keypad5,
+    /// Keypad 6.
+    Keypad6,
+    /// Keypad 7.
+    Keypad7,
+    /// Keypad 8.
+    Keypad8,
+    /// Keypad 9.
+    Keypad9,
+    /// Keypad decimal point.
+    KeypadDecimal,
+    /// Keypad `/`.
+    KeypadDivide,
+    /// Keypad `*`.
+    KeypadMultiply,
+    /// Keypad `-`.
+    KeypadSubtract,
+    /// Keypad `+`.
+    KeypadAdd,
+    /// Keypad Enter.
+    KeypadEnter,
+    /// Keypad `=`.
+    KeypadEqual,
 }
 
 impl NamedKey {
@@ -122,7 +160,24 @@ impl NamedKey {
             | NamedKey::End
             | NamedKey::PageUp
             | NamedKey::PageDown
-            | NamedKey::Insert => None,
+            | NamedKey::Insert
+            | NamedKey::Keypad0
+            | NamedKey::Keypad1
+            | NamedKey::Keypad2
+            | NamedKey::Keypad3
+            | NamedKey::Keypad4
+            | NamedKey::Keypad5
+            | NamedKey::Keypad6
+            | NamedKey::Keypad7
+            | NamedKey::Keypad8
+            | NamedKey::Keypad9
+            | NamedKey::KeypadDecimal
+            | NamedKey::KeypadDivide
+            | NamedKey::KeypadMultiply
+            | NamedKey::KeypadSubtract
+            | NamedKey::KeypadAdd
+            | NamedKey::KeypadEnter
+            | NamedKey::KeypadEqual => None,
             NamedKey::F1 => Some(1),
             NamedKey::F2 => Some(2),
             NamedKey::F3 => Some(3),
@@ -148,6 +203,35 @@ impl NamedKey {
             NamedKey::F23 => Some(23),
             NamedKey::F24 => Some(24),
         }
+    }
+}
+
+/// The keypad keys in kitty code order: the text each types in numeric mode and the final
+/// byte of its `SS3` application sequence.
+const KEYPAD: [(NamedKey, char, u8); 17] = [
+    (NamedKey::Keypad0, '0', b'p'),
+    (NamedKey::Keypad1, '1', b'q'),
+    (NamedKey::Keypad2, '2', b'r'),
+    (NamedKey::Keypad3, '3', b's'),
+    (NamedKey::Keypad4, '4', b't'),
+    (NamedKey::Keypad5, '5', b'u'),
+    (NamedKey::Keypad6, '6', b'v'),
+    (NamedKey::Keypad7, '7', b'w'),
+    (NamedKey::Keypad8, '8', b'x'),
+    (NamedKey::Keypad9, '9', b'y'),
+    (NamedKey::KeypadDecimal, '.', b'n'),
+    (NamedKey::KeypadDivide, '/', b'o'),
+    (NamedKey::KeypadMultiply, '*', b'j'),
+    (NamedKey::KeypadSubtract, '-', b'm'),
+    (NamedKey::KeypadAdd, '+', b'k'),
+    (NamedKey::KeypadEnter, '\r', b'M'),
+    (NamedKey::KeypadEqual, '=', b'X'),
+];
+
+impl NamedKey {
+    /// The position of a keypad key in [`KEYPAD`]; `None` for every other key.
+    pub(super) fn keypad_index(self) -> Option<usize> {
+        KEYPAD.iter().position(|(key, _, _)| *key == self)
     }
 }
 
@@ -292,12 +376,29 @@ pub(super) fn function_tilde_code(number: u8) -> Option<u8> {
     CODES.get(usize::from(index)).copied()
 }
 
-/// Rung 4: the legacy (xterm) table. Reads only `app_cursor`; a repeat is a press.
+/// Rung 4: the legacy (xterm) table. Reads only `app_cursor` and `app_keypad`; a repeat is a
+/// press.
 pub(super) fn encode_legacy(key: &KeySpec, mods: KeyMods, modes: &ModeSnapshot) -> Option<Vec<u8>> {
     match key {
         KeySpec::Character(text) => legacy_character(text, mods),
-        KeySpec::Named(named) => legacy_named(*named, mods, modes.app_cursor),
+        KeySpec::Named(named) => match named.keypad_index() {
+            Some(index) => legacy_keypad(index, mods, modes),
+            None => legacy_named(*named, mods, modes.app_cursor),
+        },
     }
+}
+
+/// A keypad key: `SS3` and its letter under `DECKPAM` when no modifier is held (the VT100
+/// application keypad); otherwise what the main-block key with the same text sends.
+fn legacy_keypad(index: usize, mods: KeyMods, modes: &ModeSnapshot) -> Option<Vec<u8>> {
+    let &(key, text, letter) = KEYPAD.get(index)?;
+    if modes.app_keypad && !(mods.shift || mods.ctrl || mods.alt) {
+        return Some(vec![ESC, b'O', letter]);
+    }
+    if key == NamedKey::KeypadEnter {
+        return legacy_named(NamedKey::Enter, mods, modes.app_cursor);
+    }
+    legacy_character(text.encode_utf8(&mut [0; 4]), mods)
 }
 
 fn legacy_character(text: &str, mods: KeyMods) -> Option<Vec<u8>> {

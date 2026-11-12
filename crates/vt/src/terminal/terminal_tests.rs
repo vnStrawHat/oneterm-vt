@@ -2650,3 +2650,28 @@ fn protection_is_a_pen_attribute_reported_by_decrqss() {
     session.feed(b"\x1b[1\"q\xe4\xb8\x96\x1b[0\"qx\x1b[1;1H\x1b[?2K");
     assert_eq!(session.row(0).trim_end(), "\u{4e16}");
 }
+
+#[test]
+fn sgr_pixel_mouse_is_an_encoding_like_the_others() {
+    use crate::snapshot::{MouseEncoding, MouseReporting};
+
+    let mut session = Session::new(20, 4);
+    session.feed(b"\x1b[?1003h\x1b[?1006h\x1b[?1016h");
+    let mouse = session.term.mouse_reporting().unwrap();
+    assert_eq!(mouse.reporting, MouseReporting::AnyEvent);
+    assert_eq!(mouse.encoding, MouseEncoding::SgrPixels);
+    assert!(!session.term.mode(Mode::SgrMouse));
+    session.feed(b"\x1b[?1016$p");
+    assert_eq!(session.replies(), "\x1b[?1016;1$y");
+    // Another encoding replaces it; resetting it falls back to the default bytes.
+    session.feed(b"\x1b[?1006h");
+    assert_eq!(
+        session.term.mouse_reporting().unwrap().encoding,
+        MouseEncoding::Sgr
+    );
+    session.feed(b"\x1b[?1016h\x1b[?1016l");
+    assert_eq!(
+        session.term.mouse_reporting().unwrap().encoding,
+        MouseEncoding::Default
+    );
+}

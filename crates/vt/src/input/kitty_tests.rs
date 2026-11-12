@@ -746,3 +746,44 @@ fn the_unshifted_key_of_the_layout_wins_over_the_guess() {
         bytes("\x1b[27;6;55~")
     );
 }
+
+#[test]
+fn keypad_keys_have_their_own_kitty_codes() {
+    // Disambiguate alone: a keypad key that types text still sends the text.
+    assert_eq!(
+        encode(&press(named(NamedKey::Keypad5), NONE), "D"),
+        bytes("5")
+    );
+    assert_eq!(
+        encode(&press(named(NamedKey::KeypadAdd), NONE), "D"),
+        bytes("+")
+    );
+    // Keypad Enter types nothing of its own, and a chord is never text.
+    assert_eq!(
+        encode(&press(named(NamedKey::KeypadEnter), NONE), "D"),
+        bytes("\x1b[57414u")
+    );
+    assert_eq!(
+        encode(&press(named(NamedKey::Keypad5), CTRL), "D"),
+        bytes("\x1b[57404;5u")
+    );
+    // All keys as escape codes: the whole table.
+    let table = [
+        (NamedKey::Keypad0, 57399),
+        (NamedKey::Keypad9, 57408),
+        (NamedKey::KeypadDecimal, 57409),
+        (NamedKey::KeypadDivide, 57410),
+        (NamedKey::KeypadMultiply, 57411),
+        (NamedKey::KeypadSubtract, 57412),
+        (NamedKey::KeypadAdd, 57413),
+        (NamedKey::KeypadEnter, 57414),
+        (NamedKey::KeypadEqual, 57415),
+    ];
+    for (key, code) in table {
+        assert_eq!(
+            encode(&press(named(key), NONE), "K"),
+            bytes(&format!("\x1b[{code}u")),
+            "{key:?}"
+        );
+    }
+}

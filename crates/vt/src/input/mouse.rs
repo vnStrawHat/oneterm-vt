@@ -2,8 +2,9 @@
 
 use crate::snapshot::{ModeSnapshot, MouseEncoding, MouseProtocol, MouseReporting};
 
-/// A mouse button a program can be told about. Wheel motion has its own encoder.
+/// A mouse button a program can be told about. Wheel motion has its own encoders.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TerminalMouseButton {
     /// The primary button.
     Left,
@@ -11,6 +12,10 @@ pub enum TerminalMouseButton {
     Middle,
     /// The secondary button.
     Right,
+    /// The fourth button, usually "back" (xterm button 8).
+    Back,
+    /// The fifth button, usually "forward" (xterm button 9).
+    Forward,
 }
 
 impl TerminalMouseButton {
@@ -19,6 +24,8 @@ impl TerminalMouseButton {
             TerminalMouseButton::Left => 0,
             TerminalMouseButton::Middle => 1,
             TerminalMouseButton::Right => 2,
+            TerminalMouseButton::Back => EXTRA_BUTTONS,
+            TerminalMouseButton::Forward => EXTRA_BUTTONS + 1,
         }
     }
 }
@@ -46,11 +53,19 @@ const NO_BUTTON: u8 = 3;
 const MOTION: u8 = 32;
 const WHEEL_UP: u8 = 64;
 const WHEEL_DOWN: u8 = 65;
+const WHEEL_LEFT: u8 = 66;
+const WHEEL_RIGHT: u8 = 67;
+/// Added to the number of buttons 8 to 11 (0 for the first of them).
+const EXTRA_BUTTONS: u8 = 128;
 /// Added to every button code and coordinate outside SGR and the decimal part of urxvt.
 const OFFSET: u8 = 32;
 
 /// The report for a button press at the zero-based viewport cell (`row`, `col`), or an empty
 /// `Vec` when the mode does not report it (`modes.mouse` is `None`).
+///
+/// Under [`MouseEncoding::SgrPixels`] (`?1016`) every mouse encoder takes the pointer in
+/// pixels instead: `row` is the zero-based y and `col` the zero-based x from the top-left
+/// corner of the grid.
 ///
 /// ```
 /// use oneterm_vt::{ModeSnapshot, MouseEncoding, MouseProtocol, MouseReporting};
@@ -96,7 +111,7 @@ pub fn encode_mouse_release(
         return Vec::new();
     }
     let code = match protocol.encoding {
-        MouseEncoding::Sgr => button.code(),
+        MouseEncoding::Sgr | MouseEncoding::SgrPixels => button.code(),
         MouseEncoding::Default | MouseEncoding::Utf8 | MouseEncoding::Urxvt => NO_BUTTON,
     };
     write_report(protocol, code, mods, Phase::Up, ViewportCell { row, col })
@@ -145,6 +160,29 @@ pub fn encode_wheel_event(
     let code = match delta_y.partial_cmp(&0.0) {
         Some(std::cmp::Ordering::Greater) => WHEEL_UP,
         Some(std::cmp::Ordering::Less) => WHEEL_DOWN,
+        Some(std::cmp::Ordering::Equal) | None => return Vec::new(),
+    };
+    write_report(protocol, code, mods, Phase::Down, ViewportCell { row, col })
+}
+
+/// The report for horizontal wheel motion at (`row`, `col`): `delta_x > 0` scrolls right,
+/// `< 0` left. Empty for a zero or NaN delta, under `?9` and without a mouse mode.
+pub fn encode_horizontal_wheel_event(
+    row: usize,
+    col: usize,
+    delta_x: f64,
+    modes: ModeSnapshot,
+    mods: MouseModifiers,
+) -> Vec<u8> {
+    let Some(protocol) = modes.mouse else {
+        return Vec::new();
+    };
+    if protocol.reporting == MouseReporting::X10 {
+        return Vec::new();
+    }
+    let code = match delta_x.partial_cmp(&0.0) {
+        Some(std::cmp::Ordering::Greater) => WHEEL_RIGHT,
+        Some(std::cmp::Ordering::Less) => WHEEL_LEFT,
         Some(std::cmp::Ordering::Equal) | None => return Vec::new(),
     };
     write_report(protocol, code, mods, Phase::Down, ViewportCell { row, col })
@@ -204,7 +242,8 @@ fn write_report(
         MouseEncoding::Default => default_report(code, x, y),
         MouseEncoding::Utf8 => utf8_report(code, x, y),
         MouseEncoding::Urxvt => format!("\x1b[{};{x};{y}M", code + OFFSET).into_bytes(),
-        MouseEncoding::Sgr => {
+        // The same shape; under `SgrPixels` the caller passed pixels.
+        MouseEncoding::Sgr | MouseEncoding::SgrPixels => {
             let terminator = if phase == Phase::Up { 'm' } else { 'M' };
             format!("\x1b[<{code};{x};{y}{terminator}").into_bytes()
         }

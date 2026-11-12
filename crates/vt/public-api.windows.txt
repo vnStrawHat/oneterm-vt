@@ -794,6 +794,23 @@ pub oneterm_vt::input::NamedKey::F8
 pub oneterm_vt::input::NamedKey::F9
 pub oneterm_vt::input::NamedKey::Home
 pub oneterm_vt::input::NamedKey::Insert
+pub oneterm_vt::input::NamedKey::Keypad0
+pub oneterm_vt::input::NamedKey::Keypad1
+pub oneterm_vt::input::NamedKey::Keypad2
+pub oneterm_vt::input::NamedKey::Keypad3
+pub oneterm_vt::input::NamedKey::Keypad4
+pub oneterm_vt::input::NamedKey::Keypad5
+pub oneterm_vt::input::NamedKey::Keypad6
+pub oneterm_vt::input::NamedKey::Keypad7
+pub oneterm_vt::input::NamedKey::Keypad8
+pub oneterm_vt::input::NamedKey::Keypad9
+pub oneterm_vt::input::NamedKey::KeypadAdd
+pub oneterm_vt::input::NamedKey::KeypadDecimal
+pub oneterm_vt::input::NamedKey::KeypadDivide
+pub oneterm_vt::input::NamedKey::KeypadEnter
+pub oneterm_vt::input::NamedKey::KeypadEqual
+pub oneterm_vt::input::NamedKey::KeypadMultiply
+pub oneterm_vt::input::NamedKey::KeypadSubtract
 pub oneterm_vt::input::NamedKey::PageDown
 pub oneterm_vt::input::NamedKey::PageUp
 pub oneterm_vt::input::NamedKey::Tab
@@ -813,7 +830,9 @@ impl core::marker::Unpin for oneterm_vt::input::NamedKey
 impl core::marker::UnsafeUnpin for oneterm_vt::input::NamedKey
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::input::NamedKey
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::input::NamedKey
-pub enum oneterm_vt::input::TerminalMouseButton
+#[non_exhaustive] pub enum oneterm_vt::input::TerminalMouseButton
+pub oneterm_vt::input::TerminalMouseButton::Back
+pub oneterm_vt::input::TerminalMouseButton::Forward
 pub oneterm_vt::input::TerminalMouseButton::Left
 pub oneterm_vt::input::TerminalMouseButton::Middle
 pub oneterm_vt::input::TerminalMouseButton::Right
@@ -904,6 +923,7 @@ impl core::marker::UnsafeUnpin for oneterm_vt::input::MouseModifiers
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::input::MouseModifiers
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::input::MouseModifiers
 pub fn oneterm_vt::input::encode_focus(bool, &oneterm_vt::ModeSnapshot) -> core::option::Option<&'static [u8]>
+pub fn oneterm_vt::input::encode_horizontal_wheel_event(usize, usize, f64, oneterm_vt::ModeSnapshot, oneterm_vt::input::MouseModifiers) -> alloc::vec::Vec<u8>
 pub fn oneterm_vt::input::encode_key(&oneterm_vt::input::KeySpec, oneterm_vt::input::KeyMods, &oneterm_vt::ModeSnapshot) -> core::option::Option<alloc::vec::Vec<u8>>
 pub fn oneterm_vt::input::encode_key_event(&oneterm_vt::input::KeyEvent, &oneterm_vt::ModeSnapshot) -> core::option::Option<alloc::vec::Vec<u8>>
 pub fn oneterm_vt::input::encode_mouse_move(usize, usize, core::option::Option<oneterm_vt::input::TerminalMouseButton>, oneterm_vt::ModeSnapshot, oneterm_vt::input::MouseModifiers) -> alloc::vec::Vec<u8>
@@ -1762,6 +1782,7 @@ pub oneterm_vt::Mode::ReverseVideo
 pub oneterm_vt::Mode::ReverseWrap
 pub oneterm_vt::Mode::SaveCursor1048
 pub oneterm_vt::Mode::SgrMouse
+pub oneterm_vt::Mode::SgrPixelMouse
 pub oneterm_vt::Mode::ShowCursor
 pub oneterm_vt::Mode::SyncUpdate
 pub oneterm_vt::Mode::UrgencyHints
@@ -1812,9 +1833,10 @@ impl core::marker::Unpin for oneterm_vt::ModeState
 impl core::marker::UnsafeUnpin for oneterm_vt::ModeState
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::ModeState
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::ModeState
-pub enum oneterm_vt::MouseEncoding
+#[non_exhaustive] pub enum oneterm_vt::MouseEncoding
 pub oneterm_vt::MouseEncoding::Default
 pub oneterm_vt::MouseEncoding::Sgr
+pub oneterm_vt::MouseEncoding::SgrPixels
 pub oneterm_vt::MouseEncoding::Urxvt
 pub oneterm_vt::MouseEncoding::Utf8
 impl core::clone::Clone for oneterm_vt::MouseEncoding

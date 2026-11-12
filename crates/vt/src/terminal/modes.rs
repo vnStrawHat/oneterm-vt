@@ -65,6 +65,8 @@ pub enum Mode {
     SgrMouse,
     /// `?1015`: urxvt mouse encoding.
     UrxvtMouse,
+    /// `?1016`: SGR mouse encoding with pixel coordinates.
+    SgrPixelMouse,
     /// `?1007`: alternate scroll (wheel as arrow keys on the alternate screen). On at power-on.
     AlternateScroll,
     /// `?1042`: urgency hint on bell. On at power-on.
@@ -125,6 +127,7 @@ const PRIVATE_MODES: &[(u16, Mode)] = &[
     (1006, Mode::SgrMouse),
     (1007, Mode::AlternateScroll),
     (1015, Mode::UrxvtMouse),
+    (1016, Mode::SgrPixelMouse),
     (1042, Mode::UrgencyHints),
     (1047, Mode::AltScreen1047),
     (1048, Mode::SaveCursor1048),
@@ -146,7 +149,12 @@ const MOUSE_PROTOCOLS: [Mode; 4] = [
     Mode::MouseMotion,
 ];
 /// The mouse encoding modes; at most one is on.
-const MOUSE_ENCODINGS: [Mode; 3] = [Mode::Utf8Mouse, Mode::SgrMouse, Mode::UrxvtMouse];
+const MOUSE_ENCODINGS: [Mode; 4] = [
+    Mode::Utf8Mouse,
+    Mode::SgrMouse,
+    Mode::UrxvtMouse,
+    Mode::SgrPixelMouse,
+];
 
 /// The reporting mode that wins when more than one bit is set, strongest first.
 const MOUSE_REPORTING_PRIORITY: [(Mode, MouseReporting); 4] = [
@@ -156,7 +164,8 @@ const MOUSE_REPORTING_PRIORITY: [(Mode, MouseReporting); 4] = [
     (Mode::MouseX10, MouseReporting::X10),
 ];
 /// The encoding that wins when more than one bit is set, strongest first.
-const MOUSE_ENCODING_PRIORITY: [(Mode, MouseEncoding); 3] = [
+const MOUSE_ENCODING_PRIORITY: [(Mode, MouseEncoding); 4] = [
+    (Mode::SgrPixelMouse, MouseEncoding::SgrPixels),
     (Mode::SgrMouse, MouseEncoding::Sgr),
     (Mode::UrxvtMouse, MouseEncoding::Urxvt),
     (Mode::Utf8Mouse, MouseEncoding::Utf8),
@@ -193,6 +202,7 @@ impl Mode {
             Mode::AlternateScroll => 1 << 14,
             Mode::UrgencyHints => 1 << 15,
             Mode::BracketedPaste => 1 << 16,
+            Mode::SgrPixelMouse => 1 << 17,
             Mode::GraphemeClusters => 1 << 18,
             Mode::Win32Input => 1 << 19,
             Mode::Insert => 1 << 20,
@@ -542,7 +552,7 @@ impl Handler<'_> {
             Mode::MouseX10 | Mode::MouseClick | Mode::MouseDrag | Mode::MouseMotion => {
                 self.state.modes.set_exclusive(&MOUSE_PROTOCOLS, mode, on);
             }
-            Mode::Utf8Mouse | Mode::SgrMouse | Mode::UrxvtMouse => {
+            Mode::Utf8Mouse | Mode::SgrMouse | Mode::UrxvtMouse | Mode::SgrPixelMouse => {
                 self.state.modes.set_exclusive(&MOUSE_ENCODINGS, mode, on);
             }
             Mode::CursorBlink => {

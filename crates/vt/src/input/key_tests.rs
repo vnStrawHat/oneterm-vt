@@ -389,6 +389,24 @@ fn position(key: NamedKey) -> usize {
         NamedKey::F22 => 35,
         NamedKey::F23 => 36,
         NamedKey::F24 => 37,
+        // The keypad keys have their own table and tests.
+        NamedKey::Keypad0
+        | NamedKey::Keypad1
+        | NamedKey::Keypad2
+        | NamedKey::Keypad3
+        | NamedKey::Keypad4
+        | NamedKey::Keypad5
+        | NamedKey::Keypad6
+        | NamedKey::Keypad7
+        | NamedKey::Keypad8
+        | NamedKey::Keypad9
+        | NamedKey::KeypadDecimal
+        | NamedKey::KeypadDivide
+        | NamedKey::KeypadMultiply
+        | NamedKey::KeypadSubtract
+        | NamedKey::KeypadAdd
+        | NamedKey::KeypadEnter
+        | NamedKey::KeypadEqual => 38 + key.keypad_index().unwrap_or(0),
     }
 }
 
@@ -806,4 +824,67 @@ fn encode_key_is_encode_key_event_on_a_press() {
         super::encode_key(&key, ALT, &modes),
         super::encode_key_event(&KeyEvent::new(key.clone(), ALT), &modes)
     );
+}
+
+fn app_keypad() -> ModeSnapshot {
+    ModeSnapshot {
+        app_keypad: true,
+        ..ModeSnapshot::default()
+    }
+}
+
+#[test]
+fn keypad_keys_type_their_character_in_numeric_mode() {
+    let numeric = ModeSnapshot::default();
+    let table = [
+        (NamedKey::Keypad0, "0"),
+        (NamedKey::Keypad9, "9"),
+        (NamedKey::KeypadDecimal, "."),
+        (NamedKey::KeypadDivide, "/"),
+        (NamedKey::KeypadMultiply, "*"),
+        (NamedKey::KeypadSubtract, "-"),
+        (NamedKey::KeypadAdd, "+"),
+        (NamedKey::KeypadEnter, "\r"),
+        (NamedKey::KeypadEqual, "="),
+    ];
+    for (key, text) in table {
+        let bytes = super::encode_key(&KeySpec::Named(key), NONE, &numeric);
+        assert_eq!(bytes.as_deref(), Some(text.as_bytes()), "{key:?}");
+    }
+    // Modifiers act as on the main block.
+    let named = |key| KeySpec::Named(key);
+    assert_eq!(
+        super::encode_key(&named(NamedKey::Keypad5), ALT, &numeric).as_deref(),
+        Some(&b"\x1b5"[..])
+    );
+    assert_eq!(
+        super::encode_key(&named(NamedKey::KeypadEnter), SHIFT, &numeric).as_deref(),
+        Some(&b"\x1b[13;2u"[..])
+    );
+}
+
+#[test]
+fn keypad_keys_send_ss3_under_deckpam() {
+    let table = [
+        (NamedKey::Keypad0, b'p'),
+        (NamedKey::Keypad1, b'q'),
+        (NamedKey::Keypad9, b'y'),
+        (NamedKey::KeypadDecimal, b'n'),
+        (NamedKey::KeypadDivide, b'o'),
+        (NamedKey::KeypadMultiply, b'j'),
+        (NamedKey::KeypadSubtract, b'm'),
+        (NamedKey::KeypadAdd, b'k'),
+        (NamedKey::KeypadEnter, b'M'),
+        (NamedKey::KeypadEqual, b'X'),
+    ];
+    for (key, letter) in table {
+        let bytes = super::encode_key(&KeySpec::Named(key), NONE, &app_keypad());
+        assert_eq!(bytes, Some(vec![0x1b, b'O', letter]), "{key:?}");
+    }
+    // A held modifier falls back to what the main-block key sends: Ctrl+5 is `GS`.
+    let bytes = super::encode_key(&KeySpec::Named(NamedKey::Keypad5), CTRL, &app_keypad());
+    assert_eq!(bytes.as_deref(), Some(&b"\x1d"[..]));
+    // The main-block keys do not read the keypad mode.
+    let bytes = super::encode_key(&KeySpec::Character("5".to_owned()), NONE, &app_keypad());
+    assert_eq!(bytes.as_deref(), Some(&b"5"[..]));
 }
