@@ -2413,6 +2413,7 @@ pub oneterm_vt::Config::allow_screen_readback: bool
 pub oneterm_vt::Config::ambiguous_wide: bool
 pub oneterm_vt::Config::default_cursor_style: oneterm_vt::CursorStyle
 pub oneterm_vt::Config::osc_routes: oneterm_vt::OscRoutes
+pub oneterm_vt::Config::pointer_shapes: oneterm_vt::PointerShapes
 pub oneterm_vt::Config::product_name: core::option::Option<alloc::borrow::Cow<'static, str>>
 pub oneterm_vt::Config::scrollback_limit: u32
 pub oneterm_vt::Config::semantic_escape_chars: alloc::string::String
@@ -2938,6 +2939,29 @@ impl core::marker::Unpin for oneterm_vt::Placement
 impl core::marker::UnsafeUnpin for oneterm_vt::Placement
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::Placement
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::Placement
+pub struct oneterm_vt::PointerShapes
+pub oneterm_vt::PointerShapes::default_shape: alloc::borrow::Cow<'static, str>
+pub oneterm_vt::PointerShapes::grabbed_shape: alloc::borrow::Cow<'static, str>
+pub oneterm_vt::PointerShapes::supported: alloc::vec::Vec<alloc::borrow::Cow<'static, str>>
+impl oneterm_vt::PointerShapes
+pub const oneterm_vt::PointerShapes::CSS: &'static [&'static str]
+impl core::clone::Clone for oneterm_vt::PointerShapes
+pub fn oneterm_vt::PointerShapes::clone(&self) -> oneterm_vt::PointerShapes
+impl core::cmp::Eq for oneterm_vt::PointerShapes
+impl core::cmp::PartialEq for oneterm_vt::PointerShapes
+pub fn oneterm_vt::PointerShapes::eq(&self, &oneterm_vt::PointerShapes) -> bool
+impl core::default::Default for oneterm_vt::PointerShapes
+pub fn oneterm_vt::PointerShapes::default() -> Self
+impl core::fmt::Debug for oneterm_vt::PointerShapes
+pub fn oneterm_vt::PointerShapes::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for oneterm_vt::PointerShapes
+impl core::marker::Freeze for oneterm_vt::PointerShapes
+impl core::marker::Send for oneterm_vt::PointerShapes
+impl core::marker::Sync for oneterm_vt::PointerShapes
+impl core::marker::Unpin for oneterm_vt::PointerShapes
+impl core::marker::UnsafeUnpin for oneterm_vt::PointerShapes
+impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::PointerShapes
+impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::PointerShapes
 pub struct oneterm_vt::Pos
 pub oneterm_vt::Pos::col: u16
 pub oneterm_vt::Pos::row: oneterm_vt::grid::RowId
@@ -3413,6 +3437,7 @@ pub fn oneterm_vt::Terminal::mouse_reporting(&self) -> core::option::Option<onet
 pub fn oneterm_vt::Terminal::new(oneterm_vt::grid::Size, oneterm_vt::Config) -> oneterm_vt::Terminal
 pub fn oneterm_vt::Terminal::palette(&self) -> oneterm_vt::Palette
 pub fn oneterm_vt::Terminal::placements(&self) -> &[oneterm_vt::Placement]
+pub fn oneterm_vt::Terminal::pointer_shape(&self) -> core::option::Option<&str>
 pub fn oneterm_vt::Terminal::prompt_after(&self, oneterm_vt::grid::RowId) -> core::option::Option<oneterm_vt::grid::RowId>
 pub fn oneterm_vt::Terminal::prompt_before(&self, oneterm_vt::grid::RowId) -> core::option::Option<oneterm_vt::grid::RowId>
 pub fn oneterm_vt::Terminal::resize(&mut self, oneterm_vt::grid::Size, oneterm_vt::ResizePolicy) -> oneterm_vt::ResizeOutcome

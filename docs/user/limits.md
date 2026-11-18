@@ -41,7 +41,8 @@ assert_eq!(stats.bytes, 10);
 | DCS / APC payload | 16 MiB | aborted, no answer; a chunked kitty image in flight is dropped | `aborted_dcs` (DCS) |
 | DECRQSS / XTGETTCAP payload | 8 KiB | no answer | `unhandled_sequences` (once) |
 | XTGETTCAP names | 16 per request, 128 bytes each | the name is dropped, never cut | `unhandled_sequences` (once) |
-| title stack / kitty flag stack | 16 / 8 | the oldest is dropped | - |
+| title stack / kitty flag stack / pointer shapes per screen | 16 / 8 / 16 | the oldest is dropped | - |
+| OSC 22 shape name / names in one query | 64 bytes of `a-z 0-9 _ -` / 64 | the sequence is ignored, a query gets no answer | `unhandled_sequences` |
 | OSC 99 title, and body | 4,096 bytes each | cut at a character | `unhandled_sequences` |
 | OSC 99 notifications waiting for their last chunk / id | 8 / 128 characters | the one that waited longest is dropped / the sequence is ignored | - / `unhandled_sequences` |
 | `?2027` cluster carried across chunks | 32 scalars | not carried; the next chunk starts a new cluster | `dropped_cluster_carries` |

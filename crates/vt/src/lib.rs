@@ -63,7 +63,7 @@ pub use snapshot::{
 };
 pub use terminal::{
     ColorKey, ColorOverrides, ColorScheme, Config, CursorShape, CursorStyle, KeyboardFlags, Mode,
-    ModeState, OscRoute, OscRoutes, Terminal,
+    ModeState, OscRoute, OscRoutes, PointerShapes, Terminal,
 };
 pub use width::{cluster_width, scalar_width};
 
@@ -158,6 +158,10 @@ mod user_guide_color_scheme {}
 #[cfg(doctest)]
 #[doc = include_str!("../../../docs/user/notifications.md")]
 mod user_guide_notifications {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/pointer.md")]
+mod user_guide_pointer {}
 
 #[cfg(doctest)]
 #[doc = include_str!("../../../README.md")]

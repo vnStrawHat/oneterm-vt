@@ -47,7 +47,7 @@ redraw, not damage.
 | `Cwd { host, path }` | OSC 7, path percent-decoded | use it; no filesystem is touched |
 | `Notification { title, body }` | OSC 9 (`title` is empty), OSC 99, OSC 777 (see [notifications](notifications.md)) | policy: show or drop |
 | `Progress(Progress)` | OSC 9;4 | taskbar state |
-| `Pointer(span)` / `PointerReset` | OSC 22 with a shape name / with an empty name, or RIS after a name | set the mouse pointer / go back to your own |
+| `Pointer(span)` / `PointerReset` | the pointer shape to show changed (OSC 22 set, push or pop; a screen switch; RIS): a name / your own (see [pointer](pointer.md)) | set the mouse pointer / go back to your own |
 | `ShellMark(ShellMark)` | OSC 133 A/B/C/D | status of the running command; to jump between prompts use `Terminal::prompt_before` / `prompt_after` |
 | `GraphicReleased(GraphicId)` | an image or one of its placements is gone (see [graphics](graphics.md)) | free the texture you keyed by that id, if any; ids never return. Held back while `?2026` holds frames |
 | `CursorStyleChanged` | `Terminal::cursor_style()` differs now | redraw the cursor |

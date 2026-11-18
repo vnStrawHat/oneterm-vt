@@ -17,6 +17,8 @@ unless listed `pub`.
 | DECRQSS / XTGETTCAP payload | 8 KiB (`QUERY_MAX_BYTES`) | answers nothing; buffer keeps <= 8 KiB capacity | `unhandled_sequences` (once) |
 | XTGETTCAP names / name length | 16 (`XTGETTCAP_MAX_NAMES`) / 128 bytes (`XTGETTCAP_MAX_NAME_BYTES`) | name dropped, never truncated | `unhandled_sequences` (once per request) |
 | title stack | 16 (`TITLE_STACK_MAX`) | oldest dropped | - |
+| pointer shape stack, per screen | 16 (`POINTER_STACK_MAX`) | oldest dropped | - |
+| OSC 22 shape name / names per query | 64 bytes (`POINTER_NAME_MAX`) / 64 (`POINTER_QUERY_MAX`) | sequence ignored, no reply | `unhandled_sequences` |
 | OSC 99 title / body | 4,096 bytes each (`NOTIFICATION_TEXT_MAX`) | rest of the chunk dropped, cut at a char boundary when reported | `unhandled_sequences` |
 | OSC 99 pending notifications / id | 8 (`PENDING_NOTIFICATIONS_MAX`) / 128 bytes (`NOTIFICATION_ID_MAX`) | the one that waited longest dropped / sequence ignored | - / `unhandled_sequences` |
 | kitty flag stack | 8 (`KEYBOARD_STACK_MAX`) | oldest dropped; pop `>= len` empties | - |

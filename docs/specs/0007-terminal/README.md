@@ -16,6 +16,7 @@ overrides, title stack, byte-exact replies; bench tiers 2, 4, 5.
 | [dispatch-csi.md](dispatch-csi.md) | CSI table, cursor clamps, DECSTBM, SGR |
 | [modes.md](modes.md) | `Mode`, `ModeState`, alt screens, cursor style, kitty flags, `modifyOtherKeys`, RIS, DECSTR |
 | [osc.md](osc.md) | `OscRoute(s)`, `BUILTIN`, every builtin, OSC 52, title stack |
+| [pointer.md](pointer.md) | OSC 22: `PointerShapes`, the shape stack of each screen, queries |
 | [notifications.md](notifications.md) | OSC 99 (chunks, base64, the query) and OSC 777 `notify` |
 | [colors.md](colors.md) | `ColorKey`, `ColorOverrides`, colour specs, OSC 4/10-12/17/19/104/110-112, `ColorScheme` |
 | [queries.md](queries.md) | byte-exact reply table, product name, DECRQCRA, DECRQSS, XTGETTCAP |

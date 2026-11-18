@@ -41,6 +41,7 @@ mod modes;
 mod notification;
 mod osc;
 mod osc_routes;
+mod pointer;
 mod print;
 mod query;
 mod sgr;
@@ -50,6 +51,8 @@ mod notification_tests;
 #[cfg(test)]
 mod osc_tests;
 #[cfg(test)]
+mod pointer_tests;
+#[cfg(test)]
 mod query_tests;
 #[cfg(test)]
 mod terminal_tests;
@@ -57,10 +60,12 @@ mod terminal_tests;
 pub use color::{ColorKey, ColorOverrides, ColorScheme};
 pub use modes::{CursorShape, CursorStyle, KeyboardFlags, Mode, ModeState};
 pub use osc_routes::{OscRoute, OscRoutes};
+pub use pointer::PointerShapes;
 
 use dispatch::Handler;
 use modes::{KeyboardStacks, Modes, TitleStack};
 use notification::PendingNotification;
+use pointer::PointerStacks;
 use print::ClusterCarry;
 use query::DcsQuery;
 
@@ -90,6 +95,11 @@ pub struct Config {
     /// one, which is what programs assume unless the locale says otherwise. Set it to match
     /// your font; the program must agree (most read it from the locale or a setting).
     pub ambiguous_wide: bool,
+    /// What OSC 22 queries answer about your mouse pointers: the shapes you can draw, your
+    /// default shape and the one you show while a program reports the mouse. Names that
+    /// cannot go into a reply are dropped or replaced when the terminal is built;
+    /// [`Terminal::config`] returns the cleaned copy.
+    pub pointer_shapes: PointerShapes,
 }
 
 impl Default for Config {
@@ -102,6 +112,7 @@ impl Default for Config {
             product_name: None,
             allow_screen_readback: false,
             ambiguous_wide: false,
+            pointer_shapes: PointerShapes::default(),
         }
     }
 }
@@ -128,8 +139,8 @@ struct State {
     keyboard: KeyboardStacks,
     modify_other_keys: u8,
     title: TitleStack,
-    /// A program named a pointer shape (OSC 22) and has not given the pointer back.
-    pointer_named: bool,
+    /// The pointer shapes programs stacked with OSC 22, per screen.
+    pointer: PointerStacks,
     /// OSC 99 notifications waiting for their last chunk, the one that waited longest first.
     notifications: Vec<PendingNotification>,
     colors: ColorOverrides,
@@ -352,6 +363,7 @@ impl Terminal {
     /// columns; `config.product_name` is cleaned (see [`Config::product_name`]).
     pub fn new(size: Size, mut config: Config) -> Terminal {
         config.product_name = query::sanitize_product_name(config.product_name.take());
+        config.pointer_shapes = std::mem::take(&mut config.pointer_shapes).cleaned();
         let state = State {
             grid: TerminalGrid::new(size, config.scrollback_limit),
             interner: Interner::default(),
@@ -361,7 +373,7 @@ impl Terminal {
             keyboard: KeyboardStacks::default(),
             modify_other_keys: 0,
             title: TitleStack::default(),
-            pointer_named: false,
+            pointer: PointerStacks::default(),
             notifications: Vec::new(),
             colors: ColorOverrides::default(),
             theme: Palette::new(),
@@ -597,6 +609,14 @@ impl Terminal {
     /// The window title set by OSC 0 or 2, if any.
     pub fn title(&self) -> Option<&str> {
         self.state.title.title()
+    }
+
+    /// The mouse pointer shape a program asked for on the active screen (OSC 22), or `None`
+    /// for your own. [`VtEvent::Pointer`](crate::VtEvent::Pointer) and
+    /// [`VtEvent::PointerReset`](crate::VtEvent::PointerReset) report every change of it; this
+    /// reads it at any time, for an embedder that attaches late or draws from state.
+    pub fn pointer_shape(&self) -> Option<&str> {
+        self.state.pointer.active.current()
     }
 
     /// How many titles `CSI 22 t` has pushed (at most 16).

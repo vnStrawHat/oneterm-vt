@@ -69,8 +69,8 @@ same methods.
 | `Cwd { host: StrSpan, path: StrSpan }` | OSC 7 (osc.md) |
 | `Notification { title: StrSpan, body: StrSpan }` | OSC 9 other than `9;4` (`title` empty); OSC 99 and OSC 777 `notify` (notifications.md) |
 | `Progress(Progress)` | OSC 9;4 |
-| `Pointer(StrSpan)` | OSC 22 with a name |
-| `PointerReset` | OSC 22 with an empty name; RIS after a name (osc.md) |
+| `Pointer(StrSpan)` | the shape to show is this name: OSC 22 set, push or pop; a screen switch between different shapes (pointer.md) |
+| `PointerReset` | the shape to show is the embedder's own: the same operations, and RIS after a shape |
 | `ShellMark(ShellMark)` | OSC 133 A/B/C/D |
 | `CursorStyleChanged` | `Terminal::cursor_style()` differs after a sequence (modes.md) |
 | `Osc { code: u32, params: ParamSpans, terminator: StringTerm, truncated: bool }` | routed `Forward` or `BuiltinAndForward`; one span per `;`-separated parameter (the parser's 16th re-split), param 0 is the code text |

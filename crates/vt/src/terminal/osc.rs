@@ -56,7 +56,7 @@ impl Handler<'_> {
             10..=12 => self.osc_dynamic(code, params, term),
             17 => self.osc_selection_color(ColorKey::SelectionBackground, params, term),
             19 => self.osc_selection_color(ColorKey::SelectionForeground, params, term),
-            22 => self.osc_pointer(params),
+            22 => self.osc_pointer(params, term),
             50 => self.osc_cursor_shape(params),
             52 => self.osc_clipboard(params),
             99 => self.osc_desktop_notification(params, term),
@@ -270,22 +270,6 @@ impl Handler<'_> {
             }
         };
         self.out.push(VtEvent::Progress(progress));
-    }
-
-    /// OSC 22: a shape name, or an empty name to give the pointer back.
-    fn osc_pointer(&mut self, params: &OscParams<'_>) {
-        match params.get(1).map(std::str::from_utf8) {
-            Some(Ok("")) => {
-                self.state.pointer_named = false;
-                self.out.push(VtEvent::PointerReset);
-            }
-            Some(Ok(name)) => {
-                self.state.pointer_named = true;
-                let span = self.out.text_span(name);
-                self.out.push(VtEvent::Pointer(span));
-            }
-            _ => self.unhandled(),
-        }
     }
 
     /// OSC 50.

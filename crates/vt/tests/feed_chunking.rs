@@ -35,7 +35,8 @@ fn piece() -> impl Strategy<Value = Vec<u8>> {
             bytes("\x1b[?25;2026l"), bytes("\x1b[?20\r26l"), bytes("\x1b[?2\x7f026l"),
             bytes("\x1b[?2026r"), bytes("\x1bc"),
             // The pointer: named, and given back.
-            bytes("\x1b]22;wait\x07"), bytes("\x1b]22;\x07"),
+            bytes("\x1b]22;wait\x07"), bytes("\x1b]22;\x07"), bytes("\x1b]22;>help,grab\x07"),
+            bytes("\x1b]22;<\x07"), bytes("\x1b]22;?__current__,wait\x07"),
             // The colour scheme: updates asked for, and the query.
             bytes("\x1b[?2031h"), bytes("\x1b[?996n"),
             // Notifications: whole, in chunks, base64 cut inside a group, the query, cut.

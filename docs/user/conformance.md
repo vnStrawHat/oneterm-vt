@@ -46,7 +46,7 @@ assert_eq!(answer(&mut term, b"\x1b[?9999$p"), b"\x1b[?9999;0$y"); // unknown
 | modes | `SM RM` (ANSI and `?`), `DECSTR`, `DECSCUSR`, `DECRQM`, kitty keyboard flags, `modifyOtherKeys` |
 | reports | `DA1 DA2 DA3 DSR CPR DECXCPR XTVERSION DECRQSS DECRQCRA XTGETTCAP`, `CSI 14 t`, `CSI 18 t`, `CSI ? 996 n` (see [color-scheme](color-scheme.md)) |
 | window | `CSI 22 t` / `CSI 23 t` title stack |
-| OSC | `0 1 2 4 7 8 9 9;4 10 11 12 17 19 22 50 52 99 104 110 111 112 133 777` (`99`, `777`: see [notifications](notifications.md)); others routable with `OscRoutes` |
+| OSC | `0 1 2 4 7 8 9 9;4 10 11 12 17 19 22 50 52 99 104 110 111 112 133 777` (`22`: see [pointer](pointer.md); `99`, `777`: see [notifications](notifications.md)); others routable with `OscRoutes` |
 | DCS | `q` (Sixel, see [graphics](graphics.md)), `$ q` (DECRQSS), `+ q` (XTGETTCAP) |
 | APC | `G` (kitty graphics, see [graphics-kitty](graphics-kitty.md): `a=q t T p d`, direct data, RGB / RGBA / PNG, zlib, chunks); any other APC, and every SOS and PM, is consumed and counted |
 
@@ -77,8 +77,6 @@ read.
 
 - `CSI h` and `CSI ? h` with no parameter count one unhandled sequence.
 - `CSI * x` (the `DECCARA` family of rectangle edits) is not implemented: counted, no effect.
-- OSC 22 is a shape name or an empty name. The stack and query forms of the kitty pointer
-  protocol (a leading `>`, `<`, `?` or `=`) are not understood: the text arrives as the name.
 - Left and right margins (`?69`, then `CSI Pl ; Pr s`): printing wraps at the right margin to the
   left one, `CR`, `BS`, `HT`, `CUF` and `CUB` stop at them, `ICH`, `DCH`, `IL`, `DL`, `SU`, `SD`
   and line feeds move only the columns between them, and origin mode counts columns from the

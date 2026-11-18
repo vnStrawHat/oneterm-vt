@@ -8,7 +8,7 @@ and its payload). The last row of a group lists its functions and constants.
 
 | Item | What it is for | Chapter |
 |---|---|---|
-| `Terminal` | the engine: `feed` bytes (`feed_frame` stops at a closed `?2026` frame), `resize`, `snapshot_update`, `encode_key`, `encode_paste`, `encode_focus`, `color_reply`, `set_color_scheme`, `prompt_before` / `prompt_after`; `grid_mut` and `interner_mut` for hand-written cells | [quickstart](quickstart.md) |
+| `Terminal` | the engine: `feed` bytes (`feed_frame` stops at a closed `?2026` frame), `resize`, `snapshot_update`, `encode_key`, `encode_paste`, `encode_focus`, `color_reply`, `set_color_scheme`, `pointer_shape`, `prompt_before` / `prompt_after`; `grid_mut` and `interner_mut` for hand-written cells | [quickstart](quickstart.md) |
 | `Config` | how a `Terminal` is built: scrollback, product name, OSC routes | [quickstart](quickstart.md) |
 | `OscRoute`, `OscRoutes` | per OSC number: handle it, forward it to you, or drop it | [events](events.md) |
 | `Mode`, `ModeState` | a terminal mode, and how a program set it (DECRQM answers) | [conformance](conformance.md) |
@@ -16,6 +16,7 @@ and its payload). The last row of a group lists its functions and constants.
 | `KeyboardFlags` | kitty keyboard flags the program has pushed | [input](input.md) |
 | `ColorKey`, `ColorOverrides` | a colour slot a program queries; the slots it changed | [events](events.md) |
 | `ColorScheme` | dark or light: what `CSI ? 996 n` answers and `?2031` reports | [color-scheme](color-scheme.md) |
+| `PointerShapes` | the mouse pointers you draw and your default ones: what OSC 22 queries answer (`Config::pointer_shapes`) | [pointer](pointer.md) |
 
 ## Events
 

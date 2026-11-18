@@ -12,6 +12,7 @@ use crate::snapshot::{ModeSnapshot, MouseEncoding, MouseProtocol, MouseReporting
 
 use super::csi::Args;
 use super::dispatch::Handler;
+use super::pointer::PointerStacks;
 use super::{Shifts, State};
 
 /// Titles `CSI 22 t` keeps; pushing past it drops the oldest.
@@ -659,6 +660,8 @@ impl Handler<'_> {
         }
         self.state.grid.enter_alt();
         self.state.keyboard.swap();
+        self.state.pointer.swap();
+        self.note_pointer_switch();
     }
 
     /// Shows the primary screen. Does nothing if it is shown already.
@@ -670,6 +673,8 @@ impl Handler<'_> {
         self.state.invalidate(Invalidation::SwapAlt);
         self.state.grid.leave_alt();
         self.state.keyboard.swap();
+        self.state.pointer.swap();
+        self.note_pointer_switch();
     }
 
     /// `CSI Ps SP q`.
@@ -712,7 +717,8 @@ impl Handler<'_> {
         state.sync.end();
         let had_title = state.title.title().is_some();
         state.title = TitleStack::default();
-        let had_pointer = std::mem::take(&mut state.pointer_named);
+        let had_pointer = state.pointer.active.current().is_some();
+        state.pointer = PointerStacks::default();
         state.notifications.clear();
         state.cursor_style = None;
         state.modify_other_keys = 0;

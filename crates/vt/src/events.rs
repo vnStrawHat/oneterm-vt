@@ -86,10 +86,12 @@ pub enum VtEvent {
     },
     /// OSC 9;4: taskbar progress.
     Progress(Progress),
-    /// OSC 22: the mouse pointer shape name.
+    /// The mouse pointer shape to show, by name: an OSC 22 that set, pushed or popped a
+    /// shape, or a switch to a screen whose shape differs. Names hold only `a-z 0-9 _ -`; one
+    /// you cannot draw means your own pointer.
     Pointer(StrSpan),
-    /// The pointer is the terminal's own again: OSC 22 with an empty name, or RIS after a
-    /// program named a shape.
+    /// The pointer is the terminal's own again: an OSC 22 with an empty name or a pop that
+    /// left no shape, a switch to a screen without one, or RIS after a program named one.
     PointerReset,
     /// OSC 133: a shell-integration mark.
     ShellMark(ShellMark),
