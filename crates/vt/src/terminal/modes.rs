@@ -713,6 +713,7 @@ impl Handler<'_> {
         let had_title = state.title.title().is_some();
         state.title = TitleStack::default();
         let had_pointer = std::mem::take(&mut state.pointer_named);
+        state.notifications.clear();
         state.cursor_style = None;
         state.modify_other_keys = 0;
         state.shifts = Shifts::default();

@@ -43,6 +43,7 @@ working example, and names exact API items. Every Rust block is compiled by `car
 | 18 | [`snapshot.md`](snapshot.md) | `SnapshotState` and `SnapshotUpdate` (`Full` / `Partial { scrolled }` / `Unchanged`), rows and style runs, `Palette` and theme vs OSC overrides, `ModeSnapshot`, `MouseProtocol` |
 | 19 | [`graphics-kitty.md`](graphics-kitty.md) | the kitty graphics protocol: actions, data formats, replies, what differs from kitty, ceilings, the `kitty-graphics` feature |
 | 20 | [`color-scheme.md`](color-scheme.md) | `Terminal::set_color_scheme` and `ColorScheme`: answering `CSI ? 996 n`, reporting a theme switch under `?2031` |
+| 21 | [`notifications.md`](notifications.md) | `VtEvent::Notification` from OSC 9, OSC 777 and OSC 99: chunks, base64, the capability query, what is not carried, ceilings |
 
 ## Features
 

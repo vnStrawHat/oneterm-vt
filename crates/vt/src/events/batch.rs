@@ -374,7 +374,8 @@ impl EventBatch {
     }
 }
 
-fn base64_value(byte: u8) -> Option<u8> {
+/// The six bits of a character of the base64 alphabet `A-Z a-z 0-9 + /`.
+pub(crate) fn base64_value(byte: u8) -> Option<u8> {
     match byte {
         b'A'..=b'Z' => Some(byte - b'A'),
         b'a'..=b'z' => Some(byte - b'a' + 26),

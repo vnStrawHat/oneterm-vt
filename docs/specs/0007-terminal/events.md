@@ -67,7 +67,7 @@ same methods.
 | `RowsScrolled(RowsScrolled)` | any scroll report with `scrolled` (region moves, wraps included) |
 | `RowsTrimmed { oldest: RowId }` | any scroll report with `trimmed` |
 | `Cwd { host: StrSpan, path: StrSpan }` | OSC 7 (osc.md) |
-| `Notification { title: StrSpan, body: StrSpan }` | OSC 9 other than `9;4`; `title` is empty for OSC 9 (kept for title-carrying forms) |
+| `Notification { title: StrSpan, body: StrSpan }` | OSC 9 other than `9;4` (`title` empty); OSC 99 and OSC 777 `notify` (notifications.md) |
 | `Progress(Progress)` | OSC 9;4 |
 | `Pointer(StrSpan)` | OSC 22 with a name |
 | `PointerReset` | OSC 22 with an empty name; RIS after a name (osc.md) |

@@ -14,6 +14,7 @@ Every reply is pushed as `VtEvent::Reply` and is **API**: changing a byte is a m
 | CPR | `CSI 6 n` | `ESC [ {row} ; {col} R`, 1-based; with DECOM `row` is relative to the region top |
 | DECXCPR | `CSI ? 6 n` | `ESC [ ? {row} ; {col} ; 1 R` (same row rule) |
 | colour scheme | `CSI ? 996 n` | `ESC [ ? 9 9 7 ; 1 n` (dark) or `ESC [ ? 9 9 7 ; 2 n` (light); no reply, unhandled, until the embedder named a scheme (colors.md) |
+| OSC 99 query | `OSC 99 ; i={id} : p=? ; ST` | `OSC 99 ; i={id} : p=? ; o=always:p=title,body,? ST`, terminator echoed (notifications.md) |
 | DECRQM ANSI | `CSI {m} $ p` | `ESC [ {m} ; {s} $ y` (`m` echoed, `s` per modes.md; unknown -> `0`) |
 | DECRQM private | `CSI ? {m} $ p` | `ESC [ ? {m} ; {s} $ y` |
 | XTVERSION | `CSI > q`, `CSI > 0 q` | `ESC P > \| {name} ST`; default name `oneterm-vt(0.1.0)` |

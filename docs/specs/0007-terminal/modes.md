@@ -102,6 +102,7 @@ to `{0, None, [(0, None); 2]}`; `preceding_char`, carry and DCS query cleared; p
 was named; `CursorStyleChanged` rule. Kept: row ids, `lines_produced`, `config`, the
 style table and the grapheme arena.
 The colour scheme is the embedder's and stays (colors.md).
+Pending OSC 99 notifications are dropped (notifications.md).
 
 **DECSTR** (`CSI ! p`): `Origin`, `Insert` reset; `LineWrap`, `ShowCursor` set; full region;
 template := `Cell::EMPTY`; `goto(0, 0)`; DCS query cleared; DECSC (with shifts);

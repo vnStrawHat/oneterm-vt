@@ -2836,7 +2836,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::MouseProtocol
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::MouseProtocol
 pub struct oneterm_vt::OscRoutes
 impl oneterm_vt::OscRoutes
-pub const oneterm_vt::OscRoutes::BUILTIN: [u32; 20]
+pub const oneterm_vt::OscRoutes::BUILTIN: &'static [u32]
 pub fn oneterm_vt::OscRoutes::allows_large(&self, u32) -> bool
 pub fn oneterm_vt::OscRoutes::get(&self, u32) -> oneterm_vt::OscRoute
 pub fn oneterm_vt::OscRoutes::has_builtin(u32) -> bool

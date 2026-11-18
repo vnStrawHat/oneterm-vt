@@ -156,5 +156,9 @@ mod user_guide_snapshot {}
 mod user_guide_color_scheme {}
 
 #[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/notifications.md")]
+mod user_guide_notifications {}
+
+#[cfg(doctest)]
 #[doc = include_str!("../../../README.md")]
 mod readme {}

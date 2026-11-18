@@ -38,6 +38,11 @@ fn piece() -> impl Strategy<Value = Vec<u8>> {
             bytes("\x1b]22;wait\x07"), bytes("\x1b]22;\x07"),
             // The colour scheme: updates asked for, and the query.
             bytes("\x1b[?2031h"), bytes("\x1b[?996n"),
+            // Notifications: whole, in chunks, base64 cut inside a group, the query, cut.
+            bytes("\x1b]99;;hi\x07"), bytes("\x1b]99;i=1:d=0;T\x07"),
+            bytes("\x1b]99;i=1:p=body;B\x1b\\"), bytes("\x1b]99;i=2:d=0:e=1;QU\x07"),
+            bytes("\x1b]99;i=2:e=1;JD\x07"), bytes("\x1b]99;i=q:p=?;\x1b\\"),
+            bytes("\x1b]99;i=1:d=0:p=body;"), bytes("\x1b]777;notify;t;b\x07"),
         ]),
         1 => any::<u8>().prop_map(|byte| vec![byte]),
     ]

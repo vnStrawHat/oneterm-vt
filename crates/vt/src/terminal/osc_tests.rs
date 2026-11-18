@@ -39,13 +39,13 @@ fn rgb(r: u8, g: u8, b: u8) -> Rgb {
 #[test]
 fn defaults_run_builtins_and_drop_the_rest() {
     let routes = OscRoutes::new();
-    assert_eq!(OscRoutes::BUILTIN.len(), 20);
+    assert_eq!(OscRoutes::BUILTIN.len(), 22);
     assert!(OscRoutes::BUILTIN.windows(2).all(|pair| pair[0] < pair[1]));
-    for code in OscRoutes::BUILTIN {
+    for &code in OscRoutes::BUILTIN {
         assert!(OscRoutes::has_builtin(code));
         assert_eq!(routes.get(code), OscRoute::Builtin, "{code}");
     }
-    for code in [3, 5, 6, 99, 2047, 2048, 7501, u32::MAX] {
+    for code in [3, 5, 6, 98, 778, 2047, 2048, 7501, u32::MAX] {
         assert!(!OscRoutes::has_builtin(code));
         assert_eq!(routes.get(code), OscRoute::Drop, "{code}");
     }

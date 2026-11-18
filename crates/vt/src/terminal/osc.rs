@@ -59,11 +59,13 @@ impl Handler<'_> {
             22 => self.osc_pointer(params),
             50 => self.osc_cursor_shape(params),
             52 => self.osc_clipboard(params),
+            99 => self.osc_desktop_notification(params, term),
             104 => self.osc_reset_palette(params),
             110 => self.osc_reset_color(ColorKey::Foreground),
             111 => self.osc_reset_color(ColorKey::Background),
             112 => self.osc_reset_color(ColorKey::Cursor),
             133 => self.osc_shell_mark(params),
+            777 => self.osc_notify(params),
             _ => self.unhandled(),
         }
     }
@@ -214,6 +216,26 @@ impl Handler<'_> {
         }
         self.join_lossy(params, 1);
         let title = self.out.text_span("");
+        let body = self.out.text_span(&self.state.scratch);
+        self.out.push(VtEvent::Notification { title, body });
+    }
+
+    /// OSC 777: `notify ; title ; body`. The other commands sent under this number have no
+    /// handler.
+    fn osc_notify(&mut self, params: &OscParams<'_>) {
+        let title = match (params.get(1), params.get(2)) {
+            (Some(b"notify"), Some(title)) => String::from_utf8_lossy(title),
+            _ => {
+                self.unhandled();
+                return;
+            }
+        };
+        self.join_lossy(params, 3);
+        if title.is_empty() && self.state.scratch.is_empty() {
+            self.unhandled();
+            return;
+        }
+        let title = self.out.text_span(&title);
         let body = self.out.text_span(&self.state.scratch);
         self.out.push(VtEvent::Notification { title, body });
     }

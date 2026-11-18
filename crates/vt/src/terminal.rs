@@ -38,12 +38,15 @@ mod graphics;
 #[cfg(feature = "kitty-graphics")]
 mod kitty;
 mod modes;
+mod notification;
 mod osc;
 mod osc_routes;
 mod print;
 mod query;
 mod sgr;
 
+#[cfg(test)]
+mod notification_tests;
 #[cfg(test)]
 mod osc_tests;
 #[cfg(test)]
@@ -57,6 +60,7 @@ pub use osc_routes::{OscRoute, OscRoutes};
 
 use dispatch::Handler;
 use modes::{KeyboardStacks, Modes, TitleStack};
+use notification::PendingNotification;
 use print::ClusterCarry;
 use query::DcsQuery;
 
@@ -126,6 +130,8 @@ struct State {
     title: TitleStack,
     /// A program named a pointer shape (OSC 22) and has not given the pointer back.
     pointer_named: bool,
+    /// OSC 99 notifications waiting for their last chunk, the one that waited longest first.
+    notifications: Vec<PendingNotification>,
     colors: ColorOverrides,
     /// The embedder's colours underneath the program's overrides.
     theme: Palette,
@@ -356,6 +362,7 @@ impl Terminal {
             modify_other_keys: 0,
             title: TitleStack::default(),
             pointer_named: false,
+            notifications: Vec::new(),
             colors: ColorOverrides::default(),
             theme: Palette::new(),
             color_scheme: None,

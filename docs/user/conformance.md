@@ -46,7 +46,7 @@ assert_eq!(answer(&mut term, b"\x1b[?9999$p"), b"\x1b[?9999;0$y"); // unknown
 | modes | `SM RM` (ANSI and `?`), `DECSTR`, `DECSCUSR`, `DECRQM`, kitty keyboard flags, `modifyOtherKeys` |
 | reports | `DA1 DA2 DA3 DSR CPR DECXCPR XTVERSION DECRQSS DECRQCRA XTGETTCAP`, `CSI 14 t`, `CSI 18 t`, `CSI ? 996 n` (see [color-scheme](color-scheme.md)) |
 | window | `CSI 22 t` / `CSI 23 t` title stack |
-| OSC | `0 1 2 4 7 8 9 9;4 10 11 12 17 19 22 50 52 104 110 111 112 133`; others routable with `OscRoutes` |
+| OSC | `0 1 2 4 7 8 9 9;4 10 11 12 17 19 22 50 52 99 104 110 111 112 133 777` (`99`, `777`: see [notifications](notifications.md)); others routable with `OscRoutes` |
 | DCS | `q` (Sixel, see [graphics](graphics.md)), `$ q` (DECRQSS), `+ q` (XTGETTCAP) |
 | APC | `G` (kitty graphics, see [graphics-kitty](graphics-kitty.md): `a=q t T p d`, direct data, RGB / RGBA / PNG, zlib, chunks); any other APC, and every SOS and PM, is consumed and counted |
 

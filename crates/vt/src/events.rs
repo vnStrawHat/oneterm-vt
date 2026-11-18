@@ -5,6 +5,7 @@ mod batch;
 #[cfg(test)]
 mod event_tests;
 
+pub(crate) use batch::base64_value;
 pub use batch::{ByteSpan, EventBatch, ParamSpans, StrSpan};
 #[cfg(test)]
 pub(crate) use batch::{EVENT_ARENA_SOFT, EVENT_LIST_SOFT, PARAM_LIST_SOFT};
@@ -75,11 +76,12 @@ pub enum VtEvent {
         /// The percent-decoded path, or the text as sent when there was no `file://` prefix.
         path: StrSpan,
     },
-    /// OSC 9 (other than `9;4`): a desktop notification.
+    /// A desktop notification: OSC 9 (other than `9;4`), OSC 99 or OSC 777 `notify`.
     Notification {
-        /// Empty for OSC 9.
+        /// Empty for OSC 9. Never empty for OSC 99: a notification with only a body has it
+        /// here.
         title: StrSpan,
-        /// The message.
+        /// The message; empty when there is only a title.
         body: StrSpan,
     },
     /// OSC 9;4: taskbar progress.
@@ -177,7 +179,7 @@ pub struct FeedStats {
     /// implement, a rejected OSC, a gated query, a payload past its ceiling.
     pub unhandled_sequences: u32,
     /// Sequences routed to a handler whose payload was unusable: an OSC 52 store that is not
-    /// canonical base64 or not UTF-8.
+    /// canonical base64 or not UTF-8, an OSC 99 text marked base64 that is not.
     pub malformed_sequences: u32,
     /// OSC strings that arrived with bytes past the size cap dropped, also those not routed.
     pub truncated_osc: u32,

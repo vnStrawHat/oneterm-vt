@@ -45,7 +45,7 @@ redraw, not damage.
 | `IconName(span)` | OSC 1 | optional |
 | `Bell` | `BEL` outside a string | beep, flash, or nothing |
 | `Cwd { host, path }` | OSC 7, path percent-decoded | use it; no filesystem is touched |
-| `Notification { title, body }` | OSC 9 (`title` is empty) | policy: show or drop |
+| `Notification { title, body }` | OSC 9 (`title` is empty), OSC 99, OSC 777 (see [notifications](notifications.md)) | policy: show or drop |
 | `Progress(Progress)` | OSC 9;4 | taskbar state |
 | `Pointer(span)` / `PointerReset` | OSC 22 with a shape name / with an empty name, or RIS after a name | set the mouse pointer / go back to your own |
 | `ShellMark(ShellMark)` | OSC 133 A/B/C/D | status of the running command; to jump between prompts use `Terminal::prompt_before` / `prompt_after` |
@@ -85,7 +85,7 @@ assert_eq!(reply, b"\x1b]11;rgb:1e1e/1e1e/1e1e\x07");
 
 ## OSC routes
 
-`Config::osc_routes` decides per OSC number. The default runs the 20 built-in numbers
+`Config::osc_routes` decides per OSC number. The default runs the 22 built-in numbers
 (`OscRoutes::BUILTIN`) and drops every other one, counted in `FeedStats::unhandled_sequences`.
 
 | `OscRoute` | Built-in handler | `Osc` event |

@@ -22,7 +22,7 @@ and its payload). The last row of a group lists its functions and constants.
 | Item | What it is for | Chapter |
 |---|---|---|
 | `EventBatch` | caller-owned buffer `feed` fills; resolves every span | [events](events.md) |
-| `VtEvent` | what happened: reply, title, bell, clipboard, OSC, repaint | [events](events.md) |
+| `VtEvent` | what happened: reply, title, bell, clipboard, notification, OSC, repaint | [events](events.md), [notifications](notifications.md) |
 | `FeedStats` | per-feed counters: bytes, drops, truncations, `?2026` frames closed | [limits](limits.md) |
 | `ByteSpan`, `StrSpan`, `ParamSpans` | indexes into their batch; read before the next `feed` | [events](events.md) |
 | `ClipboardKind`, `Progress`, `ShellMark` | payloads of clipboard, progress and prompt-mark events | [events](events.md) |

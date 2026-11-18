@@ -9,7 +9,8 @@ pub enum OscRoute { Builtin, BuiltinAndForward, Forward, Drop }
 pub struct OscRoutes { forward: CodeSet, suppress: CodeSet, large: CodeSet }
 struct CodeSet { low: [u64; 32], high: Vec<u32> }   // bitmap 0..2048 + sorted spill
 impl OscRoutes {
-    pub const BUILTIN: [u32; 20] = [0, 1, 2, 4, 7, 8, 9, 10, 11, 12, 17, 19, 22, 50, 52, 104, 110, 111, 112, 133];
+    // A slice since 99 and 777 joined: a number added later changes no type.
+    pub const BUILTIN: &'static [u32] = &[0, 1, 2, 4, 7, 8, 9, 10, 11, 12, 17, 19, 22, 50, 52, 99, 104, 110, 111, 112, 133, 777];
     pub fn new() -> OscRoutes;                                     // = Default
     pub fn has_builtin(code: u32) -> bool;                         // const-built bitmap of BUILTIN
     pub fn route(&mut self, code: u32, route: OscRoute) -> &mut Self;
@@ -61,6 +62,7 @@ impl OscRoutes {
 | `22` | `p1` non-empty UTF-8 -> `Pointer(p1)`, `pointer_named = true`; `p1` empty -> `PointerReset`, `pointer_named = false`; no `p1` or not UTF-8 -> reject. RIS pushes `PointerReset` when `pointer_named` |
 | `50` | `p1` = `CursorShape=0|1|2` -> shape Block/Beam/Underline on the stored-or-default style (blink kept); modes.md event rule; else reject |
 | `52` | below |
+| `99`, `777` | [notifications.md](notifications.md) |
 | `104`, `110`, `111`, `112` | colors.md |
 | `133` | `p1`: `A` PromptStart, `B` PromptEnd, `C` OutputStart, `D` OutputEnd { exit_code: `p2` as `i32` or `None` }; other -> reject. Template semantic: A `Prompt`, B `Input`, C `Output`, D `None`. Push `ShellMark` |
 

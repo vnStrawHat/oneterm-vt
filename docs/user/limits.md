@@ -42,6 +42,8 @@ assert_eq!(stats.bytes, 10);
 | DECRQSS / XTGETTCAP payload | 8 KiB | no answer | `unhandled_sequences` (once) |
 | XTGETTCAP names | 16 per request, 128 bytes each | the name is dropped, never cut | `unhandled_sequences` (once) |
 | title stack / kitty flag stack | 16 / 8 | the oldest is dropped | - |
+| OSC 99 title, and body | 4,096 bytes each | cut at a character | `unhandled_sequences` |
+| OSC 99 notifications waiting for their last chunk / id | 8 / 128 characters | the one that waited longest is dropped / the sequence is ignored | - / `unhandled_sequences` |
 | `?2027` cluster carried across chunks | 32 scalars | not carried; the next chunk starts a new cluster | `dropped_cluster_carries` |
 | cluster in a cell | 16 scalars | cut | `grapheme_truncated` |
 | grapheme arena | 262,144 entries, 1,048,576 scalars; swept after a feed once it doubled; keeps at most half of each cap, newest rows first; a refused or dropped cluster keeps its base glyph | the cell keeps its base glyph, the new marks are dropped | `grapheme_table_exhausted` |
@@ -72,7 +74,7 @@ The meaning of every field is part of the API; counting something else is a majo
 | `bytes` | bytes fed |
 | `rows_scrolled` | rows that left the top of a screen into its history (line feeds, wraps, IND, NEL, SU, DL, ED 2 on the primary); on the alternate screen they count although dropped at once |
 | `unhandled_sequences` | sequences parsed but not acted on: unknown keys, values the engine does not implement, rejected OSCs, a shut DECRQCRA gate, payloads past their ceiling, dropped OSC numbers |
-| `malformed_sequences` | OSC 52 stores that are not canonical base64 or not UTF-8 |
+| `malformed_sequences` | OSC 52 stores that are not canonical base64 or not UTF-8; OSC 99 text marked base64 that is not |
 | `truncated_osc` | OSC strings that lost bytes to the size cap, also those you do not route |
 | `aborted_dcs` | DCS strings ended by `CAN`/`SUB` or by the 16 MiB cap |
 | `hyperlink_table_exhausted` | OSC 8 links dropped because a table was full |

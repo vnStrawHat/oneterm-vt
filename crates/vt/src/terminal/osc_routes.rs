@@ -94,9 +94,10 @@ pub struct OscRoutes {
 }
 
 impl OscRoutes {
-    /// The OSC numbers with a built-in handler.
-    pub const BUILTIN: [u32; 20] = [
-        0, 1, 2, 4, 7, 8, 9, 10, 11, 12, 17, 19, 22, 50, 52, 104, 110, 111, 112, 133,
+    /// The OSC numbers with a built-in handler, ascending. A slice, so that a number added
+    /// later changes no type.
+    pub const BUILTIN: &'static [u32] = &[
+        0, 1, 2, 4, 7, 8, 9, 10, 11, 12, 17, 19, 22, 50, 52, 99, 104, 110, 111, 112, 133, 777,
     ];
 
     /// Every built-in runs, nothing is forwarded.
