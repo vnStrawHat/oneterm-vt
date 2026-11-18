@@ -32,6 +32,7 @@ private and ANSI mode. `Modes { bits: u32 }` (crate) stores one bit per stateful
 | `?2004` | `BracketedPaste` | bit | reset | |
 | `?2026` | `SyncUpdate` | bit (phase 7: `SyncState`) | reset | |
 | `?2027` | `GraphemeClusters` | bit | reset | `l` drops the carry |
+| `?2031` | `ColorSchemeUpdates` | bit | reset | none; read by `Terminal::set_color_scheme` (colors.md) |
 | `?9001` | `Win32Input` | bit (inert: `2`) | reset | conhost sends `h` unprompted; accepted silently |
 | `4` | `Insert` | bit | reset | |
 | `20` | `LineFeedNewLine` | bit (inert: `2`) | reset | LF never implies CR |
@@ -100,6 +101,7 @@ to `{0, None, [(0, None); 2]}`; `preceding_char`, carry and DCS query cleared; p
 `ScreenCleared`, then `TitleReset` if a title was set and `PointerReset` if a pointer shape
 was named; `CursorStyleChanged` rule. Kept: row ids, `lines_produced`, `config`, the
 style table and the grapheme arena.
+The colour scheme is the embedder's and stays (colors.md).
 
 **DECSTR** (`CSI ! p`): `Origin`, `Insert` reset; `LineWrap`, `ShowCursor` set; full region;
 template := `Cell::EMPTY`; `goto(0, 0)`; DCS query cleared; DECSC (with shifts);

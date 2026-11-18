@@ -91,6 +91,28 @@ impl ColorKey {
     }
 }
 
+/// Whether the embedder's colours are dark or light: what a program asks with `CSI ? 996 n`
+/// and follows with `?2031`. The embedder says which with
+/// [`Terminal::set_color_scheme`](super::Terminal::set_color_scheme).
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum ColorScheme {
+    /// Light text on a dark background.
+    Dark,
+    /// Dark text on a light background.
+    Light,
+}
+
+impl ColorScheme {
+    /// `CSI ? 997 ; 1 n` (dark) or `CSI ? 997 ; 2 n` (light): the answer to `CSI ? 996 n` and
+    /// the update `?2031` asks for.
+    pub(super) const fn report(self) -> &'static [u8] {
+        match self {
+            ColorScheme::Dark => b"\x1b[?997;1n",
+            ColorScheme::Light => b"\x1b[?997;2n",
+        }
+    }
+}
+
 /// The colours programs changed with OSC sequences.
 ///
 /// A slot is `None` while the embedder's theme owns the colour.

@@ -62,8 +62,8 @@ pub use snapshot::{
     StyleRun, SyncState, Watermark,
 };
 pub use terminal::{
-    ColorKey, ColorOverrides, Config, CursorShape, CursorStyle, KeyboardFlags, Mode, ModeState,
-    OscRoute, OscRoutes, Terminal,
+    ColorKey, ColorOverrides, ColorScheme, Config, CursorShape, CursorStyle, KeyboardFlags, Mode,
+    ModeState, OscRoute, OscRoutes, Terminal,
 };
 pub use width::{cluster_width, scalar_width};
 
@@ -150,6 +150,10 @@ mod user_guide_selection {}
 #[cfg(doctest)]
 #[doc = include_str!("../../../docs/user/snapshot.md")]
 mod user_guide_snapshot {}
+
+#[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/color-scheme.md")]
+mod user_guide_color_scheme {}
 
 #[cfg(doctest)]
 #[doc = include_str!("../../../README.md")]

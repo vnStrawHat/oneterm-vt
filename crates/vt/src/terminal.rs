@@ -51,7 +51,7 @@ mod query_tests;
 #[cfg(test)]
 mod terminal_tests;
 
-pub use color::{ColorKey, ColorOverrides};
+pub use color::{ColorKey, ColorOverrides, ColorScheme};
 pub use modes::{CursorShape, CursorStyle, KeyboardFlags, Mode, ModeState};
 pub use osc_routes::{OscRoute, OscRoutes};
 
@@ -129,6 +129,8 @@ struct State {
     colors: ColorOverrides,
     /// The embedder's colours underneath the program's overrides.
     theme: Palette,
+    /// Whether those colours are dark or light, once the embedder has said so.
+    color_scheme: Option<ColorScheme>,
     sync: SyncState,
     /// Bumped whenever rows change outside the per-row change stamps: snapshots rebuild.
     generation: u32,
@@ -356,6 +358,7 @@ impl Terminal {
             pointer_named: false,
             colors: ColorOverrides::default(),
             theme: Palette::new(),
+            color_scheme: None,
             sync: SyncState::new(),
             generation: 0,
             palette_epoch: 0,
@@ -636,6 +639,21 @@ impl Terminal {
         let changed = state.theme != *theme;
         state.theme = *theme;
         state.note_palette_change(changed);
+    }
+
+    /// Tells the engine whether your colours are dark or light, and returns what to write to
+    /// the program: the report `CSI ? 997 ; Ps n` when the scheme differs from the last one
+    /// told and the program asked for updates (`?2031`), else `None`. Call it when your theme
+    /// changes, next to [`set_theme_colors`](Self::set_theme_colors).
+    ///
+    /// `CSI ? 996 n` is answered from the scheme told here. Until the first call it gets no
+    /// answer and is counted as unhandled: the engine does not guess from the colours. A
+    /// reset (RIS) keeps the scheme and turns `?2031` off.
+    #[must_use = "the report, if any, has to be written to the program"]
+    pub fn set_color_scheme(&mut self, scheme: ColorScheme) -> Option<&'static [u8]> {
+        let state = &mut self.state;
+        let changed = state.color_scheme.replace(scheme) != Some(scheme);
+        (changed && state.modes.get(Mode::ColorSchemeUpdates)).then(|| scheme.report())
     }
 
     /// The effective palette: the theme with every program override applied. Pass it to

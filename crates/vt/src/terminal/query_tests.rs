@@ -173,3 +173,78 @@ fn replies_are_ascii_and_pushed_as_one_event_each() {
         .collect();
     assert_eq!(replies.len(), 4);
 }
+
+// ---- Colour scheme: `CSI ? 996 n` and `?2031` ----
+
+#[test]
+fn the_scheme_query_has_no_answer_until_the_embedder_names_one() {
+    let mut session = Session::new(10, 3);
+    let stats = session.feed(b"\x1b[?996n");
+    assert_eq!(session.replies(), "");
+    assert_eq!(stats.unhandled_sequences, 1);
+}
+
+#[test]
+fn the_scheme_query_answers_what_the_embedder_said() {
+    let mut session = Session::new(10, 3);
+    for (scheme, report) in [
+        (ColorScheme::Dark, "\x1b[?997;1n"),
+        (ColorScheme::Light, "\x1b[?997;2n"),
+    ] {
+        // No update goes out: the program has not asked for them.
+        assert_eq!(session.term.set_color_scheme(scheme), None);
+        let stats = session.feed(b"\x1b[?996n");
+        assert_eq!(session.replies(), report);
+        assert_eq!(stats.unhandled_sequences, 0);
+    }
+    // Without `?`, 996 is not a status the engine knows.
+    assert_eq!(session.feed(b"\x1b[996n").unhandled_sequences, 1);
+}
+
+#[test]
+fn a_scheme_change_is_reported_only_while_the_program_asked() {
+    let mut session = Session::new(10, 3);
+    assert_eq!(session.term.set_color_scheme(ColorScheme::Dark), None);
+    let stats = session.feed(b"\x1b[?2031h");
+    assert_eq!(stats.unhandled_sequences, 0);
+    assert!(session.term.mode(Mode::ColorSchemeUpdates));
+    // Setting the mode says nothing by itself, and the same scheme again is no change.
+    assert_eq!(session.replies(), "");
+    assert_eq!(session.term.set_color_scheme(ColorScheme::Dark), None);
+    assert_eq!(
+        session.term.set_color_scheme(ColorScheme::Light),
+        Some(&b"\x1b[?997;2n"[..])
+    );
+    assert_eq!(
+        session.term.set_color_scheme(ColorScheme::Dark),
+        Some(&b"\x1b[?997;1n"[..])
+    );
+    session.feed(b"\x1b[?2031l");
+    assert_eq!(session.term.set_color_scheme(ColorScheme::Light), None);
+    // The change made meanwhile is still what the query answers.
+    session.feed(b"\x1b[?996n");
+    assert_eq!(session.replies(), "\x1b[?997;2n");
+}
+
+#[test]
+fn the_first_scheme_told_is_news_to_a_program_that_asked() {
+    let mut session = Session::new(10, 3);
+    session.feed(b"\x1b[?2031h");
+    assert_eq!(
+        session.term.set_color_scheme(ColorScheme::Light),
+        Some(&b"\x1b[?997;2n"[..])
+    );
+}
+
+#[test]
+fn a_reset_turns_scheme_updates_off_and_keeps_the_scheme() {
+    let mut session = Session::new(10, 3);
+    let _ = session.term.set_color_scheme(ColorScheme::Light);
+    session.feed(b"\x1b[?2031h\x1b[!p");
+    // DECSTR keeps it, as it keeps the other modes the embedder reads.
+    assert!(session.term.mode(Mode::ColorSchemeUpdates));
+    session.feed(b"\x1bc\x1b[?996n");
+    assert!(!session.term.mode(Mode::ColorSchemeUpdates));
+    assert_eq!(session.replies(), "\x1b[?997;2n");
+    assert_eq!(session.term.set_color_scheme(ColorScheme::Dark), None);
+}

@@ -78,3 +78,18 @@ Hex is case-insensitive. Palette index = a non-empty decimal run that fits `u8` 
 
 - Several queries in one OSC (`4;1;?;2;?`) push one `ColorQuery` each, in order.
 - RIS: `reset_all`. DECSTR keeps overrides.
+
+## Colour scheme (`?2031`, `CSI ? 996 n`; added after v0.2.1)
+
+```rust
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)] pub enum ColorScheme { Dark, Light }
+impl Terminal { #[must_use] pub fn set_color_scheme(&mut self, scheme: ColorScheme) -> Option<&'static [u8]>; }
+```
+
+- `State.color_scheme: Option<ColorScheme>`, `None` until the embedder's first call. The engine
+  never derives it from the theme: dark or light is the embedder's statement.
+- `set_color_scheme` stores the scheme and returns the report (`CSI ? 997 ; 1 n` dark, `; 2 n`
+  light) iff the stored value changed (`None` -> `Some` included) and `?2031` is set. The
+  embedder writes it, as it writes focus reports: nothing can be pushed outside a `feed`.
+- `CSI ? 996 n` pushes the same bytes as a `Reply`, whatever `?2031` is; `None` -> unhandled.
+- `?2031 h` itself reports nothing. RIS resets the mode and keeps the scheme; DECSTR keeps both.

@@ -84,6 +84,10 @@ pub enum Mode {
     SyncUpdate,
     /// `?2027`: grapheme clustering; a cluster takes one cell.
     GraphemeClusters,
+    /// `?2031`: the program wants to hear when the colours switch between dark and light.
+    /// The engine stores it; [`Terminal::set_color_scheme`](super::Terminal::set_color_scheme)
+    /// reads it.
+    ColorSchemeUpdates,
     /// `?9001`: Win32 input mode. Accepted and stored, answers "reset".
     Win32Input,
     /// `4`: insert mode (IRM).
@@ -140,6 +144,7 @@ const PRIVATE_MODES: &[(u16, Mode)] = &[
     (2004, Mode::BracketedPaste),
     (2026, Mode::SyncUpdate),
     (2027, Mode::GraphemeClusters),
+    (2031, Mode::ColorSchemeUpdates),
     (9001, Mode::Win32Input),
 ];
 
@@ -214,6 +219,7 @@ impl Mode {
             Mode::LineFeedNewLine => 1 << 21,
             Mode::AppKeypad => 1 << 22,
             Mode::LeftRightMargins => 1 << 23,
+            Mode::ColorSchemeUpdates => 1 << 24,
             Mode::DecCoLm
             | Mode::SyncUpdate
             | Mode::CursorBlink

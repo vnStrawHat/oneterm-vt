@@ -1696,6 +1696,27 @@ impl core::marker::Unpin for oneterm_vt::ColorKey
 impl core::marker::UnsafeUnpin for oneterm_vt::ColorKey
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::ColorKey
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::ColorKey
+pub enum oneterm_vt::ColorScheme
+pub oneterm_vt::ColorScheme::Dark
+pub oneterm_vt::ColorScheme::Light
+impl core::clone::Clone for oneterm_vt::ColorScheme
+pub fn oneterm_vt::ColorScheme::clone(&self) -> oneterm_vt::ColorScheme
+impl core::cmp::Eq for oneterm_vt::ColorScheme
+impl core::cmp::PartialEq for oneterm_vt::ColorScheme
+pub fn oneterm_vt::ColorScheme::eq(&self, &oneterm_vt::ColorScheme) -> bool
+impl core::fmt::Debug for oneterm_vt::ColorScheme
+pub fn oneterm_vt::ColorScheme::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for oneterm_vt::ColorScheme
+pub fn oneterm_vt::ColorScheme::hash<__H: core::hash::Hasher>(&self, &mut __H)
+impl core::marker::Copy for oneterm_vt::ColorScheme
+impl core::marker::StructuralPartialEq for oneterm_vt::ColorScheme
+impl core::marker::Freeze for oneterm_vt::ColorScheme
+impl core::marker::Send for oneterm_vt::ColorScheme
+impl core::marker::Sync for oneterm_vt::ColorScheme
+impl core::marker::Unpin for oneterm_vt::ColorScheme
+impl core::marker::UnsafeUnpin for oneterm_vt::ColorScheme
+impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::ColorScheme
+impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::ColorScheme
 pub enum oneterm_vt::CursorShape
 pub oneterm_vt::CursorShape::Beam
 pub oneterm_vt::CursorShape::Block
@@ -1756,6 +1777,7 @@ pub oneterm_vt::Mode::AlternateScroll
 pub oneterm_vt::Mode::AppCursor
 pub oneterm_vt::Mode::AppKeypad
 pub oneterm_vt::Mode::BracketedPaste
+pub oneterm_vt::Mode::ColorSchemeUpdates
 pub oneterm_vt::Mode::CursorBlink
 pub oneterm_vt::Mode::DecCoLm
 pub oneterm_vt::Mode::FocusInOut
@@ -3394,6 +3416,7 @@ pub fn oneterm_vt::Terminal::selection_start(&mut self, oneterm_vt::grid::Pos, o
 pub fn oneterm_vt::Terminal::selection_text(&self) -> core::option::Option<alloc::string::String>
 pub fn oneterm_vt::Terminal::selection_update(&mut self, oneterm_vt::grid::Pos, oneterm_vt::Side)
 pub fn oneterm_vt::Terminal::set_cell_pixels(&mut self, u16, u16)
+pub fn oneterm_vt::Terminal::set_color_scheme(&mut self, oneterm_vt::ColorScheme) -> core::option::Option<&'static [u8]>
 pub fn oneterm_vt::Terminal::set_scrollback_limit(&mut self, u32)
 pub fn oneterm_vt::Terminal::set_theme_colors(&mut self, &oneterm_vt::Palette)
 pub fn oneterm_vt::Terminal::size(&self) -> oneterm_vt::grid::Size

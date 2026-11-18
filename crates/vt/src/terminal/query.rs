@@ -193,6 +193,11 @@ impl Handler<'_> {
                 let (row, col) = self.cursor_report_position();
                 self.reply(format_args!("\x1b[?{row};{col};1R"));
             }
+            // Dark or light is the embedder's to say; until it has, there is no answer.
+            (true, 996) => match self.state.color_scheme {
+                Some(scheme) => self.out.push_reply(scheme.report()),
+                None => self.unhandled(),
+            },
             _ => self.unhandled(),
         }
     }
