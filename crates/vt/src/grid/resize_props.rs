@@ -83,21 +83,25 @@ fn trimmed(mut line: Vec<Cell>) -> Vec<Cell> {
 }
 
 /// Marks that sit on a content cell the resize promises to keep, with their place in the line.
+/// Under `KeepViewportTop` that is the text up to and including the cursor's cell.
 fn content_marks(
     f: &Fixture,
     marks: &[AnchorId],
     policy: ResizePolicy,
 ) -> Vec<(AnchorId, (usize, usize))> {
+    let (cursor_line, cursor_offset, _) = f.cursor_at();
     marks
         .iter()
         .filter_map(|&id| {
             let pos = f.grid.anchors.get(id)?;
             let cell = f.grid.screen().row(pos.row).cell(pos.col);
             let content = cell != Cell::EMPTY && cell.width() != CellWidth::LeadingWideSpacer;
-            // `KeepViewportTop` may cut the rows below the cursor.
+            // `KeepViewportTop` may cut what follows the cursor: the rows below it, and the rest
+            // of its own line once a wider screen re-wraps that rest onto a row below.
+            let place = f.line_offset(pos);
             let kept =
-                policy == ResizePolicy::BottomAnchor || pos.row <= f.grid.screen().cursor().pos.row;
-            (content && kept).then(|| (id, f.line_offset(pos)))
+                policy == ResizePolicy::BottomAnchor || place <= (cursor_line, cursor_offset);
+            (content && kept).then_some((id, place))
         })
         .collect()
 }
@@ -262,4 +266,68 @@ proptest! {
             }
         }
     }
+}
+
+/// The input a Release run found (proptest seed
+/// `a9cae6861d57aabdd808f5f93ff49d53a6273e331830c585e5f5e2dcc649108c`): the property tracked a
+/// mark on the cursor's row but after the cursor, which this policy does not keep.
+#[test]
+fn keep_viewport_top_cuts_the_rest_of_the_cursor_line_that_wraps_below() {
+    let ops = [
+        Op::Print(0),
+        Op::Wrapline,
+        Op::Wrapline,
+        Op::Wrapline,
+        Op::Wrapline,
+        Op::Newline,
+        Op::Mark { index: 4, col: 10 },
+        Op::Goto { index: 4, col: 5 },
+        Op::Print(0),
+        Op::Print(4),
+        Op::Print(2),
+        Op::Print(4),
+        Op::Print(4),
+        Op::Goto { index: 3, col: 0 },
+        Op::Wrapline,
+        Op::Goto { index: 4, col: 5 },
+        Op::Print(2),
+    ];
+    let policy = ResizePolicy::KeepViewportTop;
+    let build = || {
+        let mut f = fixture_with(5, 11, 64);
+        let mut marks = Vec::new();
+        for op in &ops {
+            apply(&mut f, op, &mut marks);
+        }
+        (f, marks)
+    };
+
+    // One line over six rows; the cursor is at offset 62 and the mark on the `Z` at offset 65.
+    let (mut f, marks) = build();
+    let mark = marks[0];
+    assert_eq!(text_position(&f), (0, 62));
+    assert_eq!(
+        f.grid.anchors.get(mark).map(|pos| f.line_offset(pos)),
+        Some((0, 65))
+    );
+    assert!(content_marks(&f, &marks, policy).is_empty());
+    // The same mark is promised under the other policy.
+    assert_eq!(
+        content_marks(&f, &marks, ResizePolicy::BottomAnchor),
+        [(mark, (0, 65))]
+    );
+
+    // Two columns wider, the `Z` moves to a row below the cursor's, and that row is cut.
+    f.resize(5, 13, policy);
+    assert_eq!(text_position(&f), (0, 62));
+    assert_eq!(f.grid.anchors.get(mark), None);
+
+    // `BottomAnchor` keeps it through the round trip.
+    let (mut f, marks) = build();
+    f.resize(5, 13, ResizePolicy::BottomAnchor);
+    f.resize(5, 11, ResizePolicy::BottomAnchor);
+    assert_eq!(
+        f.grid.anchors.get(marks[0]).map(|pos| f.line_offset(pos)),
+        Some((0, 65))
+    );
 }

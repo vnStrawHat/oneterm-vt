@@ -57,7 +57,7 @@ Notation: `3x10` = rows x cols; scrollback 10 unless stated.
 
 | Case | Promise |
 |---|---|
-| any | lines from oldest through the cursor's line equal (cell-exact, trailing `EMPTY` trimmed); cursor `(line, offset, pending)` equal; marks on content cells keep `(line, offset)` |
+| any | lines from oldest through the cursor's line equal (cell-exact, trailing `EMPTY` trimmed); cursor `(line, offset, pending)` equal; marks on content cells keep `(line, offset)`; under `KeepViewportTop` only marks up to and including the cursor's cell are tracked, since a wider screen may re-wrap the rest of the cursor's line onto a row below it, which that policy releases (cursor-anchors.md death rules). Fixed input of that case: `keep_viewport_top_cuts_the_rest_of_the_cursor_line_that_wraps_below` |
 | `BottomAnchor` | also every line below the cursor, ignoring trailing empty lines |
 | rows only, `BottomAnchor`, cursor on the bottom row | every live row `(id, cells, wrapped)` and the cursor equal; `offset` equal when it was 0 |
 | rows only, `KeepViewportTop` | same exact equality, any cursor row |
