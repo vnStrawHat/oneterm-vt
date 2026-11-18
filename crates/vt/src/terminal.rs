@@ -59,6 +59,7 @@ mod terminal_tests;
 
 pub use color::{ColorKey, ColorOverrides, ColorScheme};
 pub use modes::{CursorShape, CursorStyle, KeyboardFlags, Mode, ModeState};
+pub use notification::NotificationSupport;
 pub use osc_routes::{OscRoute, OscRoutes};
 pub use pointer::PointerShapes;
 
@@ -100,6 +101,10 @@ pub struct Config {
     /// cannot go into a reply are dropped or replaced when the terminal is built;
     /// [`Terminal::config`] returns the cleaned copy.
     pub pointer_shapes: PointerShapes,
+    /// What you can do with an OSC 99 notification: the answer to the query programs send
+    /// before they use the protocol. Everything is off by default; declare only what you
+    /// implement.
+    pub notifications: NotificationSupport,
 }
 
 impl Default for Config {
@@ -113,6 +118,7 @@ impl Default for Config {
             allow_screen_readback: false,
             ambiguous_wide: false,
             pointer_shapes: PointerShapes::default(),
+            notifications: NotificationSupport::default(),
         }
     }
 }
@@ -364,6 +370,7 @@ impl Terminal {
     pub fn new(size: Size, mut config: Config) -> Terminal {
         config.product_name = query::sanitize_product_name(config.product_name.take());
         config.pointer_shapes = std::mem::take(&mut config.pointer_shapes).cleaned();
+        config.notifications = std::mem::take(&mut config.notifications).cleaned();
         let state = State {
             grid: TerminalGrid::new(size, config.scrollback_limit),
             interner: Interner::default(),

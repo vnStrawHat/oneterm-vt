@@ -45,7 +45,8 @@ redraw, not damage.
 | `IconName(span)` | OSC 1 | optional |
 | `Bell` | `BEL` outside a string | beep, flash, or nothing |
 | `Cwd { host, path }` | OSC 7, path percent-decoded | use it; no filesystem is touched |
-| `Notification { title, body }` | OSC 9 (`title` is empty), OSC 99, OSC 777 (see [notifications](notifications.md)) | policy: show or drop |
+| `Notification(at)` | OSC 9, OSC 777, OSC 99; `batch.notification(at)` has the title, the body and every OSC 99 key (see [notifications](notifications.md)) | policy: show or drop; send the reports it asks for |
+| `NotificationClose { id }` / `NotificationAliveQuery { id }` | OSC 99 `p=close` / `p=alive` | close that notification / answer with `NotificationReport::Alive` |
 | `Progress(Progress)` | OSC 9;4 | taskbar state |
 | `Pointer(span)` / `PointerReset` | the pointer shape to show changed (OSC 22 set, push or pop; a screen switch; RIS): a name / your own (see [pointer](pointer.md)) | set the mouse pointer / go back to your own |
 | `ShellMark(ShellMark)` | OSC 133 A/B/C/D | status of the running command; to jump between prompts use `Terminal::prompt_before` / `prompt_after` |

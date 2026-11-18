@@ -47,8 +47,9 @@ mod width;
 
 pub use cell::{Attrs, Cell, CellContent, CellWidth, Color, NamedColor, Rgb, Semantic, Style};
 pub use events::{
-    ByteSpan, ClipboardKind, EventBatch, FeedStats, ParamSpans, Progress, ShellMark, StrSpan,
-    VtEvent,
+    ByteSpan, ClipboardKind, EventBatch, FeedStats, Notification, NotificationExpiry,
+    NotificationOccasion, NotificationRef, NotificationUrgency, ParamSpans, Progress, ShellMark,
+    StrSpan, VtEvent,
 };
 pub use graphics::{GraphicData, Placement, VIRTUAL_CELL};
 pub use grid::terminal_grid::{ResizeOutcome, ResizePolicy};
@@ -63,7 +64,7 @@ pub use snapshot::{
 };
 pub use terminal::{
     ColorKey, ColorOverrides, ColorScheme, Config, CursorShape, CursorStyle, KeyboardFlags, Mode,
-    ModeState, OscRoute, OscRoutes, PointerShapes, Terminal,
+    ModeState, NotificationSupport, OscRoute, OscRoutes, PointerShapes, Terminal,
 };
 pub use width::{cluster_width, scalar_width};
 

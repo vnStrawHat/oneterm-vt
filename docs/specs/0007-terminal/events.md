@@ -67,7 +67,8 @@ same methods.
 | `RowsScrolled(RowsScrolled)` | any scroll report with `scrolled` (region moves, wraps included) |
 | `RowsTrimmed { oldest: RowId }` | any scroll report with `trimmed` |
 | `Cwd { host: StrSpan, path: StrSpan }` | OSC 7 (osc.md) |
-| `Notification { title: StrSpan, body: StrSpan }` | OSC 9 other than `9;4` (`title` empty); OSC 99 and OSC 777 `notify` (notifications.md) |
+| `Notification(NotificationRef)` | OSC 9 other than `9;4` (`title` empty); OSC 777 `notify`; OSC 99 when its last chunk arrived (notifications.md) |
+| `NotificationClose { id: StrSpan }` / `NotificationAliveQuery { id: StrSpan }` | OSC 99 `p=close` with an id / `p=alive` |
 | `Progress(Progress)` | OSC 9;4 |
 | `Pointer(StrSpan)` | the shape to show is this name: OSC 22 set, push or pop; a screen switch between different shapes (pointer.md) |
 | `PointerReset` | the shape to show is the embedder's own: the same operations, and RIS after a shape |

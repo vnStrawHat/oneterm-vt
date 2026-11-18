@@ -830,6 +830,39 @@ impl core::marker::Unpin for oneterm_vt::input::NamedKey
 impl core::marker::UnsafeUnpin for oneterm_vt::input::NamedKey
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::input::NamedKey
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::input::NamedKey
+#[non_exhaustive] pub enum oneterm_vt::input::NotificationReport<'a>
+pub oneterm_vt::input::NotificationReport::Activated
+pub oneterm_vt::input::NotificationReport::Activated::id: &'a str
+pub oneterm_vt::input::NotificationReport::Alive
+pub oneterm_vt::input::NotificationReport::Alive::alive: &'a [&'a str]
+pub oneterm_vt::input::NotificationReport::Alive::id: &'a str
+pub oneterm_vt::input::NotificationReport::Button
+pub oneterm_vt::input::NotificationReport::Button::button: u32
+pub oneterm_vt::input::NotificationReport::Button::id: &'a str
+pub oneterm_vt::input::NotificationReport::CloseUntracked
+pub oneterm_vt::input::NotificationReport::CloseUntracked::id: &'a str
+pub oneterm_vt::input::NotificationReport::Closed
+pub oneterm_vt::input::NotificationReport::Closed::id: &'a str
+impl oneterm_vt::input::NotificationReport<'_>
+pub fn oneterm_vt::input::NotificationReport<'_>::encode(&self) -> alloc::vec::Vec<u8>
+impl<'a> core::clone::Clone for oneterm_vt::input::NotificationReport<'a>
+pub fn oneterm_vt::input::NotificationReport<'a>::clone(&self) -> oneterm_vt::input::NotificationReport<'a>
+impl<'a> core::cmp::Eq for oneterm_vt::input::NotificationReport<'a>
+impl<'a> core::cmp::PartialEq for oneterm_vt::input::NotificationReport<'a>
+pub fn oneterm_vt::input::NotificationReport<'a>::eq(&self, &oneterm_vt::input::NotificationReport<'a>) -> bool
+impl<'a> core::fmt::Debug for oneterm_vt::input::NotificationReport<'a>
+pub fn oneterm_vt::input::NotificationReport<'a>::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::hash::Hash for oneterm_vt::input::NotificationReport<'a>
+pub fn oneterm_vt::input::NotificationReport<'a>::hash<__H: core::hash::Hasher>(&self, &mut __H)
+impl<'a> core::marker::Copy for oneterm_vt::input::NotificationReport<'a>
+impl<'a> core::marker::StructuralPartialEq for oneterm_vt::input::NotificationReport<'a>
+impl<'a> core::marker::Freeze for oneterm_vt::input::NotificationReport<'a>
+impl<'a> core::marker::Send for oneterm_vt::input::NotificationReport<'a>
+impl<'a> core::marker::Sync for oneterm_vt::input::NotificationReport<'a>
+impl<'a> core::marker::Unpin for oneterm_vt::input::NotificationReport<'a>
+impl<'a> core::marker::UnsafeUnpin for oneterm_vt::input::NotificationReport<'a>
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::input::NotificationReport<'a>
+impl<'a> core::panic::unwind_safe::UnwindSafe for oneterm_vt::input::NotificationReport<'a>
 #[non_exhaustive] pub enum oneterm_vt::input::TerminalMouseButton
 pub oneterm_vt::input::TerminalMouseButton::Back
 pub oneterm_vt::input::TerminalMouseButton::Forward
@@ -1953,6 +1986,76 @@ impl core::marker::Unpin for oneterm_vt::NamedColor
 impl core::marker::UnsafeUnpin for oneterm_vt::NamedColor
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::NamedColor
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::NamedColor
+pub enum oneterm_vt::NotificationExpiry
+pub oneterm_vt::NotificationExpiry::After(u32)
+pub oneterm_vt::NotificationExpiry::Never
+pub oneterm_vt::NotificationExpiry::Platform
+impl core::clone::Clone for oneterm_vt::NotificationExpiry
+pub fn oneterm_vt::NotificationExpiry::clone(&self) -> oneterm_vt::NotificationExpiry
+impl core::cmp::Eq for oneterm_vt::NotificationExpiry
+impl core::cmp::PartialEq for oneterm_vt::NotificationExpiry
+pub fn oneterm_vt::NotificationExpiry::eq(&self, &oneterm_vt::NotificationExpiry) -> bool
+impl core::default::Default for oneterm_vt::NotificationExpiry
+pub fn oneterm_vt::NotificationExpiry::default() -> oneterm_vt::NotificationExpiry
+impl core::fmt::Debug for oneterm_vt::NotificationExpiry
+pub fn oneterm_vt::NotificationExpiry::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for oneterm_vt::NotificationExpiry
+pub fn oneterm_vt::NotificationExpiry::hash<__H: core::hash::Hasher>(&self, &mut __H)
+impl core::marker::Copy for oneterm_vt::NotificationExpiry
+impl core::marker::StructuralPartialEq for oneterm_vt::NotificationExpiry
+impl core::marker::Freeze for oneterm_vt::NotificationExpiry
+impl core::marker::Send for oneterm_vt::NotificationExpiry
+impl core::marker::Sync for oneterm_vt::NotificationExpiry
+impl core::marker::Unpin for oneterm_vt::NotificationExpiry
+impl core::marker::UnsafeUnpin for oneterm_vt::NotificationExpiry
+impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::NotificationExpiry
+impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::NotificationExpiry
+pub enum oneterm_vt::NotificationOccasion
+pub oneterm_vt::NotificationOccasion::Always
+pub oneterm_vt::NotificationOccasion::Invisible
+pub oneterm_vt::NotificationOccasion::Unfocused
+impl core::clone::Clone for oneterm_vt::NotificationOccasion
+pub fn oneterm_vt::NotificationOccasion::clone(&self) -> oneterm_vt::NotificationOccasion
+impl core::cmp::Eq for oneterm_vt::NotificationOccasion
+impl core::cmp::PartialEq for oneterm_vt::NotificationOccasion
+pub fn oneterm_vt::NotificationOccasion::eq(&self, &oneterm_vt::NotificationOccasion) -> bool
+impl core::default::Default for oneterm_vt::NotificationOccasion
+pub fn oneterm_vt::NotificationOccasion::default() -> oneterm_vt::NotificationOccasion
+impl core::fmt::Debug for oneterm_vt::NotificationOccasion
+pub fn oneterm_vt::NotificationOccasion::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for oneterm_vt::NotificationOccasion
+pub fn oneterm_vt::NotificationOccasion::hash<__H: core::hash::Hasher>(&self, &mut __H)
+impl core::marker::Copy for oneterm_vt::NotificationOccasion
+impl core::marker::StructuralPartialEq for oneterm_vt::NotificationOccasion
+impl core::marker::Freeze for oneterm_vt::NotificationOccasion
+impl core::marker::Send for oneterm_vt::NotificationOccasion
+impl core::marker::Sync for oneterm_vt::NotificationOccasion
+impl core::marker::Unpin for oneterm_vt::NotificationOccasion
+impl core::marker::UnsafeUnpin for oneterm_vt::NotificationOccasion
+impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::NotificationOccasion
+impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::NotificationOccasion
+pub enum oneterm_vt::NotificationUrgency
+pub oneterm_vt::NotificationUrgency::Critical
+pub oneterm_vt::NotificationUrgency::Low
+pub oneterm_vt::NotificationUrgency::Normal
+impl core::clone::Clone for oneterm_vt::NotificationUrgency
+pub fn oneterm_vt::NotificationUrgency::clone(&self) -> oneterm_vt::NotificationUrgency
+impl core::cmp::Eq for oneterm_vt::NotificationUrgency
+impl core::cmp::PartialEq for oneterm_vt::NotificationUrgency
+pub fn oneterm_vt::NotificationUrgency::eq(&self, &oneterm_vt::NotificationUrgency) -> bool
+impl core::fmt::Debug for oneterm_vt::NotificationUrgency
+pub fn oneterm_vt::NotificationUrgency::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for oneterm_vt::NotificationUrgency
+pub fn oneterm_vt::NotificationUrgency::hash<__H: core::hash::Hasher>(&self, &mut __H)
+impl core::marker::Copy for oneterm_vt::NotificationUrgency
+impl core::marker::StructuralPartialEq for oneterm_vt::NotificationUrgency
+impl core::marker::Freeze for oneterm_vt::NotificationUrgency
+impl core::marker::Send for oneterm_vt::NotificationUrgency
+impl core::marker::Sync for oneterm_vt::NotificationUrgency
+impl core::marker::Unpin for oneterm_vt::NotificationUrgency
+impl core::marker::UnsafeUnpin for oneterm_vt::NotificationUrgency
+impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::NotificationUrgency
+impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::NotificationUrgency
 #[non_exhaustive] pub enum oneterm_vt::OscRoute
 pub oneterm_vt::OscRoute::Builtin
 pub oneterm_vt::OscRoute::BuiltinAndForward
@@ -2193,9 +2296,11 @@ pub oneterm_vt::VtEvent::Cwd::host: oneterm_vt::StrSpan
 pub oneterm_vt::VtEvent::Cwd::path: oneterm_vt::StrSpan
 pub oneterm_vt::VtEvent::GraphicReleased(oneterm_vt::intern::GraphicId)
 pub oneterm_vt::VtEvent::IconName(oneterm_vt::StrSpan)
-pub oneterm_vt::VtEvent::Notification
-pub oneterm_vt::VtEvent::Notification::body: oneterm_vt::StrSpan
-pub oneterm_vt::VtEvent::Notification::title: oneterm_vt::StrSpan
+pub oneterm_vt::VtEvent::Notification(oneterm_vt::NotificationRef)
+pub oneterm_vt::VtEvent::NotificationAliveQuery
+pub oneterm_vt::VtEvent::NotificationAliveQuery::id: oneterm_vt::StrSpan
+pub oneterm_vt::VtEvent::NotificationClose
+pub oneterm_vt::VtEvent::NotificationClose::id: oneterm_vt::StrSpan
 pub oneterm_vt::VtEvent::Osc
 pub oneterm_vt::VtEvent::Osc::code: u32
 pub oneterm_vt::VtEvent::Osc::params: oneterm_vt::ParamSpans
@@ -2412,6 +2517,7 @@ pub struct oneterm_vt::Config
 pub oneterm_vt::Config::allow_screen_readback: bool
 pub oneterm_vt::Config::ambiguous_wide: bool
 pub oneterm_vt::Config::default_cursor_style: oneterm_vt::CursorStyle
+pub oneterm_vt::Config::notifications: oneterm_vt::NotificationSupport
 pub oneterm_vt::Config::osc_routes: oneterm_vt::OscRoutes
 pub oneterm_vt::Config::pointer_shapes: oneterm_vt::PointerShapes
 pub oneterm_vt::Config::product_name: core::option::Option<alloc::borrow::Cow<'static, str>>
@@ -2464,6 +2570,7 @@ pub fn oneterm_vt::EventBatch::is_empty(&self) -> bool
 pub fn oneterm_vt::EventBatch::iter(&self) -> core::slice::iter::Iter<'_, oneterm_vt::VtEvent>
 pub fn oneterm_vt::EventBatch::len(&self) -> usize
 pub fn oneterm_vt::EventBatch::new() -> oneterm_vt::EventBatch
+pub fn oneterm_vt::EventBatch::notification(&self, oneterm_vt::NotificationRef) -> &oneterm_vt::Notification
 pub fn oneterm_vt::EventBatch::param_capacity(&self) -> usize
 pub fn oneterm_vt::EventBatch::params(&self, oneterm_vt::ParamSpans) -> impl core::iter::traits::iterator::Iterator<Item = &[u8]> + '_
 pub fn oneterm_vt::EventBatch::push(&mut self, oneterm_vt::VtEvent)
@@ -2473,6 +2580,7 @@ pub fn oneterm_vt::EventBatch::push_repaint(&mut self)
 pub fn oneterm_vt::EventBatch::push_reply(&mut self, &[u8])
 pub fn oneterm_vt::EventBatch::push_title(&mut self, &[u8]) -> bool
 pub fn oneterm_vt::EventBatch::str(&self, oneterm_vt::StrSpan) -> &str
+pub fn oneterm_vt::EventBatch::strs(&self, oneterm_vt::ParamSpans) -> impl core::iter::traits::iterator::Iterator<Item = &str> + '_
 impl core::default::Default for oneterm_vt::EventBatch
 pub fn oneterm_vt::EventBatch::default() -> oneterm_vt::EventBatch
 impl core::fmt::Debug for oneterm_vt::EventBatch
@@ -2835,6 +2943,85 @@ impl core::marker::Unpin for oneterm_vt::MouseProtocol
 impl core::marker::UnsafeUnpin for oneterm_vt::MouseProtocol
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::MouseProtocol
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::MouseProtocol
+#[non_exhaustive] pub struct oneterm_vt::Notification
+pub oneterm_vt::Notification::app_name: oneterm_vt::StrSpan
+pub oneterm_vt::Notification::body: oneterm_vt::StrSpan
+pub oneterm_vt::Notification::buttons: oneterm_vt::ParamSpans
+pub oneterm_vt::Notification::expiry: oneterm_vt::NotificationExpiry
+pub oneterm_vt::Notification::focus_on_activation: bool
+pub oneterm_vt::Notification::icon: oneterm_vt::ByteSpan
+pub oneterm_vt::Notification::icon_id: oneterm_vt::StrSpan
+pub oneterm_vt::Notification::icon_names: oneterm_vt::ParamSpans
+pub oneterm_vt::Notification::id: oneterm_vt::StrSpan
+pub oneterm_vt::Notification::kinds: oneterm_vt::ParamSpans
+pub oneterm_vt::Notification::occasion: oneterm_vt::NotificationOccasion
+pub oneterm_vt::Notification::report_activation: bool
+pub oneterm_vt::Notification::report_close: bool
+pub oneterm_vt::Notification::sound: oneterm_vt::StrSpan
+pub oneterm_vt::Notification::title: oneterm_vt::StrSpan
+pub oneterm_vt::Notification::urgency: core::option::Option<oneterm_vt::NotificationUrgency>
+impl core::cmp::Eq for oneterm_vt::Notification
+impl core::cmp::PartialEq for oneterm_vt::Notification
+pub fn oneterm_vt::Notification::eq(&self, &oneterm_vt::Notification) -> bool
+impl core::fmt::Debug for oneterm_vt::Notification
+pub fn oneterm_vt::Notification::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for oneterm_vt::Notification
+impl core::marker::Freeze for oneterm_vt::Notification
+impl core::marker::Send for oneterm_vt::Notification
+impl core::marker::Sync for oneterm_vt::Notification
+impl core::marker::Unpin for oneterm_vt::Notification
+impl core::marker::UnsafeUnpin for oneterm_vt::Notification
+impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::Notification
+impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::Notification
+pub struct oneterm_vt::NotificationRef
+impl core::clone::Clone for oneterm_vt::NotificationRef
+pub fn oneterm_vt::NotificationRef::clone(&self) -> oneterm_vt::NotificationRef
+impl core::cmp::Eq for oneterm_vt::NotificationRef
+impl core::cmp::PartialEq for oneterm_vt::NotificationRef
+pub fn oneterm_vt::NotificationRef::eq(&self, &oneterm_vt::NotificationRef) -> bool
+impl core::fmt::Debug for oneterm_vt::NotificationRef
+pub fn oneterm_vt::NotificationRef::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for oneterm_vt::NotificationRef
+pub fn oneterm_vt::NotificationRef::hash<__H: core::hash::Hasher>(&self, &mut __H)
+impl core::marker::Copy for oneterm_vt::NotificationRef
+impl core::marker::StructuralPartialEq for oneterm_vt::NotificationRef
+impl core::marker::Freeze for oneterm_vt::NotificationRef
+impl core::marker::Send for oneterm_vt::NotificationRef
+impl core::marker::Sync for oneterm_vt::NotificationRef
+impl core::marker::Unpin for oneterm_vt::NotificationRef
+impl core::marker::UnsafeUnpin for oneterm_vt::NotificationRef
+impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::NotificationRef
+impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::NotificationRef
+pub struct oneterm_vt::NotificationSupport
+pub oneterm_vt::NotificationSupport::alive: bool
+pub oneterm_vt::NotificationSupport::buttons: bool
+pub oneterm_vt::NotificationSupport::close: bool
+pub oneterm_vt::NotificationSupport::close_events: bool
+pub oneterm_vt::NotificationSupport::expiry: bool
+pub oneterm_vt::NotificationSupport::focus: bool
+pub oneterm_vt::NotificationSupport::icons: bool
+pub oneterm_vt::NotificationSupport::invisible: bool
+pub oneterm_vt::NotificationSupport::report: bool
+pub oneterm_vt::NotificationSupport::sounds: alloc::vec::Vec<alloc::borrow::Cow<'static, str>>
+pub oneterm_vt::NotificationSupport::unfocused: bool
+pub oneterm_vt::NotificationSupport::urgency: bool
+impl core::clone::Clone for oneterm_vt::NotificationSupport
+pub fn oneterm_vt::NotificationSupport::clone(&self) -> oneterm_vt::NotificationSupport
+impl core::cmp::Eq for oneterm_vt::NotificationSupport
+impl core::cmp::PartialEq for oneterm_vt::NotificationSupport
+pub fn oneterm_vt::NotificationSupport::eq(&self, &oneterm_vt::NotificationSupport) -> bool
+impl core::default::Default for oneterm_vt::NotificationSupport
+pub fn oneterm_vt::NotificationSupport::default() -> oneterm_vt::NotificationSupport
+impl core::fmt::Debug for oneterm_vt::NotificationSupport
+pub fn oneterm_vt::NotificationSupport::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for oneterm_vt::NotificationSupport
+impl core::marker::Freeze for oneterm_vt::NotificationSupport
+impl core::marker::Send for oneterm_vt::NotificationSupport
+impl core::marker::Sync for oneterm_vt::NotificationSupport
+impl core::marker::Unpin for oneterm_vt::NotificationSupport
+impl core::marker::UnsafeUnpin for oneterm_vt::NotificationSupport
+impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::NotificationSupport
+impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::NotificationSupport
 pub struct oneterm_vt::OscRoutes
 impl oneterm_vt::OscRoutes
 pub const oneterm_vt::OscRoutes::BUILTIN: &'static [u32]

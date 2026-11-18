@@ -1,81 +1,104 @@
 # Desktop notifications
 
-Programs ask for a desktop notification with OSC 9, OSC 777 or OSC 99. The engine turns all three
-into `VtEvent::Notification { title, body }`. Whether, when and how one is shown is yours.
+Programs ask for a desktop notification with OSC 9, OSC 777 or OSC 99 (the kitty protocol: chunks,
+icons, buttons, sounds, reports back). The engine does the protocol and hands you one
+`VtEvent::Notification`; `EventBatch::notification` reads everything the program said. Showing
+it is yours.
 
-## Example: the OSC 99 query and a notification in two chunks
+## Example: declare, receive, report a click
 
 ```rust
 use std::time::Instant;
-use oneterm_vt::{Config, EventBatch, Size, Terminal, VtEvent};
+use oneterm_vt::input::NotificationReport;
+use oneterm_vt::{
+    Config, EventBatch, NotificationSupport, NotificationUrgency, Size, Terminal, VtEvent,
+};
 
-let mut term = Terminal::new(Size { rows: 24, cols: 80 }, Config::default());
+// Declare only what you implement: the capability query is answered from this.
+let support = NotificationSupport { report: true, buttons: true, urgency: true, ..Default::default() };
+let config = Config { notifications: support, ..Config::default() };
+let mut term = Terminal::new(Size { rows: 24, cols: 80 }, config);
 let mut batch = EventBatch::new();
 let now = Instant::now();
 
-// A program first asks whether OSC 99 is understood. The answer is a `Reply`: write it back.
-term.feed(b"\x1b]99;i=app:p=?;\x1b\\", &mut batch, now);
+term.feed(b"\x1b]99;i=q:p=?;\x1b\\", &mut batch, now);
 let VtEvent::Reply(span) = &batch.events()[0] else { panic!("an answer") };
-assert_eq!(batch.bytes(*span), b"\x1b]99;i=app:p=?;o=always:p=title,body,?\x1b\\");
+assert_eq!(
+    batch.bytes(*span),
+    b"\x1b]99;i=q:p=?;a=report:o=always:p=title,body,?,buttons:u=0,1,2\x1b\\"
+);
 
-// A title marked "not done" (`d=0`): nothing is reported yet.
-term.feed(b"\x1b]99;i=1:d=0;Build finished\x1b\\", &mut batch, now);
-assert!(!batch.iter().any(|event| matches!(event, VtEvent::Notification { .. })));
+// Three chunks: a title, a base64 body, buttons. Nothing is reported before the last one.
+term.feed(b"\x1b]99;i=build:d=0:u=2:a=report;Build failed\x1b\\", &mut batch, now);
+term.feed(b"\x1b]99;i=build:d=0:p=body:e=1;MyBlcnJvcnM=\x1b\\", &mut batch, now);
+assert!(!batch.iter().any(|event| matches!(event, VtEvent::Notification(_))));
+term.feed("\x1b]99;i=build:p=buttons;Open log\u{2028}Dismiss\x1b\\".as_bytes(), &mut batch, now);
 
-// The body, base64 (`e=1`), ends the notification.
-term.feed(b"\x1b]99;i=1:p=body:e=1;MyB3YXJuaW5ncw==\x1b\\", &mut batch, now);
-let VtEvent::Notification { title, body } = &batch.events()[0] else { panic!("a notification") };
-assert_eq!((batch.str(*title), batch.str(*body)), ("Build finished", "3 warnings"));
+let VtEvent::Notification(at) = &batch.events()[0] else { panic!("a notification") };
+let notification = batch.notification(*at);
+assert_eq!(batch.str(notification.title), "Build failed");
+assert_eq!(batch.str(notification.body), "3 errors");
+assert_eq!(batch.strs(notification.buttons).collect::<Vec<_>>(), ["Open log", "Dismiss"]);
+assert_eq!(notification.urgency, Some(NotificationUrgency::Critical));
+assert!(notification.report_activation);
+
+// The user presses the first button: these are the bytes you write to the program.
+let id = batch.str(notification.id);
+assert_eq!(NotificationReport::Button { id, button: 1 }.encode(), b"\x1b]99;i=build;1\x1b\\");
 ```
 
-## The three sequences
+## Who does what
 
-| Sequence | `title` | `body` |
-|---|---|---|
-| `OSC 9 ; text` (not `9;4`, which is progress) | empty | the text |
-| `OSC 777 ; notify ; title ; body` | the title, may be empty | the rest, `;` kept, may be empty |
-| `OSC 99 ; metadata ; payload` | never empty | may be empty |
+| The engine | You |
+|---|---|
+| reads OSC 9, OSC 777 `notify` and OSC 99; joins the chunks of a notification by its id; decodes base64; checks every key and bounds every size | show the notification with your platform's API; treat its text as untrusted |
+| answers the query `p=?` from `Config::notifications` | declare in `NotificationSupport` exactly what you implement; write the `Reply` |
+| hands you every key in `Notification`, whatever you declared | apply `occasion` (only you know your focus), `urgency`, `expiry`, `sound`; replace a shown notification that has the same non-empty `id` |
+| passes `icon_names`, `icon_id` and the `icon` bytes (a PNG, JPEG or GIF file, not decoded) | try the names first; decode the data and cache it under `icon_id`; show the cached image when only `icon_id` arrives |
+| reports `VtEvent::NotificationClose { id }` and `VtEvent::NotificationAliveQuery { id }` | close that notification; answer with `NotificationReport::Alive` |
+| builds report bytes: `input::NotificationReport::encode()`, ids cleaned | write `Activated` / `Button` if `report_activation`, `Closed` (or `CloseUntracked`) if `report_close`; focus your window if `focus_on_activation` |
 
-Other `OSC 777` commands (`precmd`, `preexec`) have no handler and are counted as unhandled.
+## What each source fills
 
-## OSC 99: what is understood
+| Source | `title` | `body` | Other fields |
+|---|---|---|---|
+| `OSC 9 ; text` (not `9;4`, which is progress) | empty | the text | as OSC 99 defines a key that was not sent |
+| `OSC 777 ; notify ; title ; body` | the title, may be empty | the rest, `;` kept | the same defaults |
+| `OSC 99 ; metadata ; payload` | never empty (a lone body becomes the title) | may be empty | every key: see `Notification` |
 
-- Payloads `p=title` (the default) and `p=body`. Chunks with the same `i` are joined; `d=0` holds
-  the notification back until a chunk without it arrives. A notification with only a body reports
-  it as the title; one with no text at all is not reported.
-- `e=1`: base64 text, padded or not, cut into chunks before or after it was encoded. A chunk may
-  end inside a character or inside a base64 group.
-- `p=?`: answered at once with `o=always:p=title,body,?`, ended the way the query ended. The `i`
-  of the query is echoed without any character an id may not hold; `i=0` when there was none.
-- The answer lists what the event can carry, so a program that asks knows. Not supported, and
-  absent from the answer: actions and reports back (`a`, `c`), urgency (`u`), expiry (`w`),
-  sounds (`s`), icons (`g`, `n`, `p=icon`), buttons, `p=close` and `p=alive`.
-- A key the event has no place for is skipped and the notification is still reported. That
-  includes `o=unfocused` and `o=invisible`: the engine does not know your focus, so apply that
-  rule yourself if you want it.
-- A payload without an event (`icon`, `buttons`, `close`, `alive`) is counted in
-  `FeedStats::unhandled_sequences` and changes nothing; the notification it belongs to still ends
-  on its last chunk.
+OSC 99 rules the engine applies:
+
+- Chunks with the same `i` are one notification; `d=0` holds it back until a chunk without it. Keys
+  may come with any chunk and a later chunk overrides an earlier one. Chunks without an id join too.
+- `e=1` marks base64, padded or not, cut before or after encoding; a chunk may end inside a
+  character or a base64 group. Icon data is taken only as base64.
+- Buttons are one text split on U+2028; `kinds` and `icon_names` hold each name once.
+- A notification without title and body is not reported, whatever else it carries.
+- A key the protocol does not define is skipped. A value it does not define is skipped and counted
+  in `FeedStats::unhandled_sequences`; the notification is still reported.
+- `p=close` without an id does nothing, as the protocol says.
 
 ## Ceilings
 
 | Ceiling | Value | Past it | Counter |
 |---|---|---|---|
-| title, and body | 4,096 bytes each | cut at a character | `unhandled_sequences` |
+| title, body, button labels | 4,096 bytes each | cut at a character | `unhandled_sequences` |
+| icon image | 1 MiB | dropped whole | `unhandled_sequences` |
+| id, icon id | 128 characters | the sequence is ignored / the key is skipped | `unhandled_sequences` |
+| application name, sound, a kind, an icon name | 256 bytes | the key is skipped | `unhandled_sequences` |
+| kinds, icon names | 8 each | further names are skipped | `unhandled_sequences` |
 | notifications waiting for their last chunk | 8 | the one that waited longest is dropped | - |
-| id | 128 characters | the sequence is ignored, a query gets no answer | `unhandled_sequences` |
-| text marked `e=1` that is not base64 | - | the chunk adds nothing | `malformed_sequences` |
+| a payload or name that should be base64 and is not | - | it adds nothing | `malformed_sequences` |
 
 A reset (RIS) forgets the notifications still waiting.
 
 ## What you owe
 
-- Write the `Reply` to the query, like every other reply. Without it a program concludes that
-  OSC 99 is not understood and may send nothing.
-- Policy. The engine reports every notification: rate-limit them, skip them while your window
-  has the focus if you wish, and treat the text as untrusted. Text sent as base64 may hold
-  newlines and other control characters; it is passed on as decoded.
-- To turn a protocol off, drop its number: `config.osc_routes.route(99, OscRoute::Drop)` (also
-  `9`, `777`). A dropped OSC 99 answers no query, which is how a program learns it is off.
-- Shells with VTE integration send `OSC 777 ; notify` after every command; decide whether a
-  finished command deserves a notification before showing each one.
+- Declare in `Config::notifications` only what you implement; everything is off by default, which
+  answers "titles and bodies, always shown". Programs rely on the answer.
+- Write the `Reply` to the query; without it a program concludes OSC 99 is not understood.
+- Send a report only when the notification asked for it and you declared the ability.
+- Rate-limit: the engine reports every notification. Shells with VTE integration send
+  `OSC 777 ; notify` after every command.
+- To turn a source off, drop its number: `config.osc_routes.route(99, OscRoute::Drop)` (also `9`,
+  `777`). A dropped OSC 99 answers no query, which is how a program learns it is off.

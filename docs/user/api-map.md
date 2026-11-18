@@ -16,6 +16,7 @@ and its payload). The last row of a group lists its functions and constants.
 | `KeyboardFlags` | kitty keyboard flags the program has pushed | [input](input.md) |
 | `ColorKey`, `ColorOverrides` | a colour slot a program queries; the slots it changed | [events](events.md) |
 | `ColorScheme` | dark or light: what `CSI ? 996 n` answers and `?2031` reports | [color-scheme](color-scheme.md) |
+| `NotificationSupport` | what you can do with an OSC 99 notification: the answer to its capability query (`Config::notifications`) | [notifications](notifications.md) |
 | `PointerShapes` | the mouse pointers you draw and your default ones: what OSC 22 queries answer (`Config::pointer_shapes`) | [pointer](pointer.md) |
 
 ## Events
@@ -24,6 +25,7 @@ and its payload). The last row of a group lists its functions and constants.
 |---|---|---|
 | `EventBatch` | caller-owned buffer `feed` fills; resolves every span | [events](events.md) |
 | `VtEvent` | what happened: reply, title, bell, clipboard, notification, OSC, repaint | [events](events.md), [notifications](notifications.md) |
+| `Notification`, `NotificationRef`, `NotificationUrgency`, `NotificationOccasion`, `NotificationExpiry` | a desktop notification as the program described it (`EventBatch::notification(at)`): text, icon, buttons, sound, urgency, when to show and to close, which reports it wants | [notifications](notifications.md) |
 | `FeedStats` | per-feed counters: bytes, drops, truncations, `?2026` frames closed | [limits](limits.md) |
 | `ByteSpan`, `StrSpan`, `ParamSpans` | indexes into their batch; read before the next `feed` | [events](events.md) |
 | `ClipboardKind`, `Progress`, `ShellMark` | payloads of clipboard, progress and prompt-mark events | [events](events.md) |
@@ -136,6 +138,7 @@ and its payload). The last row of a group lists its functions and constants.
 | `input::KeySpec`, `input::NamedKey`, `input::KeyMods` | what was pressed and with which modifiers | [input](input.md) |
 | `input::KeyEvent`, `input::KeyEventKind` | a key press, repeat or release with text | [input](input.md) |
 | `input::TerminalMouseButton`, `input::MouseModifiers` | mouse button and modifiers for the encoders | [input](input.md) |
+| `input::NotificationReport` | what you tell a program about its OSC 99 notification (activated, button, closed, alive); `encode()` gives the bytes | [notifications](notifications.md) |
 | functions | `encode_key`, `encode_key_event`, `encode_mouse_press`, `encode_mouse_release`, `encode_mouse_move`, `encode_wheel_event`, `encode_horizontal_wheel_event`, `encode_paste`, `encode_focus` | [input](input.md) |
 
 ## `pty` (feature `pty`)

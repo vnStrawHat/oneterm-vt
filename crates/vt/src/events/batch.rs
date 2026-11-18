@@ -1,6 +1,8 @@
 //! The event list of one `feed` call and the arena its payloads live in.
 
-use crate::events::{ClipboardKind, VtEvent};
+use crate::events::{
+    ClipboardKind, Notification, NotificationExpiry, NotificationOccasion, VtEvent,
+};
 use crate::grid::ScrollReport;
 use crate::parser::{MAX_OSC_PARAMS, OscParams, StringTerm};
 
@@ -12,6 +14,8 @@ pub(crate) const EVENT_ARENA_SOFT: usize = 1 << 20;
 pub(crate) const EVENT_LIST_SOFT: usize = 1 << 15;
 /// OSC parameter spans kept past [`EventBatch::clear`]; a larger capacity is shrunk back to this.
 pub(crate) const PARAM_LIST_SOFT: usize = 4096;
+/// Notifications kept past [`EventBatch::clear`]; a larger capacity is shrunk back to this.
+pub(crate) const NOTIFICATION_LIST_SOFT: usize = 1024;
 
 /// The events one `feed` produced, in byte order, with the bytes their payloads point into.
 ///
@@ -28,6 +32,9 @@ pub struct EventBatch {
     events: Vec<VtEvent>,
     arena: Vec<u8>,
     params: Vec<ByteSpan>,
+    /// The notifications of this feed. Kept here, not in the events, so that an event stays
+    /// small and a notification costs no allocation of its own.
+    notifications: Vec<Notification>,
     repaint: bool,
     /// Payloads dropped because the arena would have passed `u32::MAX` bytes.
     overflowed: u32,
@@ -47,7 +54,49 @@ pub struct ByteSpan {
     len: u32,
 }
 
-/// The parameters of a forwarded OSC, read back with [`EventBatch::params`].
+/// A notification in an [`EventBatch`], read back with [`EventBatch::notification`].
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct NotificationRef {
+    index: u32,
+}
+
+/// What [`EventBatch::notification`] answers for a reference that is not of this batch.
+static NO_NOTIFICATION: Notification = Notification {
+    id: StrSpan::EMPTY,
+    title: StrSpan::EMPTY,
+    body: StrSpan::EMPTY,
+    app_name: StrSpan::EMPTY,
+    kinds: ParamSpans::EMPTY,
+    icon_names: ParamSpans::EMPTY,
+    icon_id: StrSpan::EMPTY,
+    icon: ByteSpan::EMPTY,
+    buttons: ParamSpans::EMPTY,
+    sound: StrSpan::EMPTY,
+    urgency: None,
+    occasion: NotificationOccasion::Always,
+    expiry: NotificationExpiry::Platform,
+    focus_on_activation: true,
+    report_activation: false,
+    report_close: false,
+};
+
+impl StrSpan {
+    /// No text; valid in every batch.
+    pub(crate) const EMPTY: StrSpan = StrSpan { start: 0, len: 0 };
+}
+
+impl ByteSpan {
+    /// No bytes; valid in every batch.
+    pub(crate) const EMPTY: ByteSpan = ByteSpan { start: 0, len: 0 };
+}
+
+impl ParamSpans {
+    /// An empty list; valid in every batch.
+    pub(crate) const EMPTY: ParamSpans = ParamSpans { first: 0, count: 0 };
+}
+
+/// A list of byte strings in an [`EventBatch`]: the parameters of a forwarded OSC, read back
+/// with [`EventBatch::params`], or a list of texts, read back with [`EventBatch::strs`].
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct ParamSpans {
     first: u32,
@@ -92,6 +141,21 @@ impl EventBatch {
         self.slice(span.start, span.len).unwrap_or_default()
     }
 
+    /// The notification of a [`VtEvent::Notification`]. A reference that is not of this batch
+    /// reads as a notification without text.
+    pub fn notification(&self, at: NotificationRef) -> &Notification {
+        self.notifications
+            .get(at.index as usize)
+            .unwrap_or(&NO_NOTIFICATION)
+    }
+
+    /// The texts of a list in order (the kinds, icon names and buttons of a
+    /// [`Notification`](crate::Notification)); empty when the spans lie outside this batch.
+    pub fn strs(&self, spans: ParamSpans) -> impl Iterator<Item = &str> + '_ {
+        self.params(spans)
+            .map(|text| std::str::from_utf8(text).unwrap_or(""))
+    }
+
     /// The parameters of a forwarded OSC in order; empty when the spans lie outside this batch.
     pub fn params(&self, spans: ParamSpans) -> impl Iterator<Item = &[u8]> + '_ {
         let first = spans.first as usize;
@@ -110,6 +174,7 @@ impl EventBatch {
         self.events.clear();
         self.arena.clear();
         self.params.clear();
+        self.notifications.clear();
         self.repaint = false;
         self.overflowed = 0;
         if self.arena.capacity() > EVENT_ARENA_SOFT {
@@ -120,6 +185,9 @@ impl EventBatch {
         }
         if self.params.capacity() > PARAM_LIST_SOFT {
             self.params.shrink_to(PARAM_LIST_SOFT);
+        }
+        if self.notifications.capacity() > NOTIFICATION_LIST_SOFT {
+            self.notifications.shrink_to(NOTIFICATION_LIST_SOFT);
         }
     }
 
@@ -321,6 +389,36 @@ impl EventBatch {
         let mark = u32::try_from(self.mark()).unwrap_or(u32::MAX);
         let (start, len) = self.append(text.as_bytes()).unwrap_or((mark, 0));
         StrSpan { start, len }
+    }
+
+    /// Appends [`VtEvent::Notification`] for `notification`, whose spans this batch owns.
+    pub(crate) fn push_notification(&mut self, notification: Notification) {
+        let Ok(index) = u32::try_from(self.notifications.len()) else {
+            self.overflowed = self.overflowed.saturating_add(1);
+            return;
+        };
+        self.notifications.push(notification);
+        self.events
+            .push(VtEvent::Notification(NotificationRef { index }));
+    }
+
+    /// Stores `bytes` as a payload.
+    pub(crate) fn byte_span(&mut self, bytes: &[u8]) -> ByteSpan {
+        let mark = u32::try_from(self.mark()).unwrap_or(u32::MAX);
+        let (start, len) = self.append(bytes).unwrap_or((mark, 0));
+        ByteSpan { start, len }
+    }
+
+    /// Stores each text as one element of a list.
+    pub(crate) fn list<'a>(&mut self, texts: impl IntoIterator<Item = &'a str>) -> ParamSpans {
+        let first = self.next_param();
+        for text in texts {
+            self.push_param(text.as_bytes());
+        }
+        ParamSpans {
+            first,
+            count: self.next_param().saturating_sub(first),
+        }
     }
 
     /// Decodes canonical base64 into the arena: a length that is a multiple of 4, the alphabet

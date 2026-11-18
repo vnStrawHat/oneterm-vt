@@ -19,7 +19,8 @@ unless listed `pub`.
 | title stack | 16 (`TITLE_STACK_MAX`) | oldest dropped | - |
 | pointer shape stack, per screen | 16 (`POINTER_STACK_MAX`) | oldest dropped | - |
 | OSC 22 shape name / names per query | 64 bytes (`POINTER_NAME_MAX`) / 64 (`POINTER_QUERY_MAX`) | sequence ignored, no reply | `unhandled_sequences` |
-| OSC 99 title / body | 4,096 bytes each (`NOTIFICATION_TEXT_MAX`) | rest of the chunk dropped, cut at a char boundary when reported | `unhandled_sequences` |
+| OSC 99 title / body / buttons | 4,096 bytes each (`NOTIFICATION_TEXT_MAX`) | rest of the chunk dropped, cut at a char boundary when reported | `unhandled_sequences` |
+| OSC 99 icon / names / lists | 1 MiB (`NOTIFICATION_ICON_MAX`) / 256 bytes (`NOTIFICATION_NAME_MAX`) / 8 (`NOTIFICATION_LIST_MAX`) | icon dropped whole / key skipped | `unhandled_sequences` |
 | OSC 99 pending notifications / id | 8 (`PENDING_NOTIFICATIONS_MAX`) / 128 bytes (`NOTIFICATION_ID_MAX`) | the one that waited longest dropped / sequence ignored | - / `unhandled_sequences` |
 | kitty flag stack | 8 (`KEYBOARD_STACK_MAX`) | oldest dropped; pop `>= len` empties | - |
 | `?2027` cross-chunk carry | 32 scalars (`CLUSTER_CARRY_MAX`) | cluster not carried; continuation starts a new cluster | `dropped_cluster_carries` |

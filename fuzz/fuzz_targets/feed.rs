@@ -26,8 +26,29 @@ fn read_spans(batch: &EventBatch) {
             VtEvent::Cwd { host, path } => {
                 black_box((batch.str(*host), batch.str(*path)));
             }
-            VtEvent::Notification { title, body } => {
-                black_box((batch.str(*title), batch.str(*body)));
+            VtEvent::Notification(at) => {
+                let notification = batch.notification(*at);
+                black_box((
+                    batch.str(notification.id),
+                    batch.str(notification.title),
+                    batch.str(notification.body),
+                    batch.str(notification.app_name),
+                    batch.str(notification.icon_id),
+                    batch.str(notification.sound),
+                    batch.bytes(notification.icon),
+                ));
+                for list in [
+                    notification.kinds,
+                    notification.icon_names,
+                    notification.buttons,
+                ] {
+                    for text in batch.strs(list) {
+                        black_box(text);
+                    }
+                }
+            }
+            VtEvent::NotificationClose { id } | VtEvent::NotificationAliveQuery { id } => {
+                black_box(batch.str(*id));
             }
             VtEvent::Reply(span) => {
                 black_box(batch.bytes(*span));

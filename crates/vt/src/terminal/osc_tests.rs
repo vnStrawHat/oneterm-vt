@@ -577,17 +577,22 @@ fn osc_8_with_too_few_parameters_is_unhandled() {
 #[test]
 fn osc_9_is_a_notification_with_an_empty_title() {
     let (session, stats) = run("9;build done");
-    let VtEvent::Notification { title, body } = events_of(&session)[0] else {
+    let VtEvent::Notification(at) = events_of(&session)[0] else {
         panic!("notification");
     };
-    assert_eq!(text(&session, *title), "");
-    assert_eq!(text(&session, *body), "build done");
+    let notification = session.batch.notification(*at);
+    assert_eq!(text(&session, notification.title), "");
+    assert_eq!(text(&session, notification.body), "build done");
+    // Everything OSC 9 cannot say is as OSC 99 defines a key that was not sent.
+    assert_eq!(text(&session, notification.id), "");
+    assert!(notification.focus_on_activation && !notification.report_activation);
     assert_eq!(stats.unhandled_sequences, 0);
     let (session, _) = run("9;a;b");
-    let VtEvent::Notification { body, .. } = events_of(&session)[0] else {
+    let VtEvent::Notification(at) = events_of(&session)[0] else {
         panic!("notification");
     };
-    assert_eq!(text(&session, *body), "a;b");
+    let notification = session.batch.notification(*at);
+    assert_eq!(text(&session, notification.body), "a;b");
 }
 
 #[test]
@@ -1063,8 +1068,9 @@ fn invalid_utf8_in_a_link_and_a_notification_is_replaced() {
         .resolve(crate::intern::HyperlinkId(0))
         .expect("stored");
     assert_eq!(&*link.uri, "http://a/\u{FFFD}b");
-    let VtEvent::Notification { body, .. } = events_of(&session)[0] else {
+    let VtEvent::Notification(at) = events_of(&session)[0] else {
         panic!("notification");
     };
-    assert_eq!(text(&session, *body), "n\u{FFFD}m");
+    let notification = session.batch.notification(*at);
+    assert_eq!(text(&session, notification.body), "n\u{FFFD}m");
 }

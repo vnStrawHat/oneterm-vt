@@ -44,6 +44,8 @@ fn piece() -> impl Strategy<Value = Vec<u8>> {
             bytes("\x1b]99;i=1:p=body;B\x1b\\"), bytes("\x1b]99;i=2:d=0:e=1;QU\x07"),
             bytes("\x1b]99;i=2:e=1;JD\x07"), bytes("\x1b]99;i=q:p=?;\x1b\\"),
             bytes("\x1b]99;i=1:d=0:p=body;"), bytes("\x1b]777;notify;t;b\x07"),
+            bytes("\x1b]99;i=1:d=0:p=icon:e=1:u=2;iVBO\x07"), bytes("\x1b]99;i=1:p=buttons;Y\x07"),
+            bytes("\x1b]99;i=1:p=close;\x07"), bytes("\x1b]99;i=1:p=alive;\x07"),
         ]),
         1 => any::<u8>().prop_map(|byte| vec![byte]),
     ]
@@ -69,8 +71,22 @@ fn describe(event: &VtEvent, batch: &EventBatch) -> Option<String> {
         VtEvent::Cwd { host, path } => {
             format!("Cwd({}, {})", batch.str(*host), batch.str(*path))
         }
-        VtEvent::Notification { title, body } => {
-            format!("Notification({}, {})", batch.str(*title), batch.str(*body))
+        VtEvent::Notification(at) => {
+            let notification = batch.notification(*at);
+            let texts = |spans| batch.strs(spans).collect::<Vec<_>>();
+            format!(
+                "Notification({}, {}, {}, {:?}, {:?}, {:?})",
+                batch.str(notification.id),
+                batch.str(notification.title),
+                batch.str(notification.body),
+                texts(notification.buttons),
+                batch.bytes(notification.icon),
+                notification.urgency,
+            )
+        }
+        VtEvent::NotificationClose { id } => format!("NotificationClose({})", batch.str(*id)),
+        VtEvent::NotificationAliveQuery { id } => {
+            format!("NotificationAliveQuery({})", batch.str(*id))
         }
         VtEvent::Pointer(span) => format!("Pointer({})", batch.str(*span)),
         VtEvent::Osc {

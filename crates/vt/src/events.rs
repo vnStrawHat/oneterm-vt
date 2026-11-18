@@ -1,14 +1,18 @@
 //! What `Terminal::feed` reports: events, the batch that holds them, and per-call counters.
 
 mod batch;
+mod notification;
 
 #[cfg(test)]
 mod event_tests;
 
 pub(crate) use batch::base64_value;
-pub use batch::{ByteSpan, EventBatch, ParamSpans, StrSpan};
+pub use batch::{ByteSpan, EventBatch, NotificationRef, ParamSpans, StrSpan};
 #[cfg(test)]
 pub(crate) use batch::{EVENT_ARENA_SOFT, EVENT_LIST_SOFT, PARAM_LIST_SOFT};
+pub use notification::{
+    Notification, NotificationExpiry, NotificationOccasion, NotificationUrgency,
+};
 
 use crate::grid::RowsScrolled;
 use crate::intern::GraphicId;
@@ -76,13 +80,20 @@ pub enum VtEvent {
         /// The percent-decoded path, or the text as sent when there was no `file://` prefix.
         path: StrSpan,
     },
-    /// A desktop notification: OSC 9 (other than `9;4`), OSC 99 or OSC 777 `notify`.
-    Notification {
-        /// Empty for OSC 9. Never empty for OSC 99: a notification with only a body has it
-        /// here.
-        title: StrSpan,
-        /// The message; empty when there is only a title.
-        body: StrSpan,
+    /// A desktop notification: OSC 9 (other than `9;4`), OSC 777 `notify`, or OSC 99 once its
+    /// last chunk arrived. Read it with [`EventBatch::notification`].
+    Notification(NotificationRef),
+    /// OSC 99 `p=close`: the program asks to close the notification it sent with this id.
+    /// Nothing to do when none is shown under it.
+    NotificationClose {
+        /// The id of the notification to close; never empty.
+        id: StrSpan,
+    },
+    /// OSC 99 `p=alive`: the program asks which of its notifications are still shown. Answer
+    /// with [`NotificationReport::Alive`](crate::input::NotificationReport::Alive).
+    NotificationAliveQuery {
+        /// The id to echo in the answer; may be empty.
+        id: StrSpan,
     },
     /// OSC 9;4: taskbar progress.
     Progress(Progress),
@@ -181,7 +192,8 @@ pub struct FeedStats {
     /// implement, a rejected OSC, a gated query, a payload past its ceiling.
     pub unhandled_sequences: u32,
     /// Sequences routed to a handler whose payload was unusable: an OSC 52 store that is not
-    /// canonical base64 or not UTF-8, an OSC 99 text marked base64 that is not.
+    /// canonical base64 or not UTF-8, an OSC 99 payload or name that should be base64 and is
+    /// not.
     pub malformed_sequences: u32,
     /// OSC strings that arrived with bytes past the size cap dropped, also those not routed.
     pub truncated_osc: u32,

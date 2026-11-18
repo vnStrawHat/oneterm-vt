@@ -1,7 +1,7 @@
 //! OSC dispatch: routing by number and every built-in handler.
 
 use crate::cell::Semantic;
-use crate::events::{ClipboardKind, Progress, ShellMark, VtEvent};
+use crate::events::{ClipboardKind, Notification, Progress, ShellMark, VtEvent};
 use crate::intern::{Extras, HyperlinkId};
 use crate::parser::{OscParams, StringTerm};
 
@@ -215,9 +215,8 @@ impl Handler<'_> {
             return;
         }
         self.join_lossy(params, 1);
-        let title = self.out.text_span("");
-        let body = self.out.text_span(&self.state.scratch);
-        self.out.push(VtEvent::Notification { title, body });
+        let notification = Notification::text(self.out, "", &self.state.scratch);
+        self.out.push_notification(notification);
     }
 
     /// OSC 777: `notify ; title ; body`. The other commands sent under this number have no
@@ -239,9 +238,8 @@ impl Handler<'_> {
             self.unhandled();
             return;
         }
-        let title = self.out.text_span(&title);
-        let body = self.out.text_span(&self.state.scratch);
-        self.out.push(VtEvent::Notification { title, body });
+        let notification = Notification::text(self.out, &title, &self.state.scratch);
+        self.out.push_notification(notification);
     }
 
     fn osc_progress(&mut self, params: &OscParams<'_>, truncated: bool) {
