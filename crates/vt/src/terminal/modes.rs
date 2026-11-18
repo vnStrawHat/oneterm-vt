@@ -541,6 +541,10 @@ impl Handler<'_> {
                 if on {
                     self.state.sync.begin(self.now);
                 } else {
+                    if self.state.sync.is_set() {
+                        let closed = &mut self.state.stats.frames_closed;
+                        *closed = closed.saturating_add(1);
+                    }
                     self.state.sync.end();
                 }
             }

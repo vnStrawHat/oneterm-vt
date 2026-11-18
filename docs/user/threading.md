@@ -84,6 +84,33 @@ assert_eq!(frame, SnapshotUpdate::Partial { scrolled: 0 });
 assert_eq!(state.changed(), [0]);
 ```
 
+## Frames back to back: `feed_frame`
+
+A program that opens its next block right after closing one (video, a fast TUI) leaves no time
+between them: a renderer on its own clock finds every frame held and shows nothing new.
+`Terminal::feed_frame` is `feed` that returns right after the sequence that closes a block. There
+`snapshot_update` is not held, so the reader copies the finished frame into a second
+`SnapshotState` and hands that one to the renderer. `feed` counts `FeedStats::frames_closed` too.
+
+```rust
+use std::time::Instant;
+use oneterm_vt::{Config, EventBatch, Size, SnapshotState, Terminal};
+
+let now = Instant::now();
+let mut term = Terminal::new(Size { rows: 4, cols: 20 }, Config::default());
+let (mut batch, mut finished) = (EventBatch::new(), SnapshotState::new());
+// One read: frame 1 closed, frame 2 opened and still being drawn.
+let mut rest: &[u8] = b"\x1b[?2026h\x1b[HONE\x1b[?2026l\x1b[?2026h\x1b[HTW";
+while !rest.is_empty() {
+    let stats = term.feed_frame(rest, &mut batch, now); // then handle `batch`, as after `feed`
+    rest = &rest[stats.bytes..]; // what this call applied
+    if stats.frames_closed > 0 {
+        term.snapshot_update(&mut finished, now); // frame 1, whole
+    }
+}
+assert!(term.sync().is_set()); // frame 2 is open; `finished` keeps showing frame 1
+```
+
 ## Embedder checklist
 
 - Pass the real `now` to `feed` and `snapshot_update`; the engine reads no clock.
@@ -92,5 +119,6 @@ assert_eq!(state.changed(), [0]);
   call `snapshot_update` again then, even if no output arrives (an event-driven renderer gets no
   further `Repaint`, so a block that is never closed would otherwise freeze the window).
 - Never buffer bytes on your side for `?2026`: the engine has already applied them.
+- If no finished frame may be skipped, feed with `feed_frame` and copy a state at every closed frame.
 - `snapshot_update` takes `&mut Terminal`: the watchdog may close a block inside it.
 - One `SnapshotState` per consumer and per terminal; `invalidate()` it before pointing it elsewhere.

@@ -73,6 +73,43 @@ impl SyncState {
     }
 }
 
+/// The start of `bytes` up to and including the final byte of the first sequence that may
+/// reset `?2026`; all of `bytes` when there is none.
+///
+/// Such a sequence is `CSI ? ... l` (or `r`, a restore) and its `?` is always in the bytes,
+/// so the search is for that byte. From it, the first byte in the final range ends the
+/// sequence, whatever sits between: a header holds no such byte. The cut is made when the
+/// final is `l` or `r` and the header has the digits `2026` or a byte that is not part of
+/// it (a control character, `DEL` or an 8-bit byte may sit between the digits). With
+/// `in_csi` the bytes start inside a sequence whose `?` came earlier: the cut is at its
+/// final byte. A cut in the wrong place is harmless: a stream may be cut anywhere.
+pub(crate) fn frame_piece(bytes: &[u8], in_csi: bool) -> &[u8] {
+    let mut header = if in_csi {
+        Some(0)
+    } else {
+        memchr::memmem::find(bytes, b"?").map(|at| at + 1)
+    };
+    let mut cut_any = in_csi;
+    while let Some(from) = header {
+        let tail = bytes.get(from..).unwrap_or_default();
+        let Some(len) = tail.iter().position(|byte| (0x40..=0x7E).contains(byte)) else {
+            break;
+        };
+        let end = from + len + 1;
+        let params = tail.get(..len).unwrap_or_default();
+        let resets = matches!(tail.get(len), Some(b'l' | b'r'))
+            && (params.windows(4).any(|digits| digits == b"2026")
+                || params.iter().any(|byte| !(0x20..=0x7E).contains(byte)));
+        if cut_any || resets {
+            return bytes.get(..end).unwrap_or(bytes);
+        }
+        cut_any = false;
+        let rest = bytes.get(end..).unwrap_or_default();
+        header = memchr::memmem::find(rest, b"?").map(|at| end + at + 1);
+    }
+    bytes
+}
+
 #[cfg(test)]
 #[path = "sync_tests.rs"]
 mod sync_tests;

@@ -8,7 +8,7 @@ and its payload). The last row of a group lists its functions and constants.
 
 | Item | What it is for | Chapter |
 |---|---|---|
-| `Terminal` | the engine: `feed` bytes, `resize`, `snapshot_update`, `encode_key`, `encode_paste`, `encode_focus`, `color_reply`, `prompt_before` / `prompt_after`; `grid_mut` and `interner_mut` for hand-written cells | [quickstart](quickstart.md) |
+| `Terminal` | the engine: `feed` bytes (`feed_frame` stops at a closed `?2026` frame), `resize`, `snapshot_update`, `encode_key`, `encode_paste`, `encode_focus`, `color_reply`, `prompt_before` / `prompt_after`; `grid_mut` and `interner_mut` for hand-written cells | [quickstart](quickstart.md) |
 | `Config` | how a `Terminal` is built: scrollback, product name, OSC routes | [quickstart](quickstart.md) |
 | `OscRoute`, `OscRoutes` | per OSC number: handle it, forward it to you, or drop it | [events](events.md) |
 | `Mode`, `ModeState` | a terminal mode, and how a program set it (DECRQM answers) | [conformance](conformance.md) |
@@ -22,7 +22,7 @@ and its payload). The last row of a group lists its functions and constants.
 |---|---|---|
 | `EventBatch` | caller-owned buffer `feed` fills; resolves every span | [events](events.md) |
 | `VtEvent` | what happened: reply, title, bell, clipboard, OSC, repaint | [events](events.md) |
-| `FeedStats` | per-feed counters: bytes, drops, truncations | [limits](limits.md) |
+| `FeedStats` | per-feed counters: bytes, drops, truncations, `?2026` frames closed | [limits](limits.md) |
 | `ByteSpan`, `StrSpan`, `ParamSpans` | indexes into their batch; read before the next `feed` | [events](events.md) |
 | `ClipboardKind`, `Progress`, `ShellMark` | payloads of clipboard, progress and prompt-mark events | [events](events.md) |
 | `StringTerm` (also `parser::StringTerm`) | how an OSC ended: `BEL` or `ST`; echo it in replies | [events](events.md) |

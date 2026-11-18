@@ -24,7 +24,7 @@ working example, and names exact API items. Every Rust block is compiled by `car
 |---|---|---|
 | 00 | [`for-agents.md`](for-agents.md) | for AI agents: the feed / answer / snapshot / encode loop in one example, what you owe, the five most common mistakes |
 | 01 | [`quickstart.md`](quickstart.md) | create a `Terminal`, feed bytes, drain events, print one snapshot as text |
-| 02 | [`threading.md`](threading.md) | who owns the lock, the two-phase hand-off, when to draw, `?2026` and its timeout |
+| 02 | [`threading.md`](threading.md) | who owns the lock, the two-phase hand-off, when to draw, `?2026` and its timeout, `feed_frame` |
 | 03 | [`events.md`](events.md) | `EventBatch` and every `VtEvent`; answering `Reply`, `ColorQuery` (`ColorKey::color_reply`), `ClipboardLoad`; `OscRoutes` |
 | 04 | [`input.md`](input.md) | `input::encode_key_event` / `Terminal::encode_key`: the four-rung ladder (legacy, `modifyOtherKeys`, kitty flags), `KeyEvent` fields; `encode_mouse_*` per reporting mode and encoding; what the embedder still owes (paste, focus, alternate scroll) |
 | 05 | [`search.md`](search.md) | `search::GridText` and `search_grid_text`: copy under the lock, search without it; matches across wrapped rows, `SearchMatch` to viewport rows, `MAX_MATCHES`; `regex` feature |

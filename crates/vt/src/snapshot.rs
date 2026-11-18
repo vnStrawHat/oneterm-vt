@@ -23,5 +23,6 @@ pub use palette::Palette;
 pub use row::{SnapshotCell, SnapshotContent, SnapshotRow, StyleRun};
 pub use state::{SnapshotCursor, SnapshotPlacement, SnapshotState, SnapshotUpdate, Watermark};
 pub use sync::SyncState;
+pub(crate) use sync::frame_piece;
 
 pub(crate) use state::EngineView;

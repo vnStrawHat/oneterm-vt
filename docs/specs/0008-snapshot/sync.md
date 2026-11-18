@@ -38,7 +38,8 @@ itself, so an absurd clock value suppresses nothing instead of panicking.
 |---|---|
 | `State` | `sync: SyncState` replaces the `?2026` bit in `Modes` (remove the bit) |
 | `Handler` | gains `now: Instant`; `feed` passes its `now` (no longer `_now`) |
-| `?2026 h` / `l` | `sync.begin(now)` / `sync.end()` |
+| `?2026 h` / `l` | `sync.begin(now)` / `sync.end()`; an `l` that finds the mode set bumps `FeedStats::frames_closed` |
+| `Terminal::feed_frame` | `feed` that stops after the first closed frame: it cuts the bytes after the final byte of each sequence that may reset the mode (found by its `?`: final `l` or `r`, and the digits `2026` or a control byte in the header; the first final byte when the last read ended inside a CSI) and stops once the counter moved, so it stops at every reset; the parser loop is untouched; `FeedStats::bytes` is what it applied |
 | DECRQM `?2026`, `Terminal::mode(Mode::SyncUpdate)` | `sync.is_set()` -> `1` / `2` (`true` / `false`) |
 | RIS | `sync.end()`; DECSTR keeps it |
 | `Terminal::sync(&self) -> &SyncState` | read-only view; the watchdog only fires inside `snapshot_update` |

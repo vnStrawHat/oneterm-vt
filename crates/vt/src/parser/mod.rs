@@ -191,6 +191,15 @@ impl Parser {
         }
     }
 
+    /// Whether the bytes so far end inside a control sequence: after `CSI`, before its final
+    /// byte.
+    pub(crate) fn in_csi(&self) -> bool {
+        matches!(
+            self.state,
+            State::CsiEntry | State::CsiParam | State::CsiIntermediate
+        )
+    }
+
     /// Returns to the ground state and drops any partial sequence or character. The sink is not
     /// called: one hooked in a DCS or APC string gets no end call and must reset its own state.
     pub fn reset(&mut self) {

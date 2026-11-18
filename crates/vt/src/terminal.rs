@@ -28,6 +28,7 @@ use crate::selection::{
 };
 use crate::snapshot::{
     EngineView, ModeSnapshot, MouseProtocol, Palette, SnapshotState, SnapshotUpdate, SyncState,
+    frame_piece,
 };
 
 mod color;
@@ -160,6 +161,38 @@ struct Shifts {
     single: Option<u8>,
     /// What DECSC saved, per screen: index 0 primary, 1 alternate.
     saved: [(u8, Option<u8>); 2],
+}
+
+/// Where one feed call stops reading.
+#[derive(Clone, Copy)]
+enum FeedEnd {
+    /// At the end of the bytes.
+    Bytes,
+    /// After the sequence that closes a synchronized update, or at the end of the bytes.
+    FrameClosed,
+}
+
+/// Parses `bytes` into `handler` up to `end` and returns how many bytes it took.
+///
+/// The parser's loop is not asked to stop: a frame feed cuts the bytes after every sequence
+/// that may close a frame, and the handler's counter says whether one did. Out of line, so
+/// that the bookkeeping `feed` does around it cannot change how the parser loop, which is
+/// inlined here, is compiled.
+#[inline(never)]
+fn parse(parser: &mut Parser, mut handler: Handler<'_>, bytes: &[u8], end: FeedEnd) -> usize {
+    let mut rest = bytes;
+    loop {
+        let piece = match end {
+            FeedEnd::Bytes => rest,
+            FeedEnd::FrameClosed => frame_piece(rest, parser.in_csi()),
+        };
+        parser.advance(&mut handler, piece);
+        rest = rest.get(piece.len()..).unwrap_or_default();
+        if rest.is_empty() || handler.state.stats.frames_closed > 0 {
+            break;
+        }
+    }
+    bytes.len() - rest.len()
 }
 
 /// The counters `feed` reads before parsing and differences afterwards.
@@ -356,6 +389,29 @@ impl Terminal {
         hotpath::measure(impl_type = "Terminal")
     )]
     pub fn feed(&mut self, bytes: &[u8], batch: &mut EventBatch, now: Instant) -> FeedStats {
+        self.feed_to(bytes, batch, now, FeedEnd::Bytes)
+    }
+
+    /// [`feed`](Self::feed) that returns right after the sequence that closes a synchronized
+    /// update (`CSI ? 2026 l` while the mode is set): [`FeedStats::bytes`] is how many bytes
+    /// it applied, and [`FeedStats::frames_closed`] is 1 when it stopped there. Call it
+    /// again with the rest.
+    ///
+    /// A program that opens its next update right after closing one leaves no time between
+    /// them, so a renderer on its own clock would find every frame held. A reader that feeds
+    /// with this method can copy the finished frame where it stopped:
+    /// [`snapshot_update`](Self::snapshot_update) is not held there.
+    pub fn feed_frame(&mut self, bytes: &[u8], batch: &mut EventBatch, now: Instant) -> FeedStats {
+        self.feed_to(bytes, batch, now, FeedEnd::FrameClosed)
+    }
+
+    fn feed_to(
+        &mut self,
+        bytes: &[u8],
+        batch: &mut EventBatch,
+        now: Instant,
+        end: FeedEnd,
+    ) -> FeedStats {
         batch.clear();
         let state = &mut self.state;
         state.stats = FeedStats {
@@ -370,12 +426,12 @@ impl Terminal {
         }
         let before = state.baselines();
         state.grid.begin_batch();
-        let mut handler = Handler {
+        let handler = Handler {
             state: &mut *state,
             out: &mut *batch,
             now,
         };
-        self.parser.advance(&mut handler, bytes);
+        state.stats.bytes = parse(&mut self.parser, handler, bytes, end);
         state.grid.sync_anchors();
         state.prune_selection();
         if state.interner.needs_grapheme_sweep() {

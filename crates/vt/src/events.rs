@@ -197,4 +197,7 @@ pub struct FeedStats {
     /// Images whose pixels were dropped before `Terminal::take_graphics` because more than
     /// 128 MiB were waiting; each also gets a `GraphicReleased`.
     pub graphics_dropped: u32,
+    /// Synchronized updates the program closed: a `CSI ? 2026 l` (or a mode restore) that
+    /// found the mode set. `Terminal::feed_frame` returns at the first one.
+    pub frames_closed: u32,
 }
