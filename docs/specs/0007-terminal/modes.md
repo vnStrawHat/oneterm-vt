@@ -97,7 +97,8 @@ bitflags! { #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)] pub stru
 `interner.extras.clear()` (no cell or pen holds an extras id after the grid reset); `modes`,
 `keyboard`, `colors`, `title` to default; `cursor_style = None`; `modify_other_keys = 0`; shifts
 to `{0, None, [(0, None); 2]}`; `preceding_char`, carry and DCS query cleared; push
-`ScreenCleared`; `CursorStyleChanged` rule. Kept: row ids, `lines_produced`, `config`, the
+`ScreenCleared`, then `TitleReset` if a title was set and `PointerReset` if a pointer shape
+was named; `CursorStyleChanged` rule. Kept: row ids, `lines_produced`, `config`, the
 style table and the grapheme arena.
 
 **DECSTR** (`CSI ! p`): `Origin`, `Insert` reset; `LineWrap`, `ShowCursor` set; full region;

@@ -77,6 +77,8 @@ read.
 
 - `CSI h` and `CSI ? h` with no parameter count one unhandled sequence.
 - `CSI * x` (the `DECCARA` family of rectangle edits) is not implemented: counted, no effect.
+- OSC 22 is a shape name or an empty name. The stack and query forms of the kitty pointer
+  protocol (a leading `>`, `<`, `?` or `=`) are not understood: the text arrives as the name.
 - Left and right margins (`?69`, then `CSI Pl ; Pr s`): printing wraps at the right margin to the
   left one, `CR`, `BS`, `HT`, `CUF` and `CUB` stop at them, `ICH`, `DCH`, `IL`, `DL`, `SU`, `SD`
   and line feeds move only the columns between them, and origin mode counts columns from the

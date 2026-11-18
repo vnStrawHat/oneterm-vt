@@ -41,13 +41,13 @@ redraw, not damage.
 | `ColorQuery { key, terminator }` | OSC 4/10/11/12/17/19 with `?` | write `term.color_reply(key, terminator)` |
 | `ClipboardStore { selection, text }` | OSC 52 write, decoded UTF-8 | policy: set the clipboard or refuse |
 | `ClipboardLoad { selection }` | OSC 52 `?` | policy: answer with your own OSC 52 or ignore |
-| `Title(span)` / `TitleReset` | OSC 0/2, or `CSI 23 t` popping a title | show it / restore your default |
+| `Title(span)` / `TitleReset` | OSC 0/2, or `CSI 23 t` popping a title; RIS while a title was set | show it / restore your default |
 | `IconName(span)` | OSC 1 | optional |
 | `Bell` | `BEL` outside a string | beep, flash, or nothing |
 | `Cwd { host, path }` | OSC 7, path percent-decoded | use it; no filesystem is touched |
 | `Notification { title, body }` | OSC 9 (`title` is empty) | policy: show or drop |
 | `Progress(Progress)` | OSC 9;4 | taskbar state |
-| `Pointer(span)` | OSC 22 | set the mouse pointer |
+| `Pointer(span)` / `PointerReset` | OSC 22 with a shape name / with an empty name, or RIS after a name | set the mouse pointer / go back to your own |
 | `ShellMark(ShellMark)` | OSC 133 A/B/C/D | status of the running command; to jump between prompts use `Terminal::prompt_before` / `prompt_after` |
 | `GraphicReleased(GraphicId)` | an image or one of its placements is gone (see [graphics](graphics.md)) | free the texture you keyed by that id, if any; ids never return. Held back while `?2026` holds frames |
 | `CursorStyleChanged` | `Terminal::cursor_style()` differs now | redraw the cursor |

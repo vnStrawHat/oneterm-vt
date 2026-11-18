@@ -704,7 +704,9 @@ impl Handler<'_> {
         state.note_palette_change(colors_changed);
         state.bump_generation();
         state.sync.end();
+        let had_title = state.title.title().is_some();
         state.title = TitleStack::default();
+        let had_pointer = std::mem::take(&mut state.pointer_named);
         state.cursor_style = None;
         state.modify_other_keys = 0;
         state.shifts = Shifts::default();
@@ -714,6 +716,13 @@ impl Handler<'_> {
         state.dcs_payload.clear();
         state.graphics.reset();
         self.out.push(VtEvent::ScreenCleared);
+        // What the embedder shows from events goes back with the state behind it.
+        if had_title {
+            self.out.push(VtEvent::TitleReset);
+        }
+        if had_pointer {
+            self.out.push(VtEvent::PointerReset);
+        }
         self.note_cursor_style(before);
     }
 

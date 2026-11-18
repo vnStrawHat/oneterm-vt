@@ -58,7 +58,7 @@ impl OscRoutes {
 | `8` | `params.len() <= 2` -> reject. `p1` = link params, URI = `text(2..)` lossy (via `scratch`). Empty URI -> close the link. `id` = value of the first `id=` in `p1` split on `:`, empty = none. `hyperlinks.intern(id, uri)`; `None` -> link dropped (counted by the delta in events.md), text still prints. The pen's extras get `hyperlink` (graphic kept), interned, set on the template |
 | `9` | fewer than 2 params -> reject. `p1 == "4"`: `truncated` -> reject; `state = p2`, `pct = min(p3, 100)` (u32 parse; an absent value means 0, an empty-but-present value is rejected): `0` Remove, `1` Set(pct), `2` Error(pct), `3` Indeterminate, `4` Paused(pct), else reject -> `Progress`. Else: exactly one empty param after the code -> reject; `Notification { title: empty, body: text(1..) lossy }` |
 | `10`-`12`, `17`, `19` | colors.md |
-| `22` | `p1` non-empty UTF-8 -> `Pointer(p1)`; else reject |
+| `22` | `p1` non-empty UTF-8 -> `Pointer(p1)`, `pointer_named = true`; `p1` empty -> `PointerReset`, `pointer_named = false`; no `p1` or not UTF-8 -> reject. RIS pushes `PointerReset` when `pointer_named` |
 | `50` | `p1` = `CursorShape=0|1|2` -> shape Block/Beam/Underline on the stored-or-default style (blink kept); modes.md event rule; else reject |
 | `52` | below |
 | `104`, `110`, `111`, `112` | colors.md |
@@ -85,4 +85,6 @@ struct TitleStack { title: Option<String>, stack: Vec<Option<String>> }   // TIT
 
 - `CSI 22 t` (any further params ignored): push `title.clone()`; at 16 drop the oldest first.
 - `CSI 23 t`: pop; `Some(t)` -> `title = t` and push `Title` / `TitleReset`; empty stack -> nothing.
-- `Terminal::title()` -> `title.as_deref()`, `title_depth()` -> `stack.len()`. RIS clears both.
+- `Terminal::title()` -> `title.as_deref()`, `title_depth()` -> `stack.len()`. RIS clears both
+  and pushes `TitleReset` when a title was set: what the embedder shows from events goes back
+  with the state behind it.

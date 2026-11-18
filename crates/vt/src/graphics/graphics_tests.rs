@@ -576,7 +576,7 @@ fn released_when_ed3_clears_history() {
 ",
     );
     assert!(s.released().is_empty(), "the image sits in history");
-    s.feed_str("[3J");
+    s.feed_str("\x1b[3J");
     assert_eq!(s.released(), [id]);
 }
 
@@ -1154,7 +1154,11 @@ fn chunking_does_not_change_the_image() {
 
 /// A declared raster of 4096 x 4096 with one painted column, at screen row `row` and column `col`.
 fn huge_raster_at(row: u16, col: u16) -> String {
-    format!("[{};{}HPq\"1;1;4096;4096#0~\\", row + 1, col + 1)
+    format!(
+        "\x1b[{};{}H\x1bPq\"1;1;4096;4096#0~\x1b\\",
+        row + 1,
+        col + 1
+    )
 }
 
 #[test]

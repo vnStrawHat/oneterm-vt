@@ -531,7 +531,7 @@ fn linked_cells(session: &Session, cols: u16) -> usize {
 fn a_truncated_osc_8_opens_no_link_and_closes_the_open_one() {
     let uri = format!("http://x.test/{}", "a".repeat(3000));
     let mut session = Session::new(20, 2);
-    let stats = session.feed(format!("]8;;http://ok]8;;{uri}ab").as_bytes());
+    let stats = session.feed(format!("\x1b]8;;http://ok\x07\x1b]8;;{uri}\x07ab").as_bytes());
     assert_eq!((stats.truncated_osc, stats.unhandled_sequences), (1, 1));
     assert_eq!(linked_cells(&session, 2), 0);
 }
@@ -542,7 +542,7 @@ fn a_large_osc_8_keeps_the_full_uri() {
     let mut config = Config::default();
     config.osc_routes.large(8, true);
     let mut session = Session::sized(20, 2, config);
-    let stats = session.feed(format!("]8;;{uri}ab").as_bytes());
+    let stats = session.feed(format!("\x1b]8;;{uri}\x07ab").as_bytes());
     assert_eq!((stats.truncated_osc, stats.unhandled_sequences), (0, 0));
     assert_eq!(linked_cells(&session, 2), 2);
     let screen = session.term.screen();
@@ -635,8 +635,17 @@ fn osc_22_names_the_pointer() {
         events_of(&session)[0],
         VtEvent::Pointer(span) if text(&session, *span) == "pointer"
     ));
-    for body in ["22", "22;"] {
-        assert_eq!(run(body).1.unhandled_sequences, 1);
+    assert_eq!(run("22").1.unhandled_sequences, 1);
+}
+
+#[test]
+fn osc_22_with_an_empty_name_gives_the_pointer_back() {
+    // What a full-screen program sends on exit, either terminator.
+    for bytes in [&b"\x1b]22;\x1b\\"[..], b"\x1b]22;\x07"] {
+        let mut session = Session::new(10, 4);
+        let stats = session.feed(bytes);
+        assert_eq!(events_of(&session), [&VtEvent::PointerReset]);
+        assert_eq!(stats.unhandled_sequences, 0);
     }
 }
 

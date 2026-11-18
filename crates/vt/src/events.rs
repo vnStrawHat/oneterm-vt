@@ -31,7 +31,8 @@ pub enum VtEvent {
     Bell,
     /// The window title changed: OSC 0 or 2 with text, or `CSI 23 t` popping a title.
     Title(StrSpan),
-    /// The title was cleared: OSC 0 or 2 with empty text, or `CSI 23 t` popping "no title".
+    /// The title was cleared: OSC 0 or 2 with empty text, `CSI 23 t` popping "no title", or
+    /// RIS while a title was set.
     TitleReset,
     /// OSC 1: the icon name, trimmed, possibly empty.
     IconName(StrSpan),
@@ -85,6 +86,9 @@ pub enum VtEvent {
     Progress(Progress),
     /// OSC 22: the mouse pointer shape name.
     Pointer(StrSpan),
+    /// The pointer is the terminal's own again: OSC 22 with an empty name, or RIS after a
+    /// program named a shape.
+    PointerReset,
     /// OSC 133: a shell-integration mark.
     ShellMark(ShellMark),
     /// The image is gone from the grid (its rows were scrolled out, erased or reflowed away,

@@ -124,6 +124,8 @@ struct State {
     keyboard: KeyboardStacks,
     modify_other_keys: u8,
     title: TitleStack,
+    /// A program named a pointer shape (OSC 22) and has not given the pointer back.
+    pointer_named: bool,
     colors: ColorOverrides,
     /// The embedder's colours underneath the program's overrides.
     theme: Palette,
@@ -351,6 +353,7 @@ impl Terminal {
             keyboard: KeyboardStacks::default(),
             modify_other_keys: 0,
             title: TitleStack::default(),
+            pointer_named: false,
             colors: ColorOverrides::default(),
             theme: Palette::new(),
             sync: SyncState::new(),

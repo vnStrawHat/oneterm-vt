@@ -1803,6 +1803,28 @@ fn ris_returns_to_power_on_and_keeps_ids_and_the_line_count() {
 }
 
 #[test]
+fn ris_reports_the_title_and_the_pointer_it_takes_back() {
+    let mut s = Session::new(10, 4);
+    s.feed(b"\x1b]2;title\x07\x1b]22;wait\x07");
+    s.feed(b"\x1bc");
+    assert_eq!(
+        s.events(),
+        [
+            &VtEvent::ScreenCleared,
+            &VtEvent::TitleReset,
+            &VtEvent::PointerReset
+        ]
+    );
+    // Nothing is left to give back: a second reset reports the screen only.
+    s.feed(b"\x1bc");
+    assert_eq!(s.events(), [&VtEvent::ScreenCleared]);
+    // A program that gave the pointer back itself is not told again.
+    s.feed(b"\x1b]22;wait\x07\x1b]22;\x07");
+    s.feed(b"\x1bc");
+    assert_eq!(s.events(), [&VtEvent::ScreenCleared]);
+}
+
+#[test]
 fn ris_leaves_the_alternate_screen_and_restores_defaults() {
     let mut s = Session::new(10, 4);
     s.feed(b"\x1b[?1049h\x1b[>3u\x1b[>4;2m\x1b[?1000h\x1bc");

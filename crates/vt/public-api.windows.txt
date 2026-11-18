@@ -2180,6 +2180,7 @@ pub oneterm_vt::VtEvent::Osc::params: oneterm_vt::ParamSpans
 pub oneterm_vt::VtEvent::Osc::terminator: oneterm_vt::StringTerm
 pub oneterm_vt::VtEvent::Osc::truncated: bool
 pub oneterm_vt::VtEvent::Pointer(oneterm_vt::StrSpan)
+pub oneterm_vt::VtEvent::PointerReset
 pub oneterm_vt::VtEvent::Progress(oneterm_vt::Progress)
 pub oneterm_vt::VtEvent::Repaint
 pub oneterm_vt::VtEvent::Reply(oneterm_vt::ByteSpan)

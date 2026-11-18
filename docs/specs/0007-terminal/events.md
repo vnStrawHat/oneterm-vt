@@ -57,7 +57,7 @@ same methods.
 | `Repaint` | at most once, last, iff the feed made any `Dispatch` call (a hint, not damage) |
 | `Bell` | `BEL` (0x07) outside a string |
 | `Title(StrSpan)` | OSC 0/2 with non-empty trimmed text; `CSI 23 t` popping a title |
-| `TitleReset` | OSC 0/2 whose trimmed text is empty; `CSI 23 t` popping "no title" |
+| `TitleReset` | OSC 0/2 whose trimmed text is empty; `CSI 23 t` popping "no title"; RIS while a title was set |
 | `IconName(StrSpan)` | OSC 1 (trimmed, may be empty) |
 | `Reply(ByteSpan)` | every answer in queries.md; write verbatim to the program, in order |
 | `ColorQuery { key: ColorKey, terminator: StringTerm }` | OSC 4/10/11/12/17/19 value `?` (colors.md) |
@@ -69,7 +69,8 @@ same methods.
 | `Cwd { host: StrSpan, path: StrSpan }` | OSC 7 (osc.md) |
 | `Notification { title: StrSpan, body: StrSpan }` | OSC 9 other than `9;4`; `title` is empty for OSC 9 (kept for title-carrying forms) |
 | `Progress(Progress)` | OSC 9;4 |
-| `Pointer(StrSpan)` | OSC 22 |
+| `Pointer(StrSpan)` | OSC 22 with a name |
+| `PointerReset` | OSC 22 with an empty name; RIS after a name (osc.md) |
 | `ShellMark(ShellMark)` | OSC 133 A/B/C/D |
 | `CursorStyleChanged` | `Terminal::cursor_style()` differs after a sequence (modes.md) |
 | `Osc { code: u32, params: ParamSpans, terminator: StringTerm, truncated: bool }` | routed `Forward` or `BuiltinAndForward`; one span per `;`-separated parameter (the parser's 16th re-split), param 0 is the code text |

@@ -34,6 +34,8 @@ fn piece() -> impl Strategy<Value = Vec<u8>> {
             bytes("\x1b[?2026"), bytes("\x1b[?"), bytes("2026"), bytes("26"), bytes("l"),
             bytes("\x1b[?25;2026l"), bytes("\x1b[?20\r26l"), bytes("\x1b[?2\x7f026l"),
             bytes("\x1b[?2026r"), bytes("\x1bc"),
+            // The pointer: named, and given back.
+            bytes("\x1b]22;wait\x07"), bytes("\x1b]22;\x07"),
         ]),
         1 => any::<u8>().prop_map(|byte| vec![byte]),
     ]
