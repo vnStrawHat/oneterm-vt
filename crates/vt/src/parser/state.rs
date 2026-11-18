@@ -293,6 +293,35 @@ impl Parser {
         rest
     }
 
+    /// Consumes APC, SOS or PM payload bytes while the state is `ApcString`: every byte
+    /// `apc_put` takes, counted against the cap in one step. The run stops before `CAN`, `SUB`
+    /// and `ESC`, which the per-byte table then takes.
+    pub(super) fn apc_run<'a, D: Dispatch + ?Sized>(
+        &mut self,
+        dispatch: &mut D,
+        bytes: &'a [u8],
+    ) -> &'a [u8] {
+        let run = bytes
+            .iter()
+            .position(|&byte| matches!(byte, 0x18 | 0x1A | 0x1B))
+            .unwrap_or(bytes.len());
+        let (payload, rest) = bytes.split_at(run);
+        if self.string_aborted {
+            return rest;
+        }
+        let room = DCS_MAX_BYTES - self.string_bytes.min(DCS_MAX_BYTES);
+        let (passed, over) = payload.split_at(payload.len().min(room));
+        for &byte in passed {
+            dispatch.apc_put(byte);
+        }
+        self.string_bytes += passed.len();
+        if !over.is_empty() {
+            self.string_aborted = true;
+            dispatch.apc_end(true);
+        }
+        rest
+    }
+
     /// A digit or separator (`0x30..=0x3B`) in a CSI header that has not seen an intermediate:
     /// the same transition `header` makes, without its dispatch on family and phase.
     pub(super) fn csi_parameter(&mut self, byte: u8) {

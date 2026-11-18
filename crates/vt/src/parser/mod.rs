@@ -168,13 +168,23 @@ impl Parser {
                     continue;
                 }
             }
+            if self.state == State::ApcString {
+                rest = self.apc_run(dispatch, rest);
+                if rest.is_empty() {
+                    continue;
+                }
+            }
 
             let mut iter = rest.iter();
             let mut first = true;
             // A string state reached from a header leaves the loop for its bulk run; the
             // byte the run stopped at (`first`) is the per-byte table's.
             while self.state != State::Ground
-                && (first || !matches!(self.state, State::DcsPassthrough | State::OscString))
+                && (first
+                    || !matches!(
+                        self.state,
+                        State::DcsPassthrough | State::OscString | State::ApcString
+                    ))
             {
                 first = false;
                 let Some(&byte) = iter.next() else { break };

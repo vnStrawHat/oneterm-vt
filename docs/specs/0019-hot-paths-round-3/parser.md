@@ -29,6 +29,7 @@ changing the `Dispatch` trait.
 | `Parser::osc_run` (new, `state.rs`) | loop: `osc_payload_len` bytes -> `OscBuffer::extend`; a `;` -> `osc_semicolon` (unchanged); any other stop -> return |
 | `osc_payload_len` (new, private fn, `state.rs`) | leading bytes that are neither `< 0x20` nor `;`, whole 16-byte blocks tested branch-free (the `ascii_prefix` idiom, vectorises on baseline x86-64) |
 | `OscBuffer::extend` (new, `osc.rs`) | appends up to `cap`; anything past sets `truncated`; grows by doubling, never past `cap` (the `push` rule), so an unclaimed OSC never grows past `OSC_INLINE` |
+| `Parser::apc_run` (added with `Terminal::feed_frame`, `state.rs`) | the same for `ApcString`: the run of bytes `apc_put` takes (stop at `CAN`, `SUB`, `ESC`), counted against the cap in one step, `apc_end(true)` when it is passed; kitty graphics payload no longer goes byte by byte through the state table (`kitty_images` 271 -> 373 MiB/s in the grid tier) |
 | `Parser::dcs_run` (new, `state.rs`) | the run of bytes `dcs_put` takes (stop at `CAN`, `SUB`, `ESC`, `DEL`, `>= 0x80`); if not aborted: `dcs_put` for each byte up to the cap room, then one `dcs_unhook(true)` and `string_aborted` when bytes are left over |
 
 ```rust
