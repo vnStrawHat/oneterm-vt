@@ -59,6 +59,8 @@ frames, never memory.
 - One second after the first `h` the mode is forced off (the watchdog), whatever else arrives.
 - Modes, cursor and selection are refreshed during a block; a change seen then is reported once,
   by the next real frame (`Partial { scrolled: 0 }` at least).
+- Rows and the image placements anchored to them are held together: a held state lists the
+  placements of the rows it shows, not the ones the block has made or removed since.
 - Rows written during the block are all copied by the first frame after it, however many feeds ran.
 - `Terminal::sync().is_set()` is what DECRQM `?2026` answers; RIS ends a block, DECSTR keeps it.
 

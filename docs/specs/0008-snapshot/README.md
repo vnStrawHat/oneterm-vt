@@ -35,7 +35,7 @@ mouse_reporting, set_theme_colors}` (+ `palette`, `SyncState::deadline` if D4/D5
 ## Decisions (settled; detail in the topic files)
 
 1. Pull model: no reset pass, no engine-side damage flag; two states over one terminal never clear each other.
-2. Modes, cursor, selection, placements refresh on every update, a suppressed one included; a change hidden by a suppressed frame is reported once by the next real frame (sticky flag).
+2. Modes, cursor, selection refresh on every update, a suppressed one included (placements are held with the rows, state.md step 3); a change hidden by a suppressed frame is reported once by the next real frame (sticky flag).
 3. Rows carry values, never ids (style, cluster scalars, hyperlink strings); clusters stay `Vec<char>` though our arena stores `str`.
 4. Theme vs OSC: an override wins per slot, a reset returns the slot to the theme; cells resolve only in `map_colors`.
 5. `SnapshotPlacement` and `SnapshotCell::graphic` are final now; empty / `None` until phase 10.

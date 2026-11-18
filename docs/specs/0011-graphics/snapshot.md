@@ -27,7 +27,7 @@ vectors at their high-water mark, <= 256 entries each).
 |---|---|
 | `SnapshotCell::graphic` | unchanged rule (0008 rows.md): the cell's extras `graphic`. May name a released image (a stray row after IL, a cell outliving an eviction): `placement(id)` is then `None` and the cell draws no image |
 | `SnapshotCell::hyperlink` | unchanged; a merged entry carries both |
-| `placements()` | the refreshed list; both lanes (an alt-lane placement while the primary is shown has rows outside the viewport) |
+| `placements()` | the list as of the last update that was not suppressed (held with the rows); both lanes (an alt-lane placement while the primary is shown has rows outside the viewport) |
 | `placement(id)` | linear find (<= 256), `None` when released |
 | `graphic_offset(id, row, col)` | unchanged (0008): `(col - p.col, row - p.row)` inside `p.cols x p.rows` with `row >= p.row`, else `None` |
 

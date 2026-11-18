@@ -25,7 +25,8 @@ pub struct Watermark(pub SeqNo);
 /// What [`Terminal::snapshot_update`](crate::Terminal::snapshot_update) changed.
 ///
 /// Whatever the result, [`SnapshotState::rows`] holds the whole viewport afterwards and the
-/// cursor, selection and modes are current. A renderer that caches drawn rows reacts per result:
+/// cursor, selection and modes are current; the placements are those of the rows. A renderer
+/// that caches drawn rows reacts per result:
 ///
 /// - `Unchanged`: nothing to redraw (rows may still be held back by synchronized output).
 /// - `Partial { scrolled }`: shift the cache by `scrolled` viewport rows (positive: content
@@ -205,9 +206,10 @@ impl SnapshotState {
         self.hyperlinks.get(&id)
     }
 
-    /// The live images, oldest first (draw order), as of the last update, held-back frames
-    /// included. Both screens' placements are listed, so one on the hidden screen, or above
-    /// the viewport, has rows outside it.
+    /// The live images, oldest first (draw order), as of the last update that copied rows: a
+    /// frame held back by synchronized output keeps the placements of the rows it shows. Both
+    /// screens' placements are listed, so one on the hidden screen, or above the viewport,
+    /// has rows outside it.
     pub fn placements(&self) -> &[SnapshotPlacement] {
         &self.placements
     }
@@ -283,11 +285,8 @@ impl SnapshotState {
         let screen = grid.screen();
 
         let cursor = snapshot_cursor(screen, modes.show_cursor);
-        let placements_changed = self.refill_placements(grid, placements);
-        let meta_changed = self.modes != modes
-            || self.cursor != cursor
-            || self.selection != selection
-            || placements_changed;
+        let meta_changed =
+            self.modes != modes || self.cursor != cursor || self.selection != selection;
         self.modes = modes;
         self.cursor = cursor;
         self.selection = selection;
@@ -299,6 +298,10 @@ impl SnapshotState {
             self.changed.clear();
             return SnapshotUpdate::Unchanged;
         }
+        // Placements are anchored to rows, so they are copied with the rows and held with
+        // them: a held frame that listed the block's placements would lose an image the
+        // program deleted and has not placed again yet.
+        let meta_changed = self.refill_placements(grid, placements) || meta_changed;
 
         let viewport = screen.viewport();
         let seq = grid.seq();

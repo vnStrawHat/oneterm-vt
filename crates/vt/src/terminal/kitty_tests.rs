@@ -12,7 +12,7 @@ use super::super::terminal_tests::Session;
 use super::*;
 use crate::events::VtEvent;
 use crate::graphics::kitty::kitty_tests::{base64, png_bytes};
-use crate::snapshot::{SnapshotPlacement, SnapshotState};
+use crate::snapshot::{SnapshotPlacement, SnapshotState, SnapshotUpdate};
 
 /// One graphics command with its payload.
 fn command(control: &str, payload: &[u8]) -> Vec<u8> {
@@ -660,6 +660,38 @@ fn text_and_other_strings_pass_by() {
     let stats = s.feed(b"a\x1b_not graphics\x1b\\b\x1b^Ga=q,i=1\x1b\\c");
     assert_eq!(stats.unhandled_sequences, 2);
     assert_eq!((s.row(0).trim_end(), s.replies().as_str()), ("abc", ""));
+}
+
+#[test]
+fn an_image_deleted_inside_a_synchronized_update_stays_in_the_held_frame() {
+    let mut s = Session::new(20, 5);
+    let now = Instant::now();
+    let mut state = SnapshotState::new();
+    dot(&mut s, "a=T,i=7,q=2");
+    s.term.snapshot_update(&mut state, now);
+    let shown = state.placements().to_vec();
+    assert_eq!(shown.len(), 1);
+
+    s.term.feed(b"\x1b[?2026h", &mut s.batch, now);
+    s.term
+        .feed(b"\x1b_Ga=d,d=I,i=7,q=2\x1b\\", &mut s.batch, now);
+    assert_eq!(released(&s).len(), 2, "the placement and its image");
+    assert_eq!(
+        s.term.snapshot_update(&mut state, now),
+        SnapshotUpdate::Unchanged
+    );
+    assert_eq!(
+        state.placements(),
+        shown,
+        "held with the rows it belongs to"
+    );
+
+    s.term.feed(b"\x1b[?2026l", &mut s.batch, now);
+    assert_ne!(
+        s.term.snapshot_update(&mut state, now),
+        SnapshotUpdate::Unchanged
+    );
+    assert!(state.placements().is_empty());
 }
 
 mod hostile {

@@ -870,9 +870,14 @@ fn images_survive_suppressed_frame() {
     s.image(10, 20, 1);
     s.term.snapshot_update(&mut s.state, s.now);
     s.term.snapshot_update(&mut other, s.now);
+    // The held frames list what their rows show; the pixels do not wait for a frame.
+    assert!(s.state.placements().is_empty() && other.placements().is_empty());
+    assert_eq!(s.term.take_graphics().len(), 1);
+    s.feed_str("\x1b[?2026l");
+    s.term.snapshot_update(&mut s.state, s.now);
+    s.term.snapshot_update(&mut other, s.now);
     assert_eq!(s.state.placements().len(), 1);
     assert_eq!(other.placements().len(), 1);
-    assert_eq!(s.term.take_graphics().len(), 1);
 }
 
 #[test]

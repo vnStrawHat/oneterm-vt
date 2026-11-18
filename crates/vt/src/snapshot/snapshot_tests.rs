@@ -674,7 +674,7 @@ fn placement_only_change_is_partial() {
 }
 
 #[test]
-fn suppressed_frame_holds_placement_meta() {
+fn suppressed_frame_holds_its_placements() {
     let mut s = Session::settled();
     s.feed(&b"line\r\n".repeat(30));
     s.update();
@@ -685,11 +685,38 @@ fn suppressed_frame_holds_placement_meta() {
     s.feed(&goto(5, 0));
     s.feed(&image(10, 20, 1));
     assert_eq!(s.update(), SnapshotUpdate::Unchanged, "the frame is held");
-    assert_eq!(s.state.placements().len(), 1, "but the list is current");
+    assert!(s.state.placements().is_empty(), "and so is its list");
     s.feed(b"\x1b[?2026l");
     assert_eq!(s.update(), SnapshotUpdate::Partial { scrolled: 0 });
     assert!(s.state.changed().is_empty());
+    assert_eq!(s.state.placements().len(), 1);
     assert_eq!(s.update(), SnapshotUpdate::Unchanged);
+}
+
+#[test]
+fn an_image_swapped_inside_a_block_stays_in_the_held_frame() {
+    let mut s = Session::settled();
+    // A scroll region below row 0, so a deleted row is dropped instead of kept as history.
+    s.feed(b"\x1b[2;10r");
+    s.feed(&goto(1, 0));
+    s.feed(&image(10, 20, 1));
+    s.update();
+    let shown = s.state.placements().to_vec();
+    assert_eq!(shown.len(), 1);
+
+    // The program removes the old picture first and draws the new one many reads later.
+    s.feed(b"\x1b[?2026h");
+    s.feed(&goto(1, 0));
+    s.feed(b"\x1b[M");
+    assert!(s.term.placements().is_empty(), "the engine dropped it");
+    assert_eq!(s.update(), SnapshotUpdate::Unchanged);
+    assert_eq!(s.state.placements(), shown, "the held frame still shows it");
+
+    s.feed(&image(10, 20, 1));
+    s.feed(b"\x1b[?2026l");
+    assert_ne!(s.update(), SnapshotUpdate::Unchanged);
+    assert_eq!(s.state.placements().len(), 1);
+    assert_ne!(s.state.placements()[0].id, shown[0].id, "the new picture");
 }
 
 #[test]

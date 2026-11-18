@@ -34,7 +34,8 @@ pub struct SnapshotPlacement { pub id: GraphicId, pub row: RowId, pub col: u16,
 | `watermark` | `Watermark` | grid `seq()` at the last non-suppressed update |
 | `viewport_top`, `scroll_offset`, `size` | `RowId`, `u32`, `Option<Size>` | as of the last copy |
 | `rows`, `changed` | `Vec<SnapshotRow>`, `Vec<u16>` | full viewport; indices this update copied |
-| `cursor`, `selection`, `modes`, `placements` | | refreshed every update |
+| `cursor`, `selection`, `modes` | | refreshed every update |
+| `placements` | | refilled by every update that is not suppressed: held with the rows |
 | `hyperlinks` | `FxHashMap<HyperlinkId, Hyperlink>` | strings behind the links in `rows` |
 | `force_full`, `meta_dirty`, `rows_copied` | `bool`, `bool`, `u64` | `invalidate`; sticky change hidden by sync; total copies |
 
@@ -49,11 +50,13 @@ pub(crate) fn begin_update(&mut self, engine: EngineView<'_>, now: Instant) -> S
 
 ## `begin_update` steps
 
-1. `placements.clear()` (phase 10 refills from live placements with live anchors).
+1. (Placements are refilled in step 3a, not here: a suppressed frame keeps its own.)
 2. Refresh `modes`, `cursor` (active screen: `cursor().pos`, `visible_top()`, `rows()`) and
    `selection`; `meta` = whether any of the three differed.
 3. `sync.suppresses_frame(now) && !rows.is_empty()` -> `meta_dirty |= meta`; `changed.clear()`;
-   return `Unchanged` (rows, watermark, size untouched). A never-built state is built first.
+   return `Unchanged` (rows, placements, watermark, size untouched). A never-built state is
+   built first. 3a. Refill `placements` from live placements with live anchors; a difference
+   counts as `meta`.
 4. `seq = grid.seq()`; `scrolled = viewport_delta(viewport)`; `full = needs_full(..)`; `changed.clear()`.
 5. `full` -> rebuild (resize `rows` to `viewport.rows`, clear `hyperlinks`, copy every row,
    `force_full = false`); else rotate `rows` by `scrolled` (left if positive), then `copy_changed`.
