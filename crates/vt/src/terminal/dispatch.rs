@@ -272,7 +272,9 @@ impl Dispatch for Handler<'_> {
         self.state.graphics.kitty.start(introducer);
     }
 
+    // See `KittyState::put` for why this is inlined by force.
     #[cfg(feature = "kitty-graphics")]
+    #[inline(always)]
     fn apc_put(&mut self, byte: u8) {
         self.state.graphics.kitty.put(byte);
     }

@@ -222,6 +222,10 @@ impl Handler<'_> {
 
     /// OSC 777: `notify ; title ; body`. The other commands sent under this number have no
     /// handler.
+    ///
+    /// Cold: inlined into the dispatch above it slowed the common OSCs down (`osc_9_7`,
+    /// 3%).
+    #[cold]
     fn osc_notify(&mut self, params: &OscParams<'_>) {
         let title = match (params.get(1), params.get(2)) {
             (Some(b"notify"), Some(title)) => String::from_utf8_lossy(title),

@@ -30,6 +30,7 @@ changing the `Dispatch` trait.
 | `osc_payload_len` (new, private fn, `state.rs`) | leading bytes that are neither `< 0x20` nor `;`, whole 16-byte blocks tested branch-free (the `ascii_prefix` idiom, vectorises on baseline x86-64) |
 | `OscBuffer::extend` (new, `osc.rs`) | appends up to `cap`; anything past sets `truncated`; grows by doubling, never past `cap` (the `push` rule), so an unclaimed OSC never grows past `OSC_INLINE` |
 | `Parser::apc_run` (added with `Terminal::feed_frame`, `state.rs`) | the same for `ApcString`: the run of bytes `apc_put` takes (stop at `CAN`, `SUB`, `ESC`), counted against the cap in one step, `apc_end(true)` when it is passed; kitty graphics payload no longer goes byte by byte through the state table (`kitty_images` 271 -> 373 MiB/s in the grid tier) |
+| `KittyState::put`, `put_base64`, `Handler::apc_put` (`#[inline(always)]`, added after v0.2.1) | the three calls `apc_run` makes per payload byte. Left to the optimiser they were inlined or not depending on unrelated code in the handler: the same sources measured 340, 398 and 413 MiB/s on `kitty_images` as an OSC handler was added, marked `#[cold]` or `#[inline(never)]`. Forced: 455 MiB/s, and the other fixtures within noise |
 | `Parser::dcs_run` (new, `state.rs`) | the run of bytes `dcs_put` takes (stop at `CAN`, `SUB`, `ESC`, `DEL`, `>= 0x80`); if not aborted: `dcs_put` for each byte up to the cap room, then one `dcs_unhook(true)` and `string_aborted` when bytes are left over |
 
 ```rust

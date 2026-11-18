@@ -422,6 +422,11 @@ impl KittyState {
     }
 
     /// One payload byte of the string.
+    ///
+    /// Inlined by force, with `put_base64` and the handler's `apc_put`: the parser hands the
+    /// payload over byte by byte, and left to the optimiser an unrelated change in the
+    /// handler decided whether each byte cost a call (`kitty_images`: 340 or 455 MiB/s).
+    #[inline(always)]
     pub(crate) fn put(&mut self, byte: u8) {
         match self.phase {
             Phase::Ignoring => {}
@@ -467,6 +472,7 @@ impl KittyState {
         (self.bits, self.bit_count) = (0, 0);
     }
 
+    #[inline(always)]
     fn put_base64(&mut self, byte: u8) {
         let Some(load) = &mut self.load else {
             return;
