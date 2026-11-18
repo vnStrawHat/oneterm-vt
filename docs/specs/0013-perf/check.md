@@ -1,7 +1,7 @@
 # `vt-bench grid --check`: the regression trip-wire
 
 ```text
-vt-bench grid --check [--baseline FILE] [--tolerance R] [--mib N]
+vt-bench grid --check [--baseline FILE] [--tolerance R] [--mib N] [--machine TEXT]
 ```
 
 Measures tier 2 like `grid` and compares each fixture's MiB/s with a baseline record. A
@@ -15,9 +15,10 @@ scan in a per-byte loop, a lost fast path), not drift. Run by hand on the baseli
 | `--baseline FILE` | newest record in `perf/history/<platform>/` (amended by 0014 platforms.md) | any record readable by `perf_history::parse_release` (a `grid --json` output qualifies) |
 | `--tolerance R` | `0.5` | number with `0 < R <= 1`; else `--tolerance needs a number in (0, 1], got '<v>'` |
 | `--mib N` | the baseline's `mib_per_fixture` (32 if absent/0) | `1..=4096`, same parser as the measure commands |
+| `--machine TEXT` | none: the machine of the run is unknown | the text a record's `machine` would hold; see "Another machine" |
 
-Any other flag (`--json`, `--out`, `--machine`, `--frames`, `--fixture`) ->
-`'grid --check' takes only --baseline, --tolerance and --mib`.
+Any other flag (`--json`, `--out`, `--frames`, `--fixture`) ->
+`'grid --check' takes only --baseline, --tolerance, --mib and --machine`.
 
 **Default baseline (D1).** `concat!(env!("CARGO_MANIFEST_DIR"), "/../../perf/history")` joined
 with `std::env::consts::OS` (`linux`, `windows`, `macos`), so the result does not depend on the
@@ -83,6 +84,38 @@ Last line on success: `PASS: 10 of 10 fixtures at or above 0.50 x baseline`. The
 prints as `perf/history/<os>/<file name>` for the default and verbatim for `--baseline`. An empty
 `date` prints `(v0.1.0)` without the comma part.
 
+## Another machine (added with the Release workflow's `--machine`)
+
+The first design assumed one baseline machine. The Release workflow runs the check on hosted
+runners, and one runner label is several CPU models: a run on a slower model read every
+fixture at 0.55 to 0.76 of the baseline and one at 0.48, with no change to that fixture's cost
+relative to the others on that model. Two rules, both only when `--machine` is given:
+
+- **Same machine** = equal text after dropping a trailing `, rustc <version>` (`hardware()`).
+- **Default baseline**: the newest record of the same machine that passes refusals 6a-9; if
+  there is none, the newest record. Figures of one machine are compared as they are, so a
+  slowdown of every fixture is caught the next time a run lands on a machine the history knows.
+- **Baseline of another machine** (default or `--baseline`): the band lies around the median
+  of `now / baseline` over the judged fixtures instead of around 1. A fixture is `SLOWER` when
+  `ratio < tolerance * median`; exactly at it passes; a fixture without a baseline is never
+  slower. Known blind spot, printed in the docs: a slowdown shared by most fixtures moves the
+  median and is not told from a slower machine.
+
+Stdout then has one more line after `Baseline machine:` and another rule and verdict:
+
+```text
+Baseline machine: <baseline's>
+This machine: <TEXT>
+Run: 160x45, 32 MiB per fixture, median of 5 cycles after 1 warm-up.
+The baseline is another machine's: fixtures are judged against the median ratio of this run, 0.59.
+A fixture fails below 0.50 x that median (0.30); exactly at it passes.
+...
+PASS: 17 of 17 fixtures at or above 0.50 x the median ratio
+FAIL: 1 of 17 fixtures below 0.50 x the median ratio: `heavy_sgr`
+```
+
+Without `--machine`, and on the baseline's machine, the output is the one above, byte for byte.
+
 ## Exit codes
 
 | Code | Meaning |
@@ -92,6 +125,8 @@ prints as `perf/history/<os>/<file name>` for the default and verbatim for `--ba
 | 2 | no verdict: a refusal or a flag error (matches the CLI's exit 2 for usage errors) |
 
 ## Never in CI
+
+(On pushes and pull requests. The Release workflow does run it, with `--machine`: 0014.)
 
 - The baseline is one machine's; a CI runner is a different machine, so its ratio means nothing.
 - Shared runners vary run to run by more than the band (our own desktop spreads reached 62% in

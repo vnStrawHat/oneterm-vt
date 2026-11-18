@@ -92,6 +92,11 @@ regressions (a clone per cell, a linear scan in a per-byte loop, a lost fast pat
   for, or `--baseline FILE` (any `grid --json` output of the same platform).
 - `--tolerance R` (default `0.5`): a fixture fails below `R` x its baseline, exactly `R` passes.
   `--mib N` defaults to the baseline's input size.
+- `--machine TEXT` names the machine of the run, as a record does. The baseline is then the
+  newest record of that same machine (the toolchain at the end of the text aside). If there is
+  none, the figures of two machines cannot be held against each other: every fixture is judged
+  against the median ratio of the run instead, and fails below `R` x that median. A slowdown
+  shared by most fixtures then looks like a slower machine and is not caught.
 - Exit codes: `0` pass, `1` at least one fixture `SLOWER`, `2` no verdict.
 - No verdict (exit 2): bad flag; debug, `vt-paranoid` or `hotpath-profiling` build; no history
   and no `--baseline`; unreadable baseline; baseline from another platform; baseline geometry
@@ -99,8 +104,9 @@ regressions (a clone per cell, a linear scan in a per-byte loop, a lost fast pat
   positive number. A fixture newer than the baseline shows as `no baseline` and is not judged.
 - The build refusals read `vt-bench`'s own features; `--features oneterm-vt/vt-paranoid` on the
   command line bypasses them, so do not.
-- The Release workflow runs it on each platform against that platform's previous release record
-  before tagging; the wide band catches only structural regressions. The table above is the verdict.
+- The Release workflow runs it with `--machine` on each platform before tagging; hosted runners
+  of one label are several CPU models, which is what the rule above is for. The wide band
+  catches only structural regressions. The table above is the verdict.
 - Each platform's job summary shows the full run (tiers 1-5, markdown tables) followed by the
   trip-wire table. The trip-wire stays on tier 2 only: tier-1 spreads are too noisy for a band.
 

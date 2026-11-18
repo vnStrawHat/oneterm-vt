@@ -112,8 +112,11 @@ cmd_bump() {
     echo "bumped v$v"
 }
 
+# The machine is named so that a runner of another CPU model than the baseline's is judged
+# against the median of its own run, not against figures it cannot reach.
 trip_wire() {
-    cargo run -p oneterm-vt-bench --release -- grid --check | tee -a "$GITHUB_STEP_SUMMARY"
+    cargo run -p oneterm-vt-bench --release -- grid --check --machine "$VT_BENCH_MACHINE" |
+        tee -a "$GITHUB_STEP_SUMMARY"
 }
 
 record() {

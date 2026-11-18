@@ -38,7 +38,7 @@ Measure:
   fixtures --out DIR [--mib N] [--compare]
                                    write every benchmark stream as DIR/<name>.vt;
                                    --compare adds the 9 cross-engine streams
-  grid --check [--baseline FILE] [--tolerance R] [--mib N]
+  grid --check [--baseline FILE] [--tolerance R] [--mib N] [--machine TEXT]
                                    compare tier 2 with the newest perf/history/<os> record
 
 Report:

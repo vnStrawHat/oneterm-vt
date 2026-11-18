@@ -13,7 +13,7 @@ use crate::throughput::{self, RUNS};
 /// Parent of the per-platform record folders.
 const HISTORY_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../perf/history");
 const DEFAULT_TOLERANCE: f64 = 0.5;
-const TAKES_ONLY: &str = "'grid --check' takes only --baseline, --tolerance and --mib";
+const TAKES_ONLY: &str = "'grid --check' takes only --baseline, --tolerance, --mib and --machine";
 
 /// How this binary was built. Filled with `cfg!` in one place so the rules can be tested with
 /// any combination.
@@ -66,6 +66,8 @@ struct CheckOptions {
     baseline: Option<PathBuf>,
     tolerance: f64,
     mib: Option<usize>,
+    /// The machine this run is on, as a record would name it.
+    machine: Option<String>,
 }
 
 /// Everything decided before the first measurement.
@@ -75,6 +77,10 @@ struct CheckPlan {
     baseline: Release,
     tolerance: f64,
     mib: usize,
+    /// The machine of this run when it is known and is not the baseline's. Its figures cannot
+    /// be held against the baseline's as they are: each fixture is judged against the median
+    /// ratio of the run instead.
+    other_machine: Option<String>,
 }
 
 struct CheckRow {
@@ -92,7 +98,12 @@ pub(crate) fn check_command(args: &[String]) -> Result<CheckReport> {
     crate::progress("tier 2 grid");
     let selected = fixtures::select(None)?;
     let now = throughput::measure_tier(plan.mib, &selected, throughput::grid_pass);
-    let rows = compare(&plan.baseline.record.tiers.tier2_grid, &now, plan.tolerance);
+    let rows = compare(
+        &plan.baseline.record.tiers.tier2_grid,
+        &now,
+        plan.tolerance,
+        plan.other_machine.is_some(),
+    );
     Ok(CheckReport {
         passed: rows.iter().all(|row| !row.slower),
         text: render_check(&plan, &rows),
@@ -113,9 +124,12 @@ fn prepare_check(args: &[String], flavour: BuildFlavour, history: &Path) -> Resu
             let release = perf_history::parse_release(&source, &json)?;
             (source, release)
         }
-        None => newest_record(history)?,
+        None => newest_record(history, options.machine.as_deref())?,
     };
     check_baseline(&source, &baseline)?;
+    let other_machine = options
+        .machine
+        .filter(|machine| hardware(machine) != hardware(&baseline.record.machine));
     let recorded = baseline.record.mib_per_fixture as usize;
     let recorded_or_default = if (1..=4096).contains(&recorded) {
         recorded
@@ -127,7 +141,17 @@ fn prepare_check(args: &[String], flavour: BuildFlavour, history: &Path) -> Resu
         baseline,
         tolerance: options.tolerance,
         mib: options.mib.unwrap_or(recorded_or_default),
+        other_machine,
     })
+}
+
+/// What makes two machine descriptions the same machine: all of the text but the toolchain
+/// that ends it (`.., rustc 1.96.0`).
+fn hardware(machine: &str) -> &str {
+    machine
+        .rsplit_once(", rustc ")
+        .map_or(machine, |(hardware, _)| hardware)
+        .trim()
 }
 
 fn parse_check_options(args: &[String]) -> Result<CheckOptions> {
@@ -135,13 +159,17 @@ fn parse_check_options(args: &[String]) -> Result<CheckOptions> {
         baseline: None,
         tolerance: DEFAULT_TOLERANCE,
         mib: None,
+        machine: None,
     };
     let mut iter = args.iter();
     while let Some(flag) = iter.next() {
         if flag == "--check" {
             continue;
         }
-        if !matches!(flag.as_str(), "--baseline" | "--tolerance" | "--mib") {
+        if !matches!(
+            flag.as_str(),
+            "--baseline" | "--tolerance" | "--mib" | "--machine"
+        ) {
             bail!(TAKES_ONLY);
         }
         let Some(value) = iter.next() else {
@@ -158,22 +186,33 @@ fn parse_check_options(args: &[String]) -> Result<CheckOptions> {
                         format!("--tolerance needs a number in (0, 1], got '{value}'")
                     })?;
             }
+            "--machine" => options.machine = Some(value.clone()),
             _ => options.mib = Some(crate::parse_mib(value)?),
         }
     }
     Ok(options)
 }
 
-/// The record with the highest version in `dir`, and its name as printed.
-fn newest_record(dir: &Path) -> Result<(String, Release)> {
-    let newest = perf_history::load_history(dir)
+/// The baseline `dir` offers, and its name as printed: the record with the highest version.
+/// When the machine of the run is known, the newest usable record of that same machine comes
+/// first, because only figures of one machine can be compared as they are; hosted runners of
+/// one label are several CPU models.
+fn newest_record(dir: &Path, machine: Option<&str>) -> Result<(String, Release)> {
+    let mut releases = perf_history::load_history(dir)
         .ok()
-        .and_then(|mut releases| releases.pop())
+        .filter(|releases| !releases.is_empty())
         .with_context(|| {
             format!(
                 "no perf record in perf/history/{PLATFORM}; the Release workflow writes the first, or pass --baseline FILE"
             )
         })?;
+    let same_machine = machine.and_then(|machine| {
+        releases.iter().rposition(|release| {
+            hardware(&release.record.machine) == hardware(machine)
+                && check_baseline("", release).is_ok()
+        })
+    });
+    let newest = releases.swap_remove(same_machine.unwrap_or(releases.len() - 1));
     // scripts/release.sh names every record v<version>.json.
     Ok((
         format!("perf/history/{PLATFORM}/v{}.json", newest.version),
@@ -238,8 +277,18 @@ fn quoted_list(names: &[&str]) -> String {
 
 /// One row per measured fixture, in `FIXTURES` order. A fixture is `slower` when `now <
 /// tolerance * baseline`; exactly at the band passes. One the baseline lacks is never slower.
-fn compare(baseline: &[Throughput], now: &[Throughput], tolerance: f64) -> Vec<CheckRow> {
-    FIXTURES
+///
+/// `other_machine`: the baseline is another machine's, so the band is laid around the median
+/// ratio of this run instead of around 1: a fixture is `slower` when its ratio is below
+/// `tolerance * median`. A slower or faster machine moves every ratio and the median with them;
+/// a fixture that fell behind the others still stands out.
+fn compare(
+    baseline: &[Throughput],
+    now: &[Throughput],
+    tolerance: f64,
+    other_machine: bool,
+) -> Vec<CheckRow> {
+    let mut rows: Vec<CheckRow> = FIXTURES
         .iter()
         .filter_map(|fixture| {
             let after = now.iter().find(|row| row.fixture == fixture.name)?;
@@ -254,7 +303,32 @@ fn compare(baseline: &[Throughput], now: &[Throughput], tolerance: f64) -> Vec<C
                 slower: before.is_some_and(|before| after.mib_per_second < tolerance * before),
             })
         })
-        .collect()
+        .collect();
+    if other_machine {
+        let median = median_ratio(&rows);
+        for row in &mut rows {
+            row.slower = match (row.baseline, median) {
+                (Some(before), Some(median)) => row.now / before < tolerance * median,
+                _ => false,
+            };
+        }
+    }
+    rows
+}
+
+/// The median of `now / baseline` over the fixtures that have a baseline.
+fn median_ratio(rows: &[CheckRow]) -> Option<f64> {
+    let mut ratios: Vec<f64> = rows
+        .iter()
+        .filter_map(|row| row.baseline.map(|before| row.now / before))
+        .collect();
+    ratios.sort_by(f64::total_cmp);
+    let middle = ratios.len() / 2;
+    let upper = *ratios.get(middle)?;
+    if ratios.len() % 2 == 1 {
+        return Some(upper);
+    }
+    Some((ratios.get(middle - 1)? + upper) / 2.0)
 }
 
 fn render_check(plan: &CheckPlan, rows: &[CheckRow]) -> String {
@@ -266,8 +340,33 @@ fn render_check(plan: &CheckPlan, rows: &[CheckRow]) -> String {
     } else {
         format!("v{version}, {}", record.date)
     };
+    // On another machine the band lies around the median ratio of the run.
+    let median = plan
+        .other_machine
+        .as_ref()
+        .map(|_| median_ratio(rows).unwrap_or(1.0));
+    let (this_machine, rule) = match (&plan.other_machine, median) {
+        (Some(machine), Some(median)) => (
+            format!("This machine: {machine}\n"),
+            format!(
+                "The baseline is another machine's: fixtures are judged against the median ratio of this run, {median:.2}.\nA fixture fails below {tolerance:.2} x that median ({:.2}); exactly at it passes.",
+                tolerance * median
+            ),
+        ),
+        _ => (
+            String::new(),
+            format!(
+                "A fixture fails below {tolerance:.2} x its baseline MiB/s; exactly {tolerance:.2} passes."
+            ),
+        ),
+    };
+    let band = if median.is_some() {
+        "the median ratio"
+    } else {
+        "baseline"
+    };
     let mut text = format!(
-        "# vt-bench grid --check\n\nBaseline: {} ({stamp})\nBaseline machine: {}\nRun: {COLUMNS}x{LINES}, {} MiB per fixture, median of {RUNS} cycles after 1 warm-up.\nA fixture fails below {tolerance:.2} x its baseline MiB/s; exactly {tolerance:.2} passes.\n\n| Fixture | baseline MiB/s | now MiB/s | ratio | verdict |\n|---|---:|---:|---:|---|\n",
+        "# vt-bench grid --check\n\nBaseline: {} ({stamp})\nBaseline machine: {}\n{this_machine}Run: {COLUMNS}x{LINES}, {} MiB per fixture, median of {RUNS} cycles after 1 warm-up.\n{rule}\n\n| Fixture | baseline MiB/s | now MiB/s | ratio | verdict |\n|---|---:|---:|---:|---|\n",
         plan.source, record.machine, plan.mib
     );
     for row in rows {
@@ -303,12 +402,12 @@ fn render_check(plan: &CheckPlan, rows: &[CheckRow]) -> String {
     if slower.is_empty() {
         let _ = writeln!(
             text,
-            "\nPASS: {judged} of {judged} fixtures at or above {tolerance:.2} x baseline"
+            "\nPASS: {judged} of {judged} fixtures at or above {tolerance:.2} x {band}"
         );
     } else {
         let _ = writeln!(
             text,
-            "\nFAIL: {} of {judged} fixtures below {tolerance:.2} x baseline: {}",
+            "\nFAIL: {} of {judged} fixtures below {tolerance:.2} x {band}: {}",
             slower.len(),
             slower.join(", ")
         );
@@ -470,7 +569,6 @@ mod tests {
         for extra in [
             &["--json"][..],
             &["--out", "F"],
-            &["--machine", "M"],
             &["--frames", "5"],
             &["--fixture", "plain_ascii"],
         ] {
@@ -478,9 +576,11 @@ mod tests {
             args.extend(strings(extra));
             assert_eq!(
                 error_text(parse_check_options(&args)),
-                "'grid --check' takes only --baseline, --tolerance and --mib"
+                "'grid --check' takes only --baseline, --tolerance, --mib and --machine"
             );
         }
+        let with_machine = parse_check_options(&strings(&["--check", "--machine", "M"])).unwrap();
+        assert_eq!(with_machine.machine.as_deref(), Some("M"));
         assert!(parse_check_options(&strings(&["--check", "--mib", "0"])).is_err());
         assert_eq!(
             error_text(parse_check_options(&strings(&["--check", "--baseline"]))),
@@ -491,9 +591,9 @@ mod tests {
     #[test]
     fn exactly_at_band_passes() {
         let baseline = all_rows(100.0);
-        let at_band = compare(&baseline, &all_rows(50.0), 0.5);
+        let at_band = compare(&baseline, &all_rows(50.0), 0.5, false);
         assert!(at_band.iter().all(|row| !row.slower));
-        let below = compare(&baseline, &all_rows(49.99), 0.5);
+        let below = compare(&baseline, &all_rows(49.99), 0.5, false);
         assert!(below.iter().all(|row| row.slower));
     }
 
@@ -501,7 +601,7 @@ mod tests {
     fn rows_follow_fixture_order() {
         let mut baseline = all_rows(100.0);
         baseline.reverse();
-        let rows = compare(&baseline, &all_rows(90.0), 0.5);
+        let rows = compare(&baseline, &all_rows(90.0), 0.5, false);
         let names: Vec<&str> = rows.iter().map(|row| row.fixture.as_str()).collect();
         let expected: Vec<&str> = FIXTURES.iter().map(|fixture| fixture.name).collect();
         assert_eq!(names, expected);
@@ -545,7 +645,7 @@ mod tests {
         check_baseline("b.json", &baseline).unwrap();
 
         // The new fixtures run far below any band; they still cannot fail the check.
-        let rows = compare(&early_rows(100.0), &all_rows(1.0), 0.5);
+        let rows = compare(&early_rows(100.0), &all_rows(1.0), 0.5, false);
         assert_eq!(rows.len(), FIXTURES.len());
         let unjudged: Vec<&str> = rows
             .iter()
@@ -570,6 +670,7 @@ mod tests {
             baseline,
             tolerance: 0.5,
             mib: 32,
+            other_machine: None,
         };
         let text = render_check(&plan, &rows);
         assert!(text.contains("| `hyperlinks` | - | 1.0 | - | no baseline |\n"));
@@ -592,7 +693,7 @@ mod tests {
 
     #[test]
     fn the_shipped_history_still_checks() {
-        let (source, newest) = newest_record(&Path::new(HISTORY_DIR).join(PLATFORM)).unwrap();
+        let (source, newest) = newest_record(&Path::new(HISTORY_DIR).join(PLATFORM), None).unwrap();
         check_baseline(&source, &newest).unwrap();
     }
 
@@ -649,7 +750,7 @@ mod tests {
                 &release(version, 160, 45, 32, all_rows(1.0)),
             );
         }
-        let (source, newest) = newest_record(&dir.0).unwrap();
+        let (source, newest) = newest_record(&dir.0, None).unwrap();
         assert_eq!(source, format!("perf/history/{PLATFORM}/v0.10.0.json"));
         assert_eq!(newest.record.version, "0.10.0");
     }
@@ -726,6 +827,7 @@ mod tests {
             baseline,
             tolerance: 0.5,
             mib: 32,
+            other_machine: None,
         };
         let check_row = |fixture: &str, baseline, now, slower| CheckRow {
             fixture: fixture.to_owned(),
@@ -771,9 +873,204 @@ A fixture fails below 0.50 x its baseline MiB/s; exactly 0.50 passes.
             baseline,
             tolerance: 0.25,
             mib: 8,
+            other_machine: None,
         };
         let text = render_check(&plan, &[]);
         assert!(text.contains("Baseline: base.json (v0.1.0)\n"));
         assert!(text.contains("fails below 0.25 x its baseline MiB/s; exactly 0.25 passes."));
+    }
+    // ---- A run on another machine than the baseline's ----
+
+    fn slower_names(rows: &[CheckRow]) -> Vec<&str> {
+        rows.iter()
+            .filter(|row| row.slower)
+            .map(|row| row.fixture.as_str())
+            .collect()
+    }
+
+    #[test]
+    fn hardware_is_the_machine_without_its_toolchain() {
+        assert_eq!(hardware("box, 4 vCPU X, rustc 1.96.0"), "box, 4 vCPU X");
+        assert_eq!(
+            hardware("box, 4 vCPU X, rustc 1.97.1"),
+            hardware("box, 4 vCPU X, rustc 1.96.0")
+        );
+        assert_eq!(hardware("box"), "box");
+        assert_ne!(
+            hardware("box, 4 vCPU X, rustc 1.96.0"),
+            hardware("box, 4 vCPU Y, rustc 1.96.0")
+        );
+    }
+
+    #[test]
+    fn another_machine_is_judged_against_the_median_of_its_run() {
+        // A slower runner: every fixture near 0.6 of the baseline, one at 0.48.
+        let baseline = all_rows(100.0);
+        let mut now = all_rows(60.0);
+        now[9].mib_per_second = 48.0;
+        assert_eq!(
+            slower_names(&compare(&baseline, &now, 0.5, false)),
+            ["osc_9_7"]
+        );
+        assert!(slower_names(&compare(&baseline, &now, 0.5, true)).is_empty());
+
+        // A fixture at half of what the others hold is exactly at the band; below it fails.
+        now[9].mib_per_second = 30.0;
+        assert!(slower_names(&compare(&baseline, &now, 0.5, true)).is_empty());
+        now[9].mib_per_second = 29.9;
+        assert_eq!(
+            slower_names(&compare(&baseline, &now, 0.5, true)),
+            ["osc_9_7"]
+        );
+
+        // A faster runner does not hide a fixture that fell behind.
+        let mut now = all_rows(200.0);
+        now[2].mib_per_second = 90.0;
+        assert!(slower_names(&compare(&baseline, &now, 0.5, false)).is_empty());
+        assert_eq!(
+            slower_names(&compare(&baseline, &now, 0.5, true)),
+            ["heavy_sgr"]
+        );
+    }
+
+    #[test]
+    fn the_median_ratio_skips_fixtures_without_a_baseline() {
+        let check_row = |baseline, now| CheckRow {
+            fixture: "f".to_owned(),
+            baseline,
+            now,
+            slower: false,
+        };
+        assert_eq!(median_ratio(&[]), None);
+        assert_eq!(median_ratio(&[check_row(None, 5.0)]), None);
+        let odd = [
+            check_row(Some(100.0), 90.0),
+            check_row(None, 1.0),
+            check_row(Some(100.0), 30.0),
+            check_row(Some(100.0), 60.0),
+        ];
+        assert_eq!(median_ratio(&odd), Some(0.6));
+        assert_eq!(median_ratio(&odd[..3]), Some(0.6));
+        // A fixture new since the baseline is never slower, on any machine.
+        let rows = compare(&early_rows(100.0), &all_rows(1.0), 0.5, true);
+        assert!(slower_names(&rows).is_empty());
+    }
+
+    fn record_on(dir: &TempDir, version: &str, machine: &str, rows: Vec<Throughput>) {
+        let mut release = release(version, 160, 45, 32, rows);
+        release.record.machine = machine.to_owned();
+        dir.write_record(&format!("v{version}.json"), &release);
+    }
+
+    #[test]
+    fn the_baseline_is_the_newest_record_of_the_same_machine() {
+        let dir = TempDir::new("machines");
+        record_on(&dir, "0.1.0", "runner, cpu A, rustc 1.95.0", all_rows(1.0));
+        record_on(&dir, "0.2.0", "runner, cpu B, rustc 1.96.0", all_rows(1.0));
+        record_on(&dir, "0.3.0", "runner, cpu B, rustc 1.96.0", all_rows(1.0));
+        let plan = |machine: Option<&str>| {
+            let mut args = strings(&["--check"]);
+            if let Some(machine) = machine {
+                args.extend(strings(&["--machine", machine]));
+            }
+            let plan = prepare_check(&args, CLEAN, &dir.0).unwrap();
+            (plan.baseline.record.version.clone(), plan.other_machine)
+        };
+        // Nothing is known about this machine: the newest record, held as it is.
+        assert_eq!(plan(None), ("0.3.0".to_owned(), None));
+        // The same machine with a newer toolchain is the same machine.
+        assert_eq!(
+            plan(Some("runner, cpu B, rustc 1.99.0")),
+            ("0.3.0".to_owned(), None)
+        );
+        // An older record of this machine beats a newer one of another.
+        assert_eq!(
+            plan(Some("runner, cpu A, rustc 1.96.0")),
+            ("0.1.0".to_owned(), None)
+        );
+        // No record of this machine: the newest one, judged against the median.
+        let unknown = "runner, cpu C, rustc 1.96.0";
+        assert_eq!(
+            plan(Some(unknown)),
+            ("0.3.0".to_owned(), Some(unknown.to_owned()))
+        );
+    }
+
+    #[test]
+    fn a_record_of_the_same_machine_that_is_no_baseline_is_passed_over() {
+        let dir = TempDir::new("stale");
+        let mut stale = all_rows(1.0);
+        stale.push(row("a_fixture_since_removed", 1.0));
+        record_on(&dir, "0.1.0", "runner, cpu A, rustc 1.95.0", stale);
+        record_on(&dir, "0.2.0", "runner, cpu B, rustc 1.96.0", all_rows(1.0));
+        let machine = "runner, cpu A, rustc 1.96.0";
+        let args = strings(&["--check", "--machine", machine]);
+        let plan = prepare_check(&args, CLEAN, &dir.0).unwrap();
+        assert_eq!(plan.baseline.record.version, "0.2.0");
+        assert_eq!(plan.other_machine.as_deref(), Some(machine));
+    }
+
+    #[test]
+    fn a_named_baseline_of_another_machine_is_judged_against_the_median() {
+        let dir = TempDir::new("named");
+        let path = dir.write_record("base.json", &release("0.1.0", 160, 45, 32, all_rows(1.0)));
+        let plan = |machine: &str| {
+            let args = strings(&[
+                "--check",
+                "--baseline",
+                path.to_str().unwrap(),
+                "--machine",
+                machine,
+            ]);
+            prepare_check(&args, CLEAN, &dir.0).unwrap().other_machine
+        };
+        assert_eq!(plan("box"), None);
+        assert_eq!(plan("another box"), Some("another box".to_owned()));
+    }
+
+    #[test]
+    fn report_for_another_machine_is_exact() {
+        let plan = CheckPlan {
+            source: "perf/history/linux/v0.3.0.json".to_owned(),
+            baseline: release("0.3.0", 160, 45, 32, Vec::new()),
+            tolerance: 0.5,
+            mib: 32,
+            other_machine: Some("another box".to_owned()),
+        };
+        let check_row = |fixture: &str, now, slower| CheckRow {
+            fixture: fixture.to_owned(),
+            baseline: Some(100.0),
+            now,
+            slower,
+        };
+        let rows = [
+            check_row("plain_ascii", 60.0, false),
+            check_row("heavy_sgr", 20.0, true),
+            check_row("osc_9_7", 48.0, false),
+        ];
+        let header = "\
+# vt-bench grid --check
+
+Baseline: perf/history/linux/v0.3.0.json (v0.3.0, 2026-11-30)
+Baseline machine: box
+This machine: another box
+Run: 160x45, 32 MiB per fixture, median of 5 cycles after 1 warm-up.
+The baseline is another machine's: fixtures are judged against the median ratio of this run, 0.48.
+A fixture fails below 0.50 x that median (0.24); exactly at it passes.
+
+| Fixture | baseline MiB/s | now MiB/s | ratio | verdict |
+|---|---:|---:|---:|---|
+";
+        assert_eq!(
+            render_check(&plan, &rows),
+            format!(
+                "{header}| `plain_ascii` | 100.0 | 60.0 | 0.60 | ok |\n| `heavy_sgr` | 100.0 | 20.0 | 0.20 | SLOWER |\n| `osc_9_7` | 100.0 | 48.0 | 0.48 | ok |\n\nFAIL: 1 of 3 fixtures below 0.50 x the median ratio: `heavy_sgr`\n"
+            )
+        );
+        let text = render_check(&plan, &rows[..1]);
+        assert!(
+            text.ends_with("\nPASS: 1 of 1 fixtures at or above 0.50 x the median ratio\n"),
+            "{text}"
+        );
     }
 }

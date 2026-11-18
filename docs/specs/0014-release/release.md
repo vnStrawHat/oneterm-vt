@@ -40,10 +40,16 @@ shell `sort -V`, whose behaviour differs between GNU and BSD `sort`):
 ```bash
 cargo test --workspace
 if [ -d "perf/history/$P" ]; then trip_wire; record; else record; trip_wire; fi
-# trip_wire: cargo run -p oneterm-vt-bench --release -- grid --check | tee -a "$GITHUB_STEP_SUMMARY"
+# trip_wire: cargo run -p oneterm-vt-bench --release -- grid --check --machine "$VT_BENCH_MACHINE" \
+#                | tee -a "$GITHUB_STEP_SUMMARY"
 # record:    mkdir -p "perf/history/$P" && cargo run -p oneterm-vt-bench --release -- all --mib 32 --json \
 #                --machine "$VT_BENCH_MACHINE" --out "perf/history/$P/v$V.json" | tee -a "$GITHUB_STEP_SUMMARY"
 ```
+
+`--machine` (added after the v0.4.0 release run failed on it): a hosted runner label is several
+CPU models, and a run on a slower model read every fixture at 0.55 to 0.76 of the baseline and
+one at 0.48. The check now picks the newest record of the same machine, or judges against the
+median ratio of the run (0013 check.md, "Another machine").
 
 With `--json` and `--out` the record goes to the file and stdout carries the markdown report of
 the same run (tiers 1-5), so the job summary shows the full measurement, then the trip-wire table.
@@ -76,7 +82,8 @@ input (fuzz), the target verdict on a quiet machine.
 ## When something fails
 
 - `bump`, `bench` or `finalize` red: nothing was pushed. Fix forward on `main`, run again. A red
-  trip-wire on one platform: read that job's summary table; a noisy runner may be retried with
+  trip-wire on one platform: read that job's summary table (it names both machines when they
+  differ); a noisy runner may be retried with
   "Re-run failed jobs" (the run keeps its `bump` artifact); a real regression is fixed first.
 - After the push: never move, delete or re-push a pushed tag (`docs/agents/commits.md`). Fix
   forward and release `0.1.1` with kind `patch`.
