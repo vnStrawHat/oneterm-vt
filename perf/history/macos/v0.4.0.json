@@ -1,0 +1,347 @@
+{
+  "engine": "oneterm-vt",
+  "version": "0.4.0",
+  "date": "2026-11-18",
+  "platform": "macos",
+  "machine": "GitHub macos-latest, macOS 26.7.2, 3 vCPU Apple M1 (Virtual), rustc 1.96.0",
+  "columns": 160,
+  "lines": 45,
+  "mib_per_fixture": 32,
+  "runs": 5,
+  "tiers": {
+    "tier1_parser": [
+      {
+        "fixture": "plain_ascii",
+        "mib_per_second": 2779.992596328878,
+        "ns_per_byte": 0.3430492288596832,
+        "spread_percent": 31.622200148105996
+      },
+      {
+        "fixture": "long_lines",
+        "mib_per_second": 9611.420059050914,
+        "ns_per_byte": 0.09922303994072039,
+        "spread_percent": 30.71029927691942
+      },
+      {
+        "fixture": "heavy_sgr",
+        "mib_per_second": 595.7122715685447,
+        "ns_per_byte": 1.6008975505828857,
+        "spread_percent": 34.66836146700345
+      },
+      {
+        "fixture": "tui_redraw",
+        "mib_per_second": 514.981170915218,
+        "ns_per_byte": 1.8518624956935654,
+        "spread_percent": 30.574356040876083
+      },
+      {
+        "fixture": "scroll_region",
+        "mib_per_second": 1826.3210761636994,
+        "ns_per_byte": 0.5221832726201145,
+        "spread_percent": 12.648310540047836
+      },
+      {
+        "fixture": "cjk_wide",
+        "mib_per_second": 755.4247191295327,
+        "ns_per_byte": 1.2624346175819585,
+        "spread_percent": 22.447602180020645
+      },
+      {
+        "fixture": "dense_cells",
+        "mib_per_second": 545.5927600545699,
+        "ns_per_byte": 1.7479599918277213,
+        "spread_percent": 21.870112464172365
+      },
+      {
+        "fixture": "scrolling",
+        "mib_per_second": 5780.762862685411,
+        "ns_per_byte": 0.16497378270992205,
+        "spread_percent": 43.55854059956629
+      },
+      {
+        "fixture": "sixel",
+        "mib_per_second": 794.3255101577151,
+        "ns_per_byte": 1.200608949619276,
+        "spread_percent": 45.24717023137181
+      },
+      {
+        "fixture": "osc_9_7",
+        "mib_per_second": 583.5589420631092,
+        "ns_per_byte": 1.6342382022879096,
+        "spread_percent": 31.685539368159933
+      },
+      {
+        "fixture": "grapheme_clusters",
+        "mib_per_second": 400.3520510400469,
+        "ns_per_byte": 2.3820892485220586,
+        "spread_percent": 30.906334720214186
+      },
+      {
+        "fixture": "hyperlinks",
+        "mib_per_second": 2401.3656683190184,
+        "ns_per_byte": 0.3971383154960453,
+        "spread_percent": 97.82160077063871
+      },
+      {
+        "fixture": "mode_churn",
+        "mib_per_second": 483.43670111072095,
+        "ns_per_byte": 1.9726973856455945,
+        "spread_percent": 19.488866859413573
+      },
+      {
+        "fixture": "sixel_large",
+        "mib_per_second": 1218.9295285317542,
+        "ns_per_byte": 0.7823867533629989,
+        "spread_percent": 27.207438065308757
+      },
+      {
+        "fixture": "unique_styles",
+        "mib_per_second": 495.71886215573727,
+        "ns_per_byte": 1.923820917886799,
+        "spread_percent": 49.169130406068795
+      },
+      {
+        "fixture": "unique_links",
+        "mib_per_second": 517.0754755077589,
+        "ns_per_byte": 1.8443619192531975,
+        "spread_percent": 34.22388278674948
+      },
+      {
+        "fixture": "kitty_images",
+        "mib_per_second": 1502.1439297823395,
+        "ns_per_byte": 0.6348754586682231,
+        "spread_percent": 45.13040150576127
+      }
+    ],
+    "tier2_grid": [
+      {
+        "fixture": "plain_ascii",
+        "mib_per_second": 529.3070678665648,
+        "ns_per_byte": 1.8017411334599176,
+        "spread_percent": 23.61593586861748
+      },
+      {
+        "fixture": "long_lines",
+        "mib_per_second": 1123.5956457295636,
+        "ns_per_byte": 0.8487700357605235,
+        "spread_percent": 54.56458104262184
+      },
+      {
+        "fixture": "heavy_sgr",
+        "mib_per_second": 193.4231592499715,
+        "ns_per_byte": 4.930507391691208,
+        "spread_percent": 47.880119179248254
+      },
+      {
+        "fixture": "tui_redraw",
+        "mib_per_second": 205.68322429121983,
+        "ns_per_byte": 4.636616912694714,
+        "spread_percent": 46.2726553603786
+      },
+      {
+        "fixture": "scroll_region",
+        "mib_per_second": 456.77200730578346,
+        "ns_per_byte": 2.0878563072010192,
+        "spread_percent": 33.67039468689686
+      },
+      {
+        "fixture": "cjk_wide",
+        "mib_per_second": 230.98749847022881,
+        "ns_per_byte": 4.128683685143964,
+        "spread_percent": 30.82462946714116
+      },
+      {
+        "fixture": "dense_cells",
+        "mib_per_second": 198.28210422714793,
+        "ns_per_byte": 4.809684263355104,
+        "spread_percent": 21.508298928855794
+      },
+      {
+        "fixture": "scrolling",
+        "mib_per_second": 1203.7310019326546,
+        "ns_per_byte": 0.7922653108336288,
+        "spread_percent": 29.796727871015293
+      },
+      {
+        "fixture": "sixel",
+        "mib_per_second": 52.13087976562903,
+        "ns_per_byte": 18.293846577955268,
+        "spread_percent": 48.2101013540157
+      },
+      {
+        "fixture": "osc_9_7",
+        "mib_per_second": 169.2651667648826,
+        "ns_per_byte": 5.634203035589414,
+        "spread_percent": 23.563405282807725
+      },
+      {
+        "fixture": "grapheme_clusters",
+        "mib_per_second": 41.86422320996901,
+        "ns_per_byte": 22.780174652306798,
+        "spread_percent": 12.819881033359607
+      },
+      {
+        "fixture": "hyperlinks",
+        "mib_per_second": 1232.8717512084017,
+        "ns_per_byte": 0.7735389471544825,
+        "spread_percent": 32.12750972002215
+      },
+      {
+        "fixture": "mode_churn",
+        "mib_per_second": 186.04632225245822,
+        "ns_per_byte": 5.126004668408053,
+        "spread_percent": 25.51600610511711
+      },
+      {
+        "fixture": "sixel_large",
+        "mib_per_second": 60.49585266462362,
+        "ns_per_byte": 15.764292499408537,
+        "spread_percent": 36.266029723502314
+      },
+      {
+        "fixture": "unique_styles",
+        "mib_per_second": 55.64420504293235,
+        "ns_per_byte": 17.138789487071325,
+        "spread_percent": 44.60342026794456
+      },
+      {
+        "fixture": "unique_links",
+        "mib_per_second": 79.17846887230226,
+        "ns_per_byte": 12.044616800361728,
+        "spread_percent": 73.83082479133232
+      },
+      {
+        "fixture": "kitty_images",
+        "mib_per_second": 227.89691741075134,
+        "ns_per_byte": 4.184674050186425,
+        "spread_percent": 25.027764308381638
+      }
+    ],
+    "tier3_render": [
+      {
+        "fixture": "plain_ascii",
+        "us_per_frame": 7.5745233333333335,
+        "cells": 1364
+      },
+      {
+        "fixture": "long_lines",
+        "us_per_frame": 4.278415,
+        "cells": 670
+      },
+      {
+        "fixture": "heavy_sgr",
+        "us_per_frame": 1.7420316666666666,
+        "cells": 186
+      },
+      {
+        "fixture": "tui_redraw",
+        "us_per_frame": 20.226485,
+        "cells": 5160
+      },
+      {
+        "fixture": "scroll_region",
+        "us_per_frame": 24.974293333333332,
+        "cells": 6846
+      },
+      {
+        "fixture": "cjk_wide",
+        "us_per_frame": 2.265188333333333,
+        "cells": 497
+      },
+      {
+        "fixture": "dense_cells",
+        "us_per_frame": 1.474945,
+        "cells": 204
+      },
+      {
+        "fixture": "scrolling",
+        "us_per_frame": 2.557526666666667,
+        "cells": 664
+      },
+      {
+        "fixture": "sixel",
+        "us_per_frame": 5.90355,
+        "cells": 1325
+      },
+      {
+        "fixture": "osc_9_7",
+        "us_per_frame": 6.407488333333333,
+        "cells": 1622
+      },
+      {
+        "fixture": "grapheme_clusters",
+        "us_per_frame": 2.803255,
+        "cells": 320
+      },
+      {
+        "fixture": "hyperlinks",
+        "us_per_frame": 0.918295,
+        "cells": 185
+      },
+      {
+        "fixture": "mode_churn",
+        "us_per_frame": 10.133435,
+        "cells": 2844
+      },
+      {
+        "fixture": "sixel_large",
+        "us_per_frame": 0.36264833333333335,
+        "cells": 44
+      },
+      {
+        "fixture": "unique_styles",
+        "us_per_frame": 1.1615283333333333,
+        "cells": 190
+      },
+      {
+        "fixture": "unique_links",
+        "us_per_frame": 6.456101666666667,
+        "cells": 1448
+      },
+      {
+        "fixture": "kitty_images",
+        "us_per_frame": 0.317145,
+        "cells": 21
+      }
+    ],
+    "tier4_resize": [
+      {
+        "scrollback_rows": 0,
+        "grow_us": 4.291,
+        "shrink_us": 3.333
+      },
+      {
+        "scrollback_rows": 10000,
+        "grow_us": 1054.2920000000001,
+        "shrink_us": 653.667
+      },
+      {
+        "scrollback_rows": 100000,
+        "grow_us": 11728.916000000001,
+        "shrink_us": 6659.8330000000005
+      }
+    ],
+    "tier5_memory": [
+      {
+        "content": "plain",
+        "heap_bytes": 13424606,
+        "heap_bytes_per_row": 1342.4606
+      },
+      {
+        "content": "unicode",
+        "heap_bytes": 13424606,
+        "heap_bytes_per_row": 1342.4606
+      },
+      {
+        "content": "styled",
+        "heap_bytes": 13429968,
+        "heap_bytes_per_row": 1342.9968
+      },
+      {
+        "content": "mixed",
+        "heap_bytes": 13427152,
+        "heap_bytes_per_row": 1342.7152
+      }
+    ]
+  }
+}
