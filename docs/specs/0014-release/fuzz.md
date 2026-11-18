@@ -29,7 +29,7 @@ libfuzzer-sys = "0.4"
 oneterm-vt = { path = "../crates/vt", default-features = false, features = ["vt-paranoid"] }
 
 [[bin]]
-name = "parser"            # likewise "feed", "resize"
+name = "parser"            # likewise "feed", "feed_frame", "resize"
 path = "fuzz_targets/parser.rs"
 test = false
 doc = false
@@ -50,9 +50,10 @@ bench = false
 |---|---|---|
 | `parser.rs` | `parser::Parser::new()` + a `Sink` implementing **every** `Dispatch` method, each passing its arguments (and every param, sub-param and OSC param) to `std::hint::black_box` | split at `data[0] as usize % len` into two `advance` calls, so state survives a chunk boundary |
 | `feed.rs` | `Terminal::new(Size { rows: 8, cols: 40 }, config)`, `scrollback_limit: 200`, `allow_screen_readback` from bit 0 of `data[0]`, routes `Forward` for 7501 and `BuiltinAndForward` for 52 | first 8 bytes = chunk lengths (`1 + b % 64`, cycling) over the rest; per chunk `feed` at `start + 50 ms x chunk index` (so the `?2026` timeout path runs), then resolve every span of every event with `batch.str` / `bytes` / `params` into `black_box`; after the last chunk one `snapshot_update` on one `SnapshotState`, then `take_graphics()` |
+| `feed_frame.rs` (added with `Terminal::feed_frame`) | three `Terminal::new(Size { rows: 4, cols: 16 }, ..)`, `scrollback_limit: 8` (small: one of them is fed byte by byte under `vt-paranoid`) | first 4 bytes = chunk lengths; then an op stream: tag `t`; `t & 3 == 0` -> one of 28 pieces (whole, cut and broken `?2026` sequences, the bytes that break a sequence); else the next `t >> 2` bytes as they are. The stream goes through `feed`, through a `feed_frame` loop and, one byte per call, through an oracle. **This target asserts**: `feed_frame` makes progress, reports at most one closed frame per call with the mode off at that point, stops at exactly the offsets where the oracle's one-byte feed closed a frame, and all three terminals end with the same rows, cursor, title, line count, modes and sync state |
 | `resize.rs` | `Terminal::new(Size { rows: 24, cols: 80 }, ..)`, `scrollback_limit: 200` | op stream: tag `t`; `t & 3 == 0` -> `resize(Size { rows: b1 % 70, cols: b2 }, policy)` with the policy from bit 2 and the next two bytes (0 rows/cols exercise the clamp); else `feed` the next `t >> 2` bytes; one `snapshot_update` after every resize |
 
-No target asserts: a panic, an abort, an OOM or a timeout is the finding.
+`parser`, `feed` and `resize` assert nothing: a panic, an abort, an OOM or a timeout is the finding.
 
 ## The run (per target, before each release, at the commit to be released)
 
@@ -62,8 +63,9 @@ rustup toolchain install nightly-2026-05-25 --profile minimal
 cargo install cargo-fuzz --locked
 # seed the byte targets from the bench fixtures (1 MiB each, truncated by -max_len)
 cargo run -p oneterm-vt-bench --release -- fixtures --out fuzz/corpus/feed --mib 1
-mkdir -p fuzz/corpus/parser && cp fuzz/corpus/feed/* fuzz/corpus/parser/
-# each of parser, feed, resize
+mkdir -p fuzz/corpus/parser fuzz/corpus/feed_frame
+cp fuzz/corpus/feed/* fuzz/corpus/parser/ && cp fuzz/corpus/feed/* fuzz/corpus/feed_frame/
+# each of parser, feed, feed_frame, resize
 cargo +nightly-2026-05-25 fuzz run --target-dir target/fuzz-linux feed -- \
     -max_total_time=600 -rss_limit_mb=512 -max_len=4096 -timeout=10
 ```

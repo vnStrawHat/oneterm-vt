@@ -28,6 +28,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "feed_frame"
+path = "fuzz_targets/feed_frame.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "resize"
 path = "fuzz_targets/resize.rs"
 test = false

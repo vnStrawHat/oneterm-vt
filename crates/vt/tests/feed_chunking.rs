@@ -1,6 +1,6 @@
 //! Chunking invariance: any split of a stream gives the same screen, cursor, title and events.
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use oneterm_vt::{Config, EventBatch, Size, Terminal, VtEvent};
 use proptest::prelude::*;
@@ -29,6 +29,11 @@ fn piece() -> impl Strategy<Value = Vec<u8>> {
             bytes("\x1b]2;a\x01b\x07"), bytes("\x1bPq\"1;1;4;2#1~~-~\x1b\\"),
             bytes("\x1bPq#0;2;0;0;0!5~\x1b\\"), bytes("\x1b]"), bytes("\x1bP"),
             bytes("\u{4E2D}\u{4E2D}a\u{4E2D}"), bytes("\x1b[?1049h\x1b[1;5r"),
+            // Synchronized output: whole, back to back, cut, and with its digits split.
+            bytes("\x1b[?2026h"), bytes("\x1b[?2026l"), bytes("\x1b[?2026l\x1b[?2026h"),
+            bytes("\x1b[?2026"), bytes("\x1b[?"), bytes("2026"), bytes("26"), bytes("l"),
+            bytes("\x1b[?25;2026l"), bytes("\x1b[?20\r26l"), bytes("\x1b[?2\x7f026l"),
+            bytes("\x1b[?2026r"), bytes("\x1bc"),
         ]),
         1 => any::<u8>().prop_map(|byte| vec![byte]),
     ]
@@ -97,9 +102,10 @@ fn released(batch: &EventBatch) -> Vec<u64> {
 }
 
 /// Ends a run with an empty feed (it drains the last sweep), then returns every released id
-/// and every live placement id, each released id once, none of them live.
+/// and every live placement id, each released id once, none of them live. The feed is dated
+/// past the synchronized-output watchdog: an open block holds releases back until then.
 fn finish_images(term: &mut Terminal, batch: &mut EventBatch, mut released: Vec<u64>) -> Vec<u64> {
-    term.feed(&[], batch, Instant::now());
+    term.feed(&[], batch, Instant::now() + Duration::from_secs(2));
     released.extend(self::released(batch));
     let live: Vec<u64> = term
         .placements()
@@ -169,5 +175,55 @@ proptest! {
             finish_images(&mut whole, &mut batch, whole_released)
         );
         prop_assert_eq!(unhandled, whole_stats.unhandled_sequences);
+    }
+
+    /// `feed_frame` returns exactly where a synchronized update closes, and otherwise is `feed`.
+    /// The oracle is a terminal fed one byte at a time: the byte whose feed reports a closed
+    /// frame is the last one `feed_frame` may take.
+    #[test]
+    fn feed_frame_stops_where_a_frame_closes(
+        bytes in stream(),
+        sizes in prop::collection::vec(1usize..=64, 1..40),
+    ) {
+        let now = Instant::now();
+        let mut batch = EventBatch::new();
+        let mut oracle = new_terminal();
+        let mut closes = Vec::new();
+        for (index, byte) in bytes.iter().enumerate() {
+            let stats = oracle.feed(std::slice::from_ref(byte), &mut batch, now);
+            if stats.frames_closed > 0 {
+                closes.push(index + 1);
+            }
+        }
+
+        let mut plain = new_terminal();
+        let mut framed = new_terminal();
+        let mut plain_closed = 0usize;
+        let mut stops = Vec::new();
+        let mut offset = 0;
+        let mut sizes = sizes.iter().cycle();
+        while offset < bytes.len() {
+            let end = (offset + *sizes.next().unwrap_or(&1)).min(bytes.len());
+            let chunk = &bytes[offset..end];
+            plain_closed += plain.feed(chunk, &mut batch, now).frames_closed as usize;
+            let mut rest = chunk;
+            while !rest.is_empty() {
+                let stats = framed.feed_frame(rest, &mut batch, now);
+                prop_assert!((1..=rest.len()).contains(&stats.bytes), "no progress");
+                rest = &rest[stats.bytes..];
+                if stats.frames_closed > 0 {
+                    prop_assert_eq!(stats.frames_closed, 1, "passed a closed frame");
+                    prop_assert!(!framed.sync().is_set(), "stopped after the next block opened");
+                    stops.push(end - rest.len());
+                }
+            }
+            offset = end;
+        }
+
+        prop_assert_eq!(&stops, &closes);
+        prop_assert_eq!(plain_closed, closes.len());
+        prop_assert_eq!(state(&framed), state(&plain));
+        prop_assert_eq!(framed.mode_snapshot(), plain.mode_snapshot());
+        prop_assert_eq!(state(&plain), state(&oracle));
     }
 }

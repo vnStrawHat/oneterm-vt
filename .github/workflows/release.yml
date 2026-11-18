@@ -112,11 +112,12 @@ jobs:
       - name: Seed the corpus from the bench fixtures
         run: |
           cargo run -p oneterm-vt-bench --release -- fixtures --out fuzz/corpus/feed --mib 1
-          mkdir -p fuzz/corpus/parser
+          mkdir -p fuzz/corpus/parser fuzz/corpus/feed_frame
           cp fuzz/corpus/feed/* fuzz/corpus/parser/
+          cp fuzz/corpus/feed/* fuzz/corpus/feed_frame/
       - name: Fuzz every target (200 s each)
         run: |
-          for target in parser feed resize; do
+          for target in parser feed feed_frame resize; do
             cargo "+$FUZZ_NIGHTLY" fuzz run --target-dir target/fuzz-linux "$target" -- \
               -max_total_time=200 -rss_limit_mb=512 -max_len=4096 -timeout=10
           done
