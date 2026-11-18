@@ -421,7 +421,7 @@ impl Terminal {
         state.dispatched = false;
         if bytes.is_empty() {
             // A resize may have released images since the last feed; deliver them here.
-            state.graphics.drain_released(batch);
+            state.graphics.drain_released(batch, &state.sync, now);
             return state.stats;
         }
         let before = state.baselines();
@@ -440,7 +440,7 @@ impl Terminal {
         if !state.graphics.placements.is_empty() {
             state.graphics.sweep(&mut state.grid);
         }
-        state.graphics.drain_released(batch);
+        state.graphics.drain_released(batch, &state.sync, now);
         state.sweep_extras_if_due();
         state.add_deltas(before);
         state.stats.unhandled_sequences = state

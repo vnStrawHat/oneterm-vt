@@ -66,6 +66,18 @@ impl SyncState {
         now < open_until
     }
 
+    /// Whether an image release first held back at `since` must still wait at `now`: frames
+    /// are held, so a held frame may show the image, and the release has waited less than the
+    /// watchdog period. The bound holds whatever the program does: one that opens a block
+    /// right after every close would otherwise hold releases, and their textures, for ever.
+    pub(crate) fn defers_release(&self, since: Instant, now: Instant) -> bool {
+        let held = matches!(
+            (self.open_until, self.watchdog),
+            (Some(open_until), Some(watchdog)) if now < open_until && now < watchdog
+        );
+        held && now.saturating_duration_since(since) < SYNC_WATCHDOG
+    }
+
     /// The instant a held-back renderer must ask again: the earlier of the refresh deadline
     /// and the watchdog. `None` while the mode is off.
     pub fn deadline(&self) -> Option<Instant> {

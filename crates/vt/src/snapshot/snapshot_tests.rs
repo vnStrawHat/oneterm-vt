@@ -709,11 +709,19 @@ fn an_image_swapped_inside_a_block_stays_in_the_held_frame() {
     s.feed(&goto(1, 0));
     s.feed(b"\x1b[M");
     assert!(s.term.placements().is_empty(), "the engine dropped it");
+    let released = |s: &Session| {
+        s.batch
+            .iter()
+            .any(|e| matches!(e, VtEvent::GraphicReleased(_)))
+    };
+    assert!(!released(&s), "its release waits with the frame");
     assert_eq!(s.update(), SnapshotUpdate::Unchanged);
     assert_eq!(s.state.placements(), shown, "the held frame still shows it");
 
     s.feed(&image(10, 20, 1));
+    assert!(!released(&s));
     s.feed(b"\x1b[?2026l");
+    assert!(released(&s), "delivered by the feed that closes the block");
     assert_ne!(s.update(), SnapshotUpdate::Unchanged);
     assert_eq!(s.state.placements().len(), 1);
     assert_ne!(s.state.placements()[0].id, shown[0].id, "the new picture");

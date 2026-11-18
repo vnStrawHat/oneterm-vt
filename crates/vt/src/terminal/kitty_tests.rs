@@ -4,7 +4,7 @@
 //! takes an id when it is transmitted and each placement of it the next ones; an unnamed
 //! image and a Sixel image are their own placement and take one id.
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use miniz_oxide::deflate::compress_to_vec_zlib;
 
@@ -675,7 +675,7 @@ fn an_image_deleted_inside_a_synchronized_update_stays_in_the_held_frame() {
     s.term.feed(b"\x1b[?2026h", &mut s.batch, now);
     s.term
         .feed(b"\x1b_Ga=d,d=I,i=7,q=2\x1b\\", &mut s.batch, now);
-    assert_eq!(released(&s).len(), 2, "the placement and its image");
+    assert!(released(&s).is_empty(), "the held frame still shows it");
     assert_eq!(
         s.term.snapshot_update(&mut state, now),
         SnapshotUpdate::Unchanged
@@ -687,11 +687,66 @@ fn an_image_deleted_inside_a_synchronized_update_stays_in_the_held_frame() {
     );
 
     s.term.feed(b"\x1b[?2026l", &mut s.batch, now);
+    assert_eq!(released(&s).len(), 2, "the placement and its image");
     assert_ne!(
         s.term.snapshot_update(&mut state, now),
         SnapshotUpdate::Unchanged
     );
     assert!(state.placements().is_empty());
+}
+
+/// Deletes image 7 inside an open block at `at` and returns how many releases that feed gave.
+fn delete_in_block(s: &mut Session, at: Instant) -> usize {
+    s.term.feed(b"\x1b[?2026h", &mut s.batch, at);
+    s.term
+        .feed(b"\x1b_Ga=d,d=I,i=7,q=2\x1b\\", &mut s.batch, at);
+    released(s).len()
+}
+
+#[test]
+fn a_release_held_back_arrives_once_frames_are_no_longer_held() {
+    let mut s = Session::new(20, 5);
+    let t = Instant::now();
+    dot(&mut s, "a=T,i=7,q=2");
+    assert_eq!(delete_in_block(&mut s, t), 0);
+    // No output at all: an empty feed still holds it while the frame is held.
+    s.term
+        .feed(b"", &mut s.batch, t + Duration::from_millis(149));
+    assert!(released(&s).is_empty());
+    // The refresh deadline passed: frames are drawn again, the mode still set.
+    s.term
+        .feed(b"", &mut s.batch, t + Duration::from_millis(150));
+    assert_eq!(released(&s).len(), 2);
+    assert!(s.term.sync().is_set());
+    s.term
+        .feed(b"", &mut s.batch, t + Duration::from_millis(151));
+    assert!(released(&s).is_empty(), "delivered once");
+}
+
+#[test]
+fn a_release_never_waits_longer_than_the_watchdog() {
+    let mut s = Session::new(20, 5);
+    let t = Instant::now();
+    dot(&mut s, "a=T,i=7,q=2");
+    assert_eq!(delete_in_block(&mut s, t), 0);
+    // The program closes each block and opens the next in one read, for ever.
+    let mut at = t;
+    while at + Duration::from_millis(50) < t + Duration::from_secs(1) {
+        at += Duration::from_millis(50);
+        s.term.feed(b"\x1b[?2026l\x1b[?2026h", &mut s.batch, at);
+        assert!(released(&s).is_empty(), "{:?}", at - t);
+    }
+    let late = t + Duration::from_secs(1);
+    s.term.feed(b"\x1b[?2026l\x1b[?2026h", &mut s.batch, late);
+    assert_eq!(released(&s).len(), 2);
+}
+
+#[test]
+fn outside_a_block_a_release_arrives_with_its_feed() {
+    let mut s = Session::new(20, 5);
+    dot(&mut s, "a=T,i=7,q=2");
+    send(&mut s, "a=d,d=I,i=7,q=2", b"");
+    assert_eq!(released(&s).len(), 2);
 }
 
 mod hostile {

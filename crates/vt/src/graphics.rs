@@ -15,10 +15,12 @@
 //! [`sixel`] and, with the `kitty-graphics` feature, at `kitty`.
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use crate::events::{EventBatch, VtEvent};
 use crate::grid::AnchorId;
 use crate::intern::GraphicId;
+use crate::snapshot::SyncState;
 
 use self::sixel::SixelDecoder;
 
@@ -116,6 +118,9 @@ pub(crate) struct GraphicsState {
     pub(crate) live_bytes: usize,
     /// Ids released since the last feed delivered them, in release order.
     pub(crate) released: Vec<GraphicId>,
+    /// When a feed first held `released` back for synchronized output; `None` while none
+    /// waits.
+    pub(crate) released_held_since: Option<Instant>,
     /// The open `DCS q` string, if any.
     pub(crate) decoder: Option<SixelDecoder>,
     /// The kitty graphics protocol: the `APC` reader, the stored images, who placed what.
@@ -132,6 +137,7 @@ impl GraphicsState {
             placements: placement::PlacementList::default(),
             live_bytes: 0,
             released: Vec::new(),
+            released_held_since: None,
             decoder: None,
             #[cfg(feature = "kitty-graphics")]
             kitty: kitty::KittyState::default(),
@@ -158,8 +164,23 @@ impl GraphicsState {
         }
     }
 
-    /// Moves every pending release into `batch` as `GraphicReleased` events, in order.
-    pub(crate) fn drain_released(&mut self, batch: &mut EventBatch) {
+    /// Moves every pending release into `batch` as `GraphicReleased` events, in order, unless
+    /// `sync` holds the frame that may still show them (see [`SyncState::defers_release`]).
+    pub(crate) fn drain_released(
+        &mut self,
+        batch: &mut EventBatch,
+        sync: &SyncState,
+        now: Instant,
+    ) {
+        if self.released.is_empty() {
+            self.released_held_since = None;
+            return;
+        }
+        let since = *self.released_held_since.get_or_insert(now);
+        if sync.defers_release(since, now) {
+            return;
+        }
+        self.released_held_since = None;
         for id in self.released.drain(..) {
             batch.push(VtEvent::GraphicReleased(id));
         }

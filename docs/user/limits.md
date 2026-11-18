@@ -54,6 +54,7 @@ assert_eq!(stats.bytes, 10);
 | rows of one kitty placement | the screen height, or `4096 / cell height` if more | clamped | - |
 | images waiting for `take_graphics` | 128 MiB of pixels (each image counts at least its struct size) | the oldest is dropped and its placements released | `graphics_dropped` |
 | image placements | 256 live | the oldest is released | - |
+| `GraphicReleased` held back by `?2026` | while frames are held, 1 s at most | delivered by the next `feed` | - |
 | pixels of placed images | 256 MiB together, each image counted once | the oldest placements are released (`GraphicReleased`) | - |
 | hyperlinks | 65,536 links, 4 MiB of text, in use at once; a link is freed once no cell names it (swept when the table is full, at most once per 1,024 new links) | the link is dropped, the text prints | `hyperlink_table_exhausted` |
 | REP | 65,535 prints per sequence | clamped | - |

@@ -64,10 +64,10 @@ pixels  --decode--> GraphicData { id, rgba }  --take_graphics--> your texture, k
   even one released before you took it (the release that follows frees it).
 - Call `Terminal::set_cell_pixels(width, height)` on every font or DPI change.
 - Key textures by `GraphicData::id`, draw `placement.image`. Ids start at 1 and are never reused.
-- `GraphicReleased(id)`: forget what you keyed by `id`, once the state you draw lists no placement
-  of it. A frame held by `?2026` (or a state another thread still draws) keeps its placements, so
-  a texture freed at once leaves a hole in that frame. It arrives in the next `feed`, an empty one
-  included, and before `Repaint`. Which images are released, and in which `feed`, can depend on
+- `GraphicReleased(id)`: forget what you keyed by `id`. It arrives in the next `feed`, an empty one
+  included, and before `Repaint`; while `?2026` holds frames it waits (one second at most), so a
+  held frame keeps its pictures. If another thread draws a state, free the texture once that
+  state lists no placement of it. Which images are released, and in which `feed`, can depend on
   where the input was split: the pending ceiling and the sweep both run per `feed`.
 
 ## Drawing

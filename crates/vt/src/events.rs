@@ -89,10 +89,10 @@ pub enum VtEvent {
     ShellMark(ShellMark),
     /// The image is gone from the grid (its rows were scrolled out, erased or reflowed away,
     /// it was evicted, covered by a newer image, or its pixels were dropped from the queue).
-    /// Free the texture you made from the [`GraphicData`](crate::GraphicData) with this id
-    /// once the state you draw lists no placement of it (a frame held by synchronized output
-    /// keeps its placements); the id is never used again. Delivered once per image, before
-    /// [`VtEvent::Repaint`].
+    /// Free the texture you made from the [`GraphicData`](crate::GraphicData) with this id;
+    /// the id is never used again. Delivered once per image, before [`VtEvent::Repaint`].
+    /// While synchronized output holds frames the event waits, one second at most, so a held
+    /// frame keeps its pictures.
     GraphicReleased(GraphicId),
     /// `Terminal::cursor_style` differs from its value before the sequence that just ran.
     CursorStyleChanged,
