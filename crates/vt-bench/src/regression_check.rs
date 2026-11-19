@@ -77,10 +77,33 @@ struct CheckPlan {
     baseline: Release,
     tolerance: f64,
     mib: usize,
-    /// The machine of this run when it is known and is not the baseline's. Its figures cannot
-    /// be held against the baseline's as they are: each fixture is judged against the median
-    /// ratio of the run instead.
-    other_machine: Option<String>,
+    band: Band,
+}
+
+/// What the ratios of a run are held against.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Band {
+    /// The baseline as it is: nothing is known about the machine of this run.
+    Baseline,
+    /// The baseline's machine, by its description. A hosted runner of one description is not
+    /// one speed (the same label measured 286, 529 and 927 MiB/s on one fixture in three
+    /// releases), so a run that is slower as a whole lowers the band with it: the band lies
+    /// around the median ratio of the run when that is below 1. A faster run never raises it.
+    SameMachine,
+    /// Another machine, named here. Its figures cannot be held against the baseline's as they
+    /// are: the band lies around the median ratio of the run.
+    OtherMachine(String),
+}
+
+impl Band {
+    /// The ratio the band lies around, given the median ratio of the run.
+    fn centre(&self, median: f64) -> f64 {
+        match self {
+            Self::Baseline => 1.0,
+            Self::SameMachine => median.min(1.0),
+            Self::OtherMachine(_) => median,
+        }
+    }
 }
 
 struct CheckRow {
@@ -102,7 +125,7 @@ pub(crate) fn check_command(args: &[String]) -> Result<CheckReport> {
         &plan.baseline.record.tiers.tier2_grid,
         &now,
         plan.tolerance,
-        plan.other_machine.is_some(),
+        &plan.band,
     );
     Ok(CheckReport {
         passed: rows.iter().all(|row| !row.slower),
@@ -127,9 +150,13 @@ fn prepare_check(args: &[String], flavour: BuildFlavour, history: &Path) -> Resu
         None => newest_record(history, options.machine.as_deref())?,
     };
     check_baseline(&source, &baseline)?;
-    let other_machine = options
-        .machine
-        .filter(|machine| hardware(machine) != hardware(&baseline.record.machine));
+    let band = match options.machine {
+        None => Band::Baseline,
+        Some(machine) if hardware(&machine) == hardware(&baseline.record.machine) => {
+            Band::SameMachine
+        }
+        Some(machine) => Band::OtherMachine(machine),
+    };
     let recorded = baseline.record.mib_per_fixture as usize;
     let recorded_or_default = if (1..=4096).contains(&recorded) {
         recorded
@@ -141,7 +168,7 @@ fn prepare_check(args: &[String], flavour: BuildFlavour, history: &Path) -> Resu
         baseline,
         tolerance: options.tolerance,
         mib: options.mib.unwrap_or(recorded_or_default),
-        other_machine,
+        band,
     })
 }
 
@@ -195,7 +222,7 @@ fn parse_check_options(args: &[String]) -> Result<CheckOptions> {
 
 /// The baseline `dir` offers, and its name as printed: the record with the highest version.
 /// When the machine of the run is known, the newest usable record of that same machine comes
-/// first, because only figures of one machine can be compared as they are; hosted runners of
+/// first, because figures of one machine are the closest to comparable; hosted runners of
 /// one label are several CPU models.
 fn newest_record(dir: &Path, machine: Option<&str>) -> Result<(String, Release)> {
     let mut releases = perf_history::load_history(dir)
@@ -278,15 +305,15 @@ fn quoted_list(names: &[&str]) -> String {
 /// One row per measured fixture, in `FIXTURES` order. A fixture is `slower` when `now <
 /// tolerance * baseline`; exactly at the band passes. One the baseline lacks is never slower.
 ///
-/// `other_machine`: the baseline is another machine's, so the band is laid around the median
-/// ratio of this run instead of around 1: a fixture is `slower` when its ratio is below
-/// `tolerance * median`. A slower or faster machine moves every ratio and the median with them;
-/// a fixture that fell behind the others still stands out.
+/// When the machine of the run is known, the band is laid around [`Band::centre`] instead of
+/// around 1: a fixture is `slower` when its ratio is below `tolerance * centre`. A slower
+/// machine, or a slower run of the same one, moves every ratio and the median with them; a
+/// fixture that fell behind the others still stands out.
 fn compare(
     baseline: &[Throughput],
     now: &[Throughput],
     tolerance: f64,
-    other_machine: bool,
+    band: &Band,
 ) -> Vec<CheckRow> {
     let mut rows: Vec<CheckRow> = FIXTURES
         .iter()
@@ -304,11 +331,11 @@ fn compare(
             })
         })
         .collect();
-    if other_machine {
-        let median = median_ratio(&rows);
+    if *band != Band::Baseline {
+        let centre = median_ratio(&rows).map(|median| band.centre(median));
         for row in &mut rows {
-            row.slower = match (row.baseline, median) {
-                (Some(before), Some(median)) => row.now / before < tolerance * median,
+            row.slower = match (row.baseline, centre) {
+                (Some(before), Some(centre)) => row.now / before < tolerance * centre,
                 _ => false,
             };
         }
@@ -340,30 +367,35 @@ fn render_check(plan: &CheckPlan, rows: &[CheckRow]) -> String {
     } else {
         format!("v{version}, {}", record.date)
     };
-    // On another machine the band lies around the median ratio of the run.
-    let median = plan
-        .other_machine
-        .as_ref()
-        .map(|_| median_ratio(rows).unwrap_or(1.0));
-    let (this_machine, rule) = match (&plan.other_machine, median) {
-        (Some(machine), Some(median)) => (
+    let median = median_ratio(rows).unwrap_or(1.0);
+    let centre = plan.band.centre(median);
+    let (this_machine, rule) = match &plan.band {
+        Band::Baseline => (
+            String::new(),
+            format!(
+                "A fixture fails below {tolerance:.2} x its baseline MiB/s; exactly {tolerance:.2} passes."
+            ),
+        ),
+        Band::SameMachine => (
+            String::new(),
+            format!(
+                "The baseline is this machine's, and one runner description is not one speed: the band follows the median ratio of this run, {median:.2}, when it is below 1.\nA fixture fails below {tolerance:.2} x {centre:.2} ({:.2}); exactly at it passes.",
+                tolerance * centre
+            ),
+        ),
+        Band::OtherMachine(machine) => (
             format!("This machine: {machine}\n"),
             format!(
                 "The baseline is another machine's: fixtures are judged against the median ratio of this run, {median:.2}.\nA fixture fails below {tolerance:.2} x that median ({:.2}); exactly at it passes.",
                 tolerance * median
             ),
         ),
-        _ => (
-            String::new(),
-            format!(
-                "A fixture fails below {tolerance:.2} x its baseline MiB/s; exactly {tolerance:.2} passes."
-            ),
-        ),
     };
-    let band = if median.is_some() {
-        "the median ratio"
-    } else {
-        "baseline"
+    // Named by what the band lies around: 1 is the baseline itself.
+    let band = match &plan.band {
+        Band::OtherMachine(_) => "the median ratio",
+        Band::SameMachine if centre < 1.0 => "the median ratio",
+        Band::Baseline | Band::SameMachine => "baseline",
     };
     let mut text = format!(
         "# vt-bench grid --check\n\nBaseline: {} ({stamp})\nBaseline machine: {}\n{this_machine}Run: {COLUMNS}x{LINES}, {} MiB per fixture, median of {RUNS} cycles after 1 warm-up.\n{rule}\n\n| Fixture | baseline MiB/s | now MiB/s | ratio | verdict |\n|---|---:|---:|---:|---|\n",
@@ -591,9 +623,9 @@ mod tests {
     #[test]
     fn exactly_at_band_passes() {
         let baseline = all_rows(100.0);
-        let at_band = compare(&baseline, &all_rows(50.0), 0.5, false);
+        let at_band = compare(&baseline, &all_rows(50.0), 0.5, &Band::Baseline);
         assert!(at_band.iter().all(|row| !row.slower));
-        let below = compare(&baseline, &all_rows(49.99), 0.5, false);
+        let below = compare(&baseline, &all_rows(49.99), 0.5, &Band::Baseline);
         assert!(below.iter().all(|row| row.slower));
     }
 
@@ -601,7 +633,7 @@ mod tests {
     fn rows_follow_fixture_order() {
         let mut baseline = all_rows(100.0);
         baseline.reverse();
-        let rows = compare(&baseline, &all_rows(90.0), 0.5, false);
+        let rows = compare(&baseline, &all_rows(90.0), 0.5, &Band::Baseline);
         let names: Vec<&str> = rows.iter().map(|row| row.fixture.as_str()).collect();
         let expected: Vec<&str> = FIXTURES.iter().map(|fixture| fixture.name).collect();
         assert_eq!(names, expected);
@@ -645,7 +677,7 @@ mod tests {
         check_baseline("b.json", &baseline).unwrap();
 
         // The new fixtures run far below any band; they still cannot fail the check.
-        let rows = compare(&early_rows(100.0), &all_rows(1.0), 0.5, false);
+        let rows = compare(&early_rows(100.0), &all_rows(1.0), 0.5, &Band::Baseline);
         assert_eq!(rows.len(), FIXTURES.len());
         let unjudged: Vec<&str> = rows
             .iter()
@@ -670,7 +702,7 @@ mod tests {
             baseline,
             tolerance: 0.5,
             mib: 32,
-            other_machine: None,
+            band: Band::Baseline,
         };
         let text = render_check(&plan, &rows);
         assert!(text.contains("| `hyperlinks` | - | 1.0 | - | no baseline |\n"));
@@ -827,7 +859,7 @@ mod tests {
             baseline,
             tolerance: 0.5,
             mib: 32,
-            other_machine: None,
+            band: Band::Baseline,
         };
         let check_row = |fixture: &str, baseline, now, slower| CheckRow {
             fixture: fixture.to_owned(),
@@ -873,13 +905,17 @@ A fixture fails below 0.50 x its baseline MiB/s; exactly 0.50 passes.
             baseline,
             tolerance: 0.25,
             mib: 8,
-            other_machine: None,
+            band: Band::Baseline,
         };
         let text = render_check(&plan, &[]);
         assert!(text.contains("Baseline: base.json (v0.1.0)\n"));
         assert!(text.contains("fails below 0.25 x its baseline MiB/s; exactly 0.25 passes."));
     }
     // ---- A run on another machine than the baseline's ----
+
+    fn other() -> Band {
+        Band::OtherMachine("another box".to_owned())
+    }
 
     fn slower_names(rows: &[CheckRow]) -> Vec<&str> {
         rows.iter()
@@ -909,26 +945,60 @@ A fixture fails below 0.50 x its baseline MiB/s; exactly 0.50 passes.
         let mut now = all_rows(60.0);
         now[9].mib_per_second = 48.0;
         assert_eq!(
-            slower_names(&compare(&baseline, &now, 0.5, false)),
+            slower_names(&compare(&baseline, &now, 0.5, &Band::Baseline)),
             ["osc_9_7"]
         );
-        assert!(slower_names(&compare(&baseline, &now, 0.5, true)).is_empty());
+        assert!(slower_names(&compare(&baseline, &now, 0.5, &other())).is_empty());
 
         // A fixture at half of what the others hold is exactly at the band; below it fails.
         now[9].mib_per_second = 30.0;
-        assert!(slower_names(&compare(&baseline, &now, 0.5, true)).is_empty());
+        assert!(slower_names(&compare(&baseline, &now, 0.5, &other())).is_empty());
         now[9].mib_per_second = 29.9;
         assert_eq!(
-            slower_names(&compare(&baseline, &now, 0.5, true)),
+            slower_names(&compare(&baseline, &now, 0.5, &other())),
             ["osc_9_7"]
         );
 
         // A faster runner does not hide a fixture that fell behind.
         let mut now = all_rows(200.0);
         now[2].mib_per_second = 90.0;
-        assert!(slower_names(&compare(&baseline, &now, 0.5, false)).is_empty());
+        assert!(slower_names(&compare(&baseline, &now, 0.5, &Band::Baseline)).is_empty());
         assert_eq!(
-            slower_names(&compare(&baseline, &now, 0.5, true)),
+            slower_names(&compare(&baseline, &now, 0.5, &other())),
+            ["heavy_sgr"]
+        );
+    }
+
+    #[test]
+    fn a_slower_run_of_the_same_machine_lowers_the_band() {
+        // The shape of a release run on a hosted runner: every fixture near 0.55 of the
+        // record of the same runner description, some at 0.31 to 0.46.
+        let baseline = all_rows(100.0);
+        let mut now = all_rows(55.0);
+        now[0].mib_per_second = 31.0;
+        now[9].mib_per_second = 46.0;
+        assert_eq!(
+            slower_names(&compare(&baseline, &now, 0.5, &Band::Baseline)),
+            ["plain_ascii", "osc_9_7"]
+        );
+        assert!(slower_names(&compare(&baseline, &now, 0.5, &Band::SameMachine)).is_empty());
+
+        // Half of what the others hold is exactly at the band; below it fails.
+        now[0].mib_per_second = 27.5;
+        assert!(slower_names(&compare(&baseline, &now, 0.5, &Band::SameMachine)).is_empty());
+        now[0].mib_per_second = 27.4;
+        assert_eq!(
+            slower_names(&compare(&baseline, &now, 0.5, &Band::SameMachine)),
+            ["plain_ascii"]
+        );
+
+        // A faster run does not raise the band: the baseline's own figures still hold.
+        let mut now = all_rows(200.0);
+        now[2].mib_per_second = 90.0;
+        assert!(slower_names(&compare(&baseline, &now, 0.5, &Band::SameMachine)).is_empty());
+        now[2].mib_per_second = 49.0;
+        assert_eq!(
+            slower_names(&compare(&baseline, &now, 0.5, &Band::SameMachine)),
             ["heavy_sgr"]
         );
     }
@@ -952,7 +1022,7 @@ A fixture fails below 0.50 x its baseline MiB/s; exactly 0.50 passes.
         assert_eq!(median_ratio(&odd), Some(0.6));
         assert_eq!(median_ratio(&odd[..3]), Some(0.6));
         // A fixture new since the baseline is never slower, on any machine.
-        let rows = compare(&early_rows(100.0), &all_rows(1.0), 0.5, true);
+        let rows = compare(&early_rows(100.0), &all_rows(1.0), 0.5, &other());
         assert!(slower_names(&rows).is_empty());
     }
 
@@ -974,25 +1044,25 @@ A fixture fails below 0.50 x its baseline MiB/s; exactly 0.50 passes.
                 args.extend(strings(&["--machine", machine]));
             }
             let plan = prepare_check(&args, CLEAN, &dir.0).unwrap();
-            (plan.baseline.record.version.clone(), plan.other_machine)
+            (plan.baseline.record.version.clone(), plan.band)
         };
         // Nothing is known about this machine: the newest record, held as it is.
-        assert_eq!(plan(None), ("0.3.0".to_owned(), None));
+        assert_eq!(plan(None), ("0.3.0".to_owned(), Band::Baseline));
         // The same machine with a newer toolchain is the same machine.
         assert_eq!(
             plan(Some("runner, cpu B, rustc 1.99.0")),
-            ("0.3.0".to_owned(), None)
+            ("0.3.0".to_owned(), Band::SameMachine)
         );
         // An older record of this machine beats a newer one of another.
         assert_eq!(
             plan(Some("runner, cpu A, rustc 1.96.0")),
-            ("0.1.0".to_owned(), None)
+            ("0.1.0".to_owned(), Band::SameMachine)
         );
         // No record of this machine: the newest one, judged against the median.
         let unknown = "runner, cpu C, rustc 1.96.0";
         assert_eq!(
             plan(Some(unknown)),
-            ("0.3.0".to_owned(), Some(unknown.to_owned()))
+            ("0.3.0".to_owned(), Band::OtherMachine(unknown.to_owned()))
         );
     }
 
@@ -1007,7 +1077,7 @@ A fixture fails below 0.50 x its baseline MiB/s; exactly 0.50 passes.
         let args = strings(&["--check", "--machine", machine]);
         let plan = prepare_check(&args, CLEAN, &dir.0).unwrap();
         assert_eq!(plan.baseline.record.version, "0.2.0");
-        assert_eq!(plan.other_machine.as_deref(), Some(machine));
+        assert_eq!(plan.band, Band::OtherMachine(machine.to_owned()));
     }
 
     #[test]
@@ -1022,10 +1092,10 @@ A fixture fails below 0.50 x its baseline MiB/s; exactly 0.50 passes.
                 "--machine",
                 machine,
             ]);
-            prepare_check(&args, CLEAN, &dir.0).unwrap().other_machine
+            prepare_check(&args, CLEAN, &dir.0).unwrap().band
         };
-        assert_eq!(plan("box"), None);
-        assert_eq!(plan("another box"), Some("another box".to_owned()));
+        assert_eq!(plan("box"), Band::SameMachine);
+        assert_eq!(plan("another box"), other());
     }
 
     #[test]
@@ -1035,7 +1105,7 @@ A fixture fails below 0.50 x its baseline MiB/s; exactly 0.50 passes.
             baseline: release("0.3.0", 160, 45, 32, Vec::new()),
             tolerance: 0.5,
             mib: 32,
-            other_machine: Some("another box".to_owned()),
+            band: other(),
         };
         let check_row = |fixture: &str, now, slower| CheckRow {
             fixture: fixture.to_owned(),
@@ -1070,6 +1140,56 @@ A fixture fails below 0.50 x that median (0.24); exactly at it passes.
         let text = render_check(&plan, &rows[..1]);
         assert!(
             text.ends_with("\nPASS: 1 of 1 fixtures at or above 0.50 x the median ratio\n"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn report_for_a_run_of_the_same_machine_is_exact() {
+        let plan = CheckPlan {
+            source: "perf/history/linux/v0.3.0.json".to_owned(),
+            baseline: release("0.3.0", 160, 45, 32, Vec::new()),
+            tolerance: 0.5,
+            mib: 32,
+            band: Band::SameMachine,
+        };
+        let check_row = |fixture: &str, now, slower| CheckRow {
+            fixture: fixture.to_owned(),
+            baseline: Some(100.0),
+            now,
+            slower,
+        };
+        let rows = [
+            check_row("plain_ascii", 60.0, false),
+            check_row("heavy_sgr", 20.0, true),
+            check_row("osc_9_7", 48.0, false),
+        ];
+        let header = "\
+# vt-bench grid --check
+
+Baseline: perf/history/linux/v0.3.0.json (v0.3.0, 2026-11-30)
+Baseline machine: box
+Run: 160x45, 32 MiB per fixture, median of 5 cycles after 1 warm-up.
+The baseline is this machine's, and one runner description is not one speed: the band follows the median ratio of this run, 0.48, when it is below 1.
+A fixture fails below 0.50 x 0.48 (0.24); exactly at it passes.
+
+| Fixture | baseline MiB/s | now MiB/s | ratio | verdict |
+|---|---:|---:|---:|---|
+";
+        assert_eq!(
+            render_check(&plan, &rows),
+            format!(
+                "{header}| `plain_ascii` | 100.0 | 60.0 | 0.60 | ok |\n| `heavy_sgr` | 100.0 | 20.0 | 0.20 | SLOWER |\n| `osc_9_7` | 100.0 | 48.0 | 0.48 | ok |\n\nFAIL: 1 of 3 fixtures below 0.50 x the median ratio: `heavy_sgr`\n"
+            )
+        );
+        // A run as fast as the baseline or faster is held against the baseline itself.
+        let text = render_check(&plan, &[check_row("plain_ascii", 120.0, false)]);
+        assert!(
+            text.contains("\nA fixture fails below 0.50 x 1.00 (0.50); exactly at it passes.\n"),
+            "{text}"
+        );
+        assert!(
+            text.ends_with("\nPASS: 1 of 1 fixtures at or above 0.50 x baseline\n"),
             "{text}"
         );
     }

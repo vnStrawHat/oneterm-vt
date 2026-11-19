@@ -49,7 +49,9 @@ if [ -d "perf/history/$P" ]; then trip_wire; record; else record; trip_wire; fi
 `--machine` (added after the v0.4.0 release run failed on it): a hosted runner label is several
 CPU models, and a run on a slower model read every fixture at 0.55 to 0.76 of the baseline and
 one at 0.48. The check now picks the newest record of the same machine, or judges against the
-median ratio of the run (0013 check.md, "Another machine").
+median ratio of the run. After the v0.4.2 run failed on a record of the same description (every
+fixture at 0.31 to 0.63, nothing changed in the engine), a run that is slower as a whole lowers
+the band on the same machine too (0013 check-machine.md).
 
 With `--json` and `--out` the record goes to the file and stdout carries the markdown report of
 the same run (tiers 1-5), so the job summary shows the full measurement, then the trip-wire table.

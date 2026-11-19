@@ -12,6 +12,7 @@ items; changing `scripts/release.sh`; committing anything under `perf/` (phase 1
 |---|---|
 | [targets.md](targets.md) | measurement rules, where we stand, miss procedure (profile, fix, waiver), waiver record |
 | [check.md](check.md) | `grid --check` flags, default baseline, refusals, verdict, exact output, exit codes, why never CI |
+| [check-machine.md](check-machine.md) | `--machine`: the default baseline and the band on the same machine and on another |
 | [hotpath.md](hotpath.md) | feature wiring, the five sites, no-op build, bench feature and guard, `--fixture`, recipe, CI |
 | [history.md](history.md) | release.sh unchanged, first record, release dry run, `docs/user/performance.md` outline, perf/README edits |
 | [tests.md](tests.md) | unit tests, build checks, manual checks |

@@ -21,11 +21,13 @@ Rules:
   `machine` names each: `GitHub <runner>, <os> <version>, <n> vCPU <cpu model>, rustc <version>`.
   The chart warns when strings differ (new runner image, hardware or compiler); compare such
   releases with care.
-- Hosted runners are noisy, and one label is several CPU models. The Release workflow runs
+- Hosted runners are noisy: one label is several CPU models, and one model measured an unchanged
+  engine a factor of three apart from run to run. The Release workflow runs
   `grid --check --machine` on each platform (band `0.5`) against the newest record of the same
-  machine; with no such record, against the newest one, each fixture judged by the median ratio
-  of the run. A trip-wire for structural regressions, not a quality verdict. Any platform
-  failing it stops the release before tagging.
+  machine, the band lowered with the median ratio of a run that is slower as a whole; with no
+  such record, against the newest one, each fixture judged by the median ratio of the run. A
+  trip-wire for structural regressions, not a quality verdict. Any platform failing it stops
+  the release before tagging.
 - The quality verdict is the tier-2 target table below, measured by hand on a quiet machine.
   CI on pushes and pull requests never benchmarks.
 
