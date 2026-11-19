@@ -1,8 +1,9 @@
 //! The public `pty` contract, driven the way an embedder would: a real shell, a real `Poller`,
-//! the two tokens, nothing but the public API.
+//! the two tokens, nothing but the public API. The console is registered through
+//! `Registered`, so nothing here is `unsafe`.
 
 #![cfg(feature = "pty")]
-#![expect(unsafe_code, reason = "registers a PseudoConsole with a Poller")]
+#![forbid(unsafe_code)]
 
 use std::io::{self, Read, Write};
 use std::process::Command;
@@ -11,8 +12,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use oneterm_vt::pty::{
-    ChildEvent, EventedPty, EventedReadWrite, OnResize, Options, PTY_CHILD_EVENT_TOKEN,
-    PTY_READ_WRITE_TOKEN, PseudoConsole, Shell, WindowSize,
+    ChildEvent, Options, PTY_CHILD_EVENT_TOKEN, PTY_READ_WRITE_TOKEN, PseudoConsole, Registered,
+    Shell, WindowSize,
 };
 use polling::{Event, Events, PollMode, Poller};
 
@@ -81,8 +82,7 @@ fn is_output_ended(error: &io::Error) -> bool {
 
 /// A console registered on its own poller, with the output and the exit collected by `pump`.
 struct Session {
-    pty: PseudoConsole,
-    poller: Arc<Poller>,
+    pty: Registered,
     output: Vec<u8>,
     /// The reader reported the end of the output: stop reading and wait for the child token.
     output_ended: bool,
@@ -91,14 +91,12 @@ struct Session {
 
 impl Session {
     fn start(options: &Options) -> io::Result<Self> {
-        let mut pty = PseudoConsole::spawn(options, SIZE)?;
+        let pty = PseudoConsole::spawn(options, SIZE)?;
         let poller = Arc::new(Poller::new()?);
-        // SAFETY: `Session::drop` deregisters before the console and the poller are dropped.
         // The key 0 is replaced by `PTY_READ_WRITE_TOKEN`, as the API promises.
-        unsafe { pty.register(&poller, Event::readable(0), PollMode::Level)? };
+        let pty = Registered::new(pty, poller, Event::readable(0), PollMode::Level)?;
         Ok(Self {
             pty,
-            poller,
             output: Vec::new(),
             output_ended: false,
             exit: None,
@@ -111,12 +109,13 @@ impl Session {
 
     fn pid(&self) -> io::Result<u32> {
         self.pty
+            .console()
             .child_pid()
             .ok_or_else(|| io::Error::other("the child has no pid"))
     }
 
     fn write(&mut self, bytes: &[u8]) -> io::Result<()> {
-        self.pty.writer().write_all(bytes)
+        self.pty.write_all(bytes)
     }
 
     /// Reads until `WouldBlock` or the end of output, as the reader contract says.
@@ -126,7 +125,7 @@ impl Session {
         }
         let mut buf = [0u8; 4096];
         loop {
-            match self.pty.reader().read(&mut buf) {
+            match self.pty.read(&mut buf) {
                 Ok(0) => break,
                 Ok(n) => self.output.extend_from_slice(&buf[..n]),
                 Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(()),
@@ -152,7 +151,7 @@ impl Session {
             };
             events.clear();
             let slice = left.min(Duration::from_millis(100));
-            self.poller.wait(&mut events, Some(slice))?;
+            self.pty.poller().wait(&mut events, Some(slice))?;
             for event in events.iter() {
                 match event.key {
                     PTY_READ_WRITE_TOKEN => self.drain()?,
@@ -171,12 +170,6 @@ impl Session {
 
     fn pump_for(&mut self, marker: &str) -> io::Result<bool> {
         self.pump(|session| session.text().contains(marker), WAIT)
-    }
-}
-
-impl Drop for Session {
-    fn drop(&mut self) {
-        let _ = self.pty.deregister(&self.poller);
     }
 }
 
@@ -237,7 +230,6 @@ fn typed_input_reaches_the_child() -> io::Result<()> {
 
 #[test]
 fn exit_code_arrives_on_child_token() -> io::Result<()> {
-    // `Session` deregisters on drop, so an assertion failure cannot leave the sources behind.
     let mut session = Session::start(&script("exit 3"))?;
     // Only the child token is looked at and nothing is read: the exit needs no output.
     let deadline = Instant::now() + WAIT;
@@ -246,7 +238,8 @@ fn exit_code_arrives_on_child_token() -> io::Result<()> {
     while !woke_on_child_token && Instant::now() < deadline {
         events.clear();
         session
-            .poller
+            .pty
+            .poller()
             .wait(&mut events, Some(Duration::from_millis(100)))?;
         woke_on_child_token = events.iter().any(|e| e.key == PTY_CHILD_EVENT_TOKEN);
     }

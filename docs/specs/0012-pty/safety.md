@@ -16,9 +16,10 @@ the invariant from the tables below. No `unsafe impl` anywhere.
 | `src/pty/windows/child.rs` | `#![allow(unsafe_code, reason = "Win32 FFI: process wait callback and termination")]` |
 | `src/pty/windows/pipe.rs` | `#![allow(unsafe_code, reason = "Win32 FFI: ReadFile and WriteFile on owned pipe handles")]` |
 | `src/pty/loopback_tests.rs` | `#![allow(unsafe_code, reason = "implements and calls register")]` |
-| `tests/pty_contract.rs` | `#![allow(unsafe_code, reason = "registers a PseudoConsole with a Poller")]` |
-| `docs/user/pty.md` doctest | visible first line `#![allow(unsafe_code)]`: shows embedders what a deny-unsafe crate needs |
+| `src/pty/registered.rs` | `#[expect(unsafe_code, reason = "calls the unsafe register and keeps its rule in Drop")]` on `Registered::new` only (registered.md) |
 
+`tests/pty_contract.rs` and the `docs/user/pty.md` doctest register through `Registered` and carry
+`#![forbid(unsafe_code)]`: they prove a crate that forbids `unsafe` can run the loop.
 No other test module calls `register` (real-shell poll tests live in `tests/pty_contract.rs`).
 `unix.rs` and `windows/*.rs` exist only under `cfg(unix)` / `cfg(windows)` and the `pty` feature.
 

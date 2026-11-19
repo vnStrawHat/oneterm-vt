@@ -147,8 +147,9 @@ and its payload). The last row of a group lists its functions and constants.
 |---|---|---|
 | `pty::PseudoConsole` | a shell behind ConPTY or `openpty`, polled by you | [pty](pty.md) |
 | `pty::Options`, `pty::Shell`, `pty::WindowSize`, `pty::GlyphWidth` | how to start it: program, environment, size, glyph widths | [pty](pty.md) |
+| `pty::Registered` | a console registered on a poller in safe code: owns it, deregisters on drop | [pty](pty.md) |
 | `pty::EventedReadWrite`, `pty::EventedPty` | pollable read and write; plus the child exit | [pty](pty.md) |
 | `pty::OnResize`, `pty::ChildEvent` | resize the console; what happened to the child | [pty](pty.md) |
-| `pty::SignalMask` | signal mask the child starts with (Unix only) | [pty](pty.md) |
+| `pty::SignalMask` | signal mask the child starts with (Unix only) | [pty-platforms](pty-platforms.md) |
 | `pty::PipeReader`, `pty::PipeWriter` | console output and input as `Read` and `Write` (Windows only) | [pty](pty.md) |
 | constants | `PTY_READ_WRITE_TOKEN`, `PTY_CHILD_EVENT_TOKEN` | [pty](pty.md) |

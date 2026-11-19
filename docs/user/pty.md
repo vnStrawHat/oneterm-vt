@@ -2,27 +2,28 @@
 
 `oneterm_vt::pty::PseudoConsole` starts a shell behind ConPTY (Windows) or `openpty` (Unix) and is
 polled with your own `polling::Poller`. It is passive: no read loop, no grid, no VT knowledge. You feed
-its bytes to `Terminal::feed` and write replies and keys back.
+its bytes to `Terminal::feed` and write replies and keys back. `pty::Registered` puts it on the poller
+in safe code.
 
 ## Example: spawn, poll, feed
 
 ```rust,no_run
-#![allow(unsafe_code)] // only `register` is unsafe; a deny-unsafe crate must allow it
+#![forbid(unsafe_code)] // nothing here needs it
 use std::io::{self, ErrorKind, Read, Write};
 use std::sync::Arc;
 use std::time::Instant;
 use oneterm_vt::pty::{
-    ChildEvent, EventedPty, EventedReadWrite, Options, PseudoConsole, WindowSize,
-    PTY_CHILD_EVENT_TOKEN, PTY_READ_WRITE_TOKEN,
+    ChildEvent, Options, PseudoConsole, Registered, WindowSize, PTY_CHILD_EVENT_TOKEN,
+    PTY_READ_WRITE_TOKEN,
 };
 use oneterm_vt::{Config, EventBatch, Size, Terminal, VtEvent};
 use polling::{Event, Events, PollMode, Poller};
 
 // Read until `WouldBlock`; `true` when the output ended.
-fn drain(pty: &mut PseudoConsole, term: &mut Terminal, batch: &mut EventBatch) -> io::Result<bool> {
+fn drain(pty: &mut Registered, term: &mut Terminal, batch: &mut EventBatch) -> io::Result<bool> {
     let mut buf = [0u8; 8192];
     loop {
-        let n = match pty.reader().read(&mut buf) {
+        let n = match pty.read(&mut buf) {
             Ok(0) => return Ok(true),
             Ok(n) => n,
             Err(e) if e.kind() == ErrorKind::WouldBlock => return Ok(false),
@@ -32,7 +33,7 @@ fn drain(pty: &mut PseudoConsole, term: &mut Terminal, batch: &mut EventBatch) -
         term.feed(&buf[..n], batch, Instant::now());
         for event in batch.iter() {
             if let VtEvent::Reply(span) = event {
-                pty.writer().write_all(batch.bytes(*span))?; // real code keeps short writes
+                pty.write_all(batch.bytes(*span))?; // real code keeps short writes
             }
         }
     }
@@ -41,12 +42,13 @@ fn drain(pty: &mut PseudoConsole, term: &mut Terminal, batch: &mut EventBatch) -
 let env = [("TERM".to_owned(), "xterm-256color".to_owned())];
 let options = Options { env: env.into(), ..Options::default() };
 let size = WindowSize { rows: 24, cols: 80, cell_width: 8, cell_height: 16 };
-let mut pty = PseudoConsole::spawn(&options, size)?;
+let pty = PseudoConsole::spawn(&options, size)?;
 let mut term = Terminal::new(Size { rows: 24, cols: 80 }, Config::default());
 let mut batch = EventBatch::new();
 let poller = Arc::new(Poller::new()?);
-// SAFETY: deregistered below, before `pty` and `poller` are dropped.
-unsafe { pty.register(&poller, Event::readable(PTY_READ_WRITE_TOKEN), PollMode::Level)? };
+// Owns the console, keeps the poller alive, deregisters when dropped.
+let interest = Event::readable(PTY_READ_WRITE_TOKEN);
+let mut pty = Registered::new(pty, Arc::clone(&poller), interest, PollMode::Level)?;
 
 let (mut events, mut ended) = (Events::new(), false); // `ended`: stop reading, await the exit
 let status = 'run: loop {
@@ -69,20 +71,33 @@ let status = 'run: loop {
         }
     }
 };
-pty.deregister(&poller)?;
+# let _ = status;
 # Ok::<(), io::Error>(())
 ```
 
 ## You owe the console
 
 - `polling = "3"` in your own manifest: its `Poller`, `Event` and `PollMode` are in the API.
-- `deregister` before the poller or the console is dropped (`register` is `unsafe` for this); drop
-  the console on an owner thread, not a UI thread.
+- Drop the registration on an owner thread, not a UI thread: it drops the console.
+- For writes, `reregister` with a readable and writable interest while bytes are pending. From other
+  threads, queue commands and wake the owner with `poller().notify()`: `wait` returns with no event.
 - Read until `WouldBlock`; after the child token wakes you, read once more. An ended master keeps waking a
   level poll on Linux (hang-up is always reported); the exit event follows right after, so stop reading and wait for it.
-- Write `VtEvent::Reply` bytes and encoded keys to `writer()`; keep what a short write left.
-- `OnResize::on_resize` with the numbers you give `Terminal::resize`.
+- Write `VtEvent::Reply` bytes and encoded keys with `write`; keep what a short write left.
+- `on_resize` with the numbers you give `Terminal::resize`; `console().child_pid()` for the pid.
 - `TERM` and `COLORTERM` in `Options::env`: the crate never sets them.
+
+## Who keeps the registration
+
+| | `Registered::new(console, poller, interest, mode)` | `EventedReadWrite::register` |
+|---|---|---|
+| deregisters before the console or the poller is dropped | the engine, when the registration is dropped | you: this is why it is `unsafe` |
+| the poller outlives the console | the engine: the registration holds the `Arc` | you |
+| reads and writes | `Read` and `Write` on the registration | `reader()` and `writer()` |
+| the loop, the queue of pending writes, the threads | you | you |
+
+`register` stays for a console you must take back out of a poller; `Registered` never gives its
+console back. It takes any `EventedReadWrite` of your own too.
 
 ## Return values
 
@@ -101,24 +116,5 @@ is dropped.
 
 ## Platforms
 
-| | Unix | Windows (10 1809+) |
-|---|---|---|
-| default shell | `$SHELL`, else `/bin/sh` | `cmd.exe`, by its full path under `%SystemRoot%` |
-| arguments | passed to `exec` as they are | one command line; `Options::escape_args` (default `false`) quotes them; a program path with a space is always quoted |
-| `child_signal_mask` | `SignalMask::current()` on a thread with signals unblocked, else Ctrl-C is lost | n/a |
-| working directory | best effort; an invalid path keeps the inherited one | an invalid path fails `spawn` |
-| `WindowSize` | pixel fields reported to the child | pixel fields ignored; rows and cols at most 32767 |
-| `drop` | closes the master: the session gets `SIGHUP`; never blocks, never signals | closes the console, waits up to ~2 s, then terminates the child; may block on hosts before build 26100 while `ClosePseudoConsole` waits for a client that never disconnects |
-| crate threads | 1 (reaper) | 2 (pipes), plus a thread-pool wait; none joined |
-
-A Unix child that ignores `SIGHUP` keeps running. An `Options::env` key must be non-empty without `=`
-or NUL and a value without NUL, or `spawn` fails with `InvalidInput`. The parent's terminal identity
-(`WT_SESSION`, `TERM_PROGRAM`, `ITERM_SESSION_ID`, startup tokens) is not inherited.
-
-## Console host, and turning `pty` off
-
-`spawn` uses `conpty.dll` beside your executable when present, else the inbox API. Ship a matched
-`conpty.dll` and `x64\OpenConsole.exe` next to it: without them the inbox `conhost.exe` swallows
-Sixel (see [graphics](graphics.md)); the crate ships neither. `default-features = false` removes
-the module, `polling`, `libc` and `windows-sys`, leaving `bitflags`, `log`, `memchr`, `rustc-hash`,
-`unicode-segmentation` and `unicode-width`; `Terminal::feed` is the seam for your own transport.
+Default shell, arguments, working directory, what `drop` does, the crate's threads, the Windows console
+host and building without `pty`: [pty-platforms](pty-platforms.md).

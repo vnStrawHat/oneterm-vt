@@ -9,6 +9,7 @@ Builds on specs 0001-0011 as implemented. Sub-milestones, gate green after each:
 | Path | Content | cfg |
 |---|---|---|
 | `pty.rs` | module doc (both platforms in prose, api.md rustdoc rules); tokens, `GlyphWidth`, `Shell`, `Options`, `WindowSize`, `ChildEvent`, the three traits, `DROPPED_PARENT_ENV`, `validate_env`; `mod unix` / `mod windows` + re-exports; `#[cfg(test)] mod loopback_tests;` | `feature = "pty"` (from `lib.rs`) |
+| `pty/registered.rs` | `Registered` (added after v0.4.1, registered.md) | |
 | `pty/unix.rs` | `PseudoConsole`, `SignalMask`, `open_pty`, `set_cloexec`, `set_utf8_input`, `winsize`, `set_window_size`, `set_nonblocking`, `apply_env`, `default_shell`, `reap_in_background`; inline tests | `unix` |
 | `pty/windows.rs` | `PseudoConsole` (field order), trait impls, `cmdline`, `push_escaped_arg`, `coord`, `win32_string`, `PIPE_CAPACITY`; `mod conpty; mod child; mod pipe;`; inline tests; `#[cfg(test)] mod pseudo_console_tests;` | `windows` |
 | `pty/windows/conpty.rs` | `ConptyApi`, `ConptyBackend` (log name), `Conpty` (+ `Drop`), `spawn`, `anonymous_pipe`, `ProcThreadAttributeList`, `environment_block`, glyph flags; inline tests | |

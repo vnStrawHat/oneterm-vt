@@ -5,7 +5,9 @@
 //! the VT protocol. The embedder owns a `polling::Poller`, registers the console on it and
 //! reads, writes and resizes from its own thread. Two poll keys are used:
 //! [`PTY_READ_WRITE_TOKEN`] for input and output, [`PTY_CHILD_EVENT_TOKEN`] for the child's
-//! exit.
+//! exit. [`Registered`] is the registration in safe code: it owns the console and
+//! deregisters when dropped. [`EventedReadWrite::register`] is the same step with the
+//! lifetimes left to the caller, which is why it is `unsafe`.
 //!
 //! `polling` is this module's only public dependency (its `Poller`, `Event` and `PollMode`
 //! appear in [`EventedReadWrite`]); add `polling = "3"` to the embedder's manifest so the types
@@ -47,11 +49,13 @@ use std::sync::Arc;
 
 use polling::{Event, PollMode, Poller};
 
+mod registered;
 #[cfg(unix)]
 mod unix;
 #[cfg(windows)]
 mod windows;
 
+pub use registered::Registered;
 #[cfg(unix)]
 pub use unix::{PseudoConsole, SignalMask};
 #[cfg(windows)]
@@ -186,7 +190,8 @@ pub trait EventedReadWrite {
     /// # Safety
     ///
     /// The sources must be deregistered ([`deregister`](Self::deregister)) before `self` or the
-    /// poller is dropped, as `Poller::add_with_mode` requires.
+    /// poller is dropped, as `Poller::add_with_mode` requires. [`Registered`] keeps this rule
+    /// for its caller.
     #[expect(
         unsafe_code,
         reason = "register is unsafe because polling::Poller::add_with_mode is"
@@ -282,5 +287,6 @@ mod tests {
     fn pseudo_console_is_send() {
         fn assert_send<T: Send>() {}
         assert_send::<PseudoConsole>();
+        assert_send::<Registered>();
     }
 }

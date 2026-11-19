@@ -169,5 +169,9 @@ mod user_guide_pointer {}
 mod user_guide_search_matchers {}
 
 #[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/pty-platforms.md")]
+mod user_guide_pty_platforms {}
+
+#[cfg(doctest)]
 #[doc = include_str!("../../../README.md")]
 mod readme {}

@@ -1440,6 +1440,30 @@ impl core::marker::Unpin for oneterm_vt::pty::PseudoConsole
 impl core::marker::UnsafeUnpin for oneterm_vt::pty::PseudoConsole
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::pty::PseudoConsole
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::pty::PseudoConsole
+pub struct oneterm_vt::pty::Registered<C: oneterm_vt::pty::EventedReadWrite>
+impl<C: oneterm_vt::pty::EventedPty> oneterm_vt::pty::Registered<C>
+pub fn oneterm_vt::pty::Registered<C>::next_child_event(&mut self) -> core::option::Option<oneterm_vt::pty::ChildEvent>
+impl<C: oneterm_vt::pty::EventedReadWrite + oneterm_vt::pty::OnResize> oneterm_vt::pty::Registered<C>
+pub fn oneterm_vt::pty::Registered<C>::on_resize(&mut self, oneterm_vt::pty::WindowSize) -> std::io::error::Result<()>
+impl<C: oneterm_vt::pty::EventedReadWrite> oneterm_vt::pty::Registered<C>
+pub fn oneterm_vt::pty::Registered<C>::console(&self) -> &C
+pub fn oneterm_vt::pty::Registered<C>::new(C, alloc::sync::Arc<polling::Poller>, polling::Event, polling::PollMode) -> std::io::error::Result<Self>
+pub fn oneterm_vt::pty::Registered<C>::poller(&self) -> &alloc::sync::Arc<polling::Poller>
+pub fn oneterm_vt::pty::Registered<C>::reregister(&mut self, polling::Event, polling::PollMode) -> std::io::error::Result<()>
+impl<C: oneterm_vt::pty::EventedReadWrite> core::ops::drop::Drop for oneterm_vt::pty::Registered<C>
+pub fn oneterm_vt::pty::Registered<C>::drop(&mut self)
+impl<C: oneterm_vt::pty::EventedReadWrite> std::io::Read for oneterm_vt::pty::Registered<C>
+pub fn oneterm_vt::pty::Registered<C>::read(&mut self, &mut [u8]) -> std::io::error::Result<usize>
+impl<C: oneterm_vt::pty::EventedReadWrite> std::io::Write for oneterm_vt::pty::Registered<C>
+pub fn oneterm_vt::pty::Registered<C>::flush(&mut self) -> std::io::error::Result<()>
+pub fn oneterm_vt::pty::Registered<C>::write(&mut self, &[u8]) -> std::io::error::Result<usize>
+impl<C> core::marker::Freeze for oneterm_vt::pty::Registered<C> where C: core::marker::Freeze
+impl<C> core::marker::Send for oneterm_vt::pty::Registered<C> where C: core::marker::Send
+impl<C> core::marker::Sync for oneterm_vt::pty::Registered<C> where C: core::marker::Sync
+impl<C> core::marker::Unpin for oneterm_vt::pty::Registered<C> where C: core::marker::Unpin
+impl<C> core::marker::UnsafeUnpin for oneterm_vt::pty::Registered<C> where C: core::marker::UnsafeUnpin
+impl<C> core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::pty::Registered<C> where C: core::panic::unwind_safe::RefUnwindSafe
+impl<C> core::panic::unwind_safe::UnwindSafe for oneterm_vt::pty::Registered<C> where C: core::panic::unwind_safe::UnwindSafe
 pub struct oneterm_vt::pty::Shell
 impl oneterm_vt::pty::Shell
 pub fn oneterm_vt::pty::Shell::new(alloc::string::String, alloc::vec::Vec<alloc::string::String>) -> Self

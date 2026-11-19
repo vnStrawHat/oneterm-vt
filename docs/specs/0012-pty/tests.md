@@ -8,7 +8,7 @@ Timeouts 10 s (15 s on Windows) per wait; liveness is checked by pid only, never
 | File | Tests (one behaviour each) |
 |---|---|
 | `pty.rs` | `env_validation` (empty key, `=` in key, NUL in key or value -> `InvalidInput`; normal entries pass); `pseudo_console_is_send` |
-| `pty/loopback_tests.rs` | a loopback fake (two TCP socket pairs: I/O and child signal, an `mpsc` for events, a `Vec<WindowSize>` log) implementing all three traits: `loopback_implements_the_evented_contract` (output on the RW token, input reaches the "child", resize recorded, exit on the child token exactly once); `an_exit_without_a_code_is_still_an_exit` |
+| `pty/loopback_tests.rs` | a loopback fake (two TCP socket pairs: I/O and child signal, an `mpsc` for events, a `Vec<WindowSize>` log) implementing all three traits: `loopback_implements_the_evented_contract` (output on the RW token, input reaches the "child", resize recorded, exit on the child token exactly once); `an_exit_without_a_code_is_still_an_exit`; the four `Registered` tests of registered.md |
 | `pty/unix.rs` | `identity_env_is_dropped_and_custom_wins` (`get_envs` on a `Command`); `master_and_slave_are_cloexec` (**D1**, `F_GETFD`); `winsize_pixels_saturate` (pure `winsize(size)`); `signal_mask_current_succeeds`; real `/bin/sh`: `output_reaches_the_reader` (`printf hi`), `input_reaches_the_child` (`/bin/cat`, `ping\n`), `exit_code_is_reported_once` (`exit 3`), `child_pid_is_positive`, `resize_of_a_live_pty_succeeds`, `rejected_resize_is_an_error` (0x0: `Err` names `TIOCSWINSZ` or `Ok`, never a panic) |
 | `pty/windows.rs` | `escaping_table` (windows.md table); `escapes_only_when_asked` (`echo hello world` vs `echo "hello world"`); `default_shell_is_cmd_by_full_path`; `program_quoted_only_with_escape_args` (**D5**: `C:\Program Files\x.exe` + `a` -> `"C:\Program Files\x.exe" a` / verbatim); `coord_rejects_over_i16` (**D6**: 32767 ok, 32768 `InvalidInput`) |
 | `pty/windows/conpty.rs` | `glyph_width_flags` (0x10, 0x08, default 0x10); env block: `empty_block_is_double_nul`, `parent_is_copied`, `case_insensitive_dedup_custom_wins`, `identity_names_dropped_custom_kept`, `block_is_sorted_case_insensitively` (**D4**: custom `b`, `A`, parent `=C:` -> `=C:=..`, `A=..`, `b=..`); `falls_back_to_system_without_dll` (empty temp dir) |
@@ -22,9 +22,9 @@ The bundled-host branch of `ConptyApi` has no CI test: the crate ships no `conpt
 
 `#![cfg(feature = "pty")]`. Helpers: `script(cmd) -> Options` (Unix `/bin/sh -c cmd`; Windows
 `cmd.exe /d /c cmd`) built with `..Options::default()` (proves no cfg field must be named);
-`Session { pty, poller: Arc<Poller>, events }` registering `Event::readable(0)`, `Level`;
+`Session { pty: Registered, .. }` (`#![forbid(unsafe_code)]`) registering `Event::readable(0)`, `Level`;
 `pump(until, timeout)`: `wait(100 ms)`, on the RW token read until `WouldBlock`/end (api.md
-table), on the child token keep the event; deregisters in `Drop`. `alive(pid)`: Unix
+table), on the child token keep the event; the registration deregisters when dropped. `alive(pid)`: Unix
 `kill -0 <pid>` via `Command`; Windows `tasklist /FI "PID eq <pid>" /NH /FO CSV`.
 
 | Test | Assert |
@@ -48,17 +48,17 @@ deps="$(cargo tree -p oneterm-vt -e normal --no-default-features --prefix none -
   || { echo "::error::--no-default-features dependency set changed: $deps"; exit 1; }
 ```
 
-## `docs/user/pty.md` (chapter 10, <= 120 lines)
+## `docs/user/pty.md` (chapter 10, <= 120 lines; items 4 to 6 moved to `pty-platforms.md`, chapter 24, with `Registered`)
 
 1. Example first: the poll loop, a ` ```rust,no_run ` doctest (compiled, never run): visible
-   `#![allow(unsafe_code)]`; `Options` with `TERM=xterm-256color` in `env`; `spawn`; `Poller`;
-   `unsafe { register(.., Event::readable(PTY_READ_WRITE_TOKEN), Level) }`; loop on `wait`:
+   `#![forbid(unsafe_code)]`; `Options` with `TERM=xterm-256color` in `env`; `spawn`; `Poller`;
+   `Registered::new(.., Event::readable(PTY_READ_WRITE_TOKEN), Level)`; loop on `wait`:
    RW token -> read per the table into `Terminal::feed`; child token -> drain once more,
-   `deregister`, return the status.
-2. What you owe (checklist): `polling = "3"` in your manifest; deregister before dropping the
-   poller; read until `WouldBlock`; write `VtEvent::Reply` bytes and encoded keys to `writer()`,
-   keeping short writes; `OnResize::on_resize` with the numbers given to `Terminal::resize`;
-   `TERM`/`COLORTERM` in `Options::env`; drop on an owner thread.
+   return the status.
+2. What you owe (checklist): `polling = "3"` in your manifest; drop on an owner thread;
+   read until `WouldBlock`; write `VtEvent::Reply` bytes and encoded keys, keeping short
+   writes; `on_resize` with the numbers given to `Terminal::resize`; `TERM`/`COLORTERM` in
+   `Options::env`. Then the "Who keeps the registration" table (registered.md).
 3. Reader/writer return-value table (api.md).
 4. Platform table: default shell, `escape_args`, `child_signal_mask`/`SignalMask`, cwd rule,
    pixel fields (Unix only), drop behaviour (Windows blocks up to ~2 s; Unix hangs up, never

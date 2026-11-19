@@ -14,10 +14,12 @@ I/O, child exit), resized with `OnResize`. No read loop, no grid, no VT knowledg
 | [safety.md](safety.md) | `unsafe` lifts with reasons, every block's invariant, handle/fd ownership and drop order |
 | [tests.md](tests.md) | unit, loopback, real-shell and contract tests; tree check; `docs/user/pty.md` outline |
 | [files.md](files.md) | files, manifests and features, `lib.rs`, CI, docs, commit |
+| [registered.md](registered.md) | `Registered` (added after v0.4.1): registration in safe code, why no `reader()`/`writer()`, tests |
 
 **Public API** (nothing dropped): `pty::{PseudoConsole (spawn, child_pid), Options, Shell (new), WindowSize,
 GlyphWidth, ChildEvent, EventedReadWrite, EventedPty, OnResize, PTY_CHILD_EVENT_TOKEN, PTY_READ_WRITE_TOKEN}`;
 Unix `SignalMask (current)`, `Options::child_signal_mask`; Windows `PipeReader`, `PipeWriter`, `Options::escape_args`.
+Added after v0.4.1: `pty::Registered` (registered.md).
 
 ## Acceptance criteria
 

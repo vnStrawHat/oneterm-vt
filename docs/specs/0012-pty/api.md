@@ -51,6 +51,8 @@ impl PseudoConsole {
     pub fn child_pid(&self) -> Option<u32>;     // Unix always Some; Windows None if GetProcessId gave 0
 }
 // impl EventedPty + OnResize for PseudoConsole on both platforms
+
+pub struct Registered<C: EventedReadWrite = PseudoConsole> { .. }  // added later: registered.md
 ```
 
 | Platform-only | Items |
@@ -70,6 +72,7 @@ impl PseudoConsole {
   and post completion packets (`PollerIocpExt::post`) from their own threads.
 - `register` is `unsafe` because `Poller::add_with_mode` is (polling docs: a source must be
   `delete()`d before it is dropped); Windows adds no OS source but shares the signature.
+  `Registered` keeps that rule by construction (registered.md).
 - Keys: `register`/`reregister` set `interest.key = PTY_READ_WRITE_TOKEN` for the I/O side; the
   child side is always `Event::readable(PTY_CHILD_EVENT_TOKEN)` (Unix: `PollMode::Level`; Windows:
   one posted packet per registration, windows.md).

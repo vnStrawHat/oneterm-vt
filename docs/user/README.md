@@ -32,7 +32,7 @@ working example, and names exact API items. Every Rust block is compiled by `car
 | 07 | [`resize.md`](resize.md) | `grid::TerminalGrid::resize`, `ResizePolicy` (PTY vs ConPTY), `ResizeOutcome`; what reflow keeps, what dies |
 | 08 | [`limits.md`](limits.md) | every ceiling on hostile input and what happens past it; each `FeedStats` counter |
 | 09 | [`conformance.md`](conformance.md) | supported sequences and modes, inert modes and their DECRQM answers, the DECRQCRA gate, known gaps |
-| 10 | [`pty.md`](pty.md) | `pty::PseudoConsole` polled with your own `polling::Poller`: the two tokens, the read/write return values, `OnResize`, what you owe (deregister, drain, `TERM` in `Options::env`); platform differences, drop behaviour, `conpty.dll` beside your executable; turning `pty` off |
+| 10 | [`pty.md`](pty.md) | `pty::PseudoConsole` polled with your own `polling::Poller`: the two tokens, the read/write return values, `OnResize`, `pty::Registered` (registration without `unsafe`), what you owe (drain, `TERM` in `Options::env`) |
 | 11 | [`versioning.md`](versioning.md) | what to pin, the semver promise, MSRV, features |
 | 12 | [`performance.md`](performance.md) | what is measured and what is not, reproducing a run, history and chart, the `vt-bench grid --check` trip-wire, profiling with `hotpath-profiling`, why the numbers are not a promise |
 | 13 | [`api-map.md`](api-map.md) | every public type and trait, one row each, grouped by module, with the chapter that teaches it |
@@ -46,6 +46,7 @@ working example, and names exact API items. Every Rust block is compiled by `car
 | 21 | [`notifications.md`](notifications.md) | `VtEvent::Notification` from OSC 9, OSC 777 and OSC 99: who does what, every field of `Notification`, declaring abilities in `NotificationSupport`, reports back with `input::NotificationReport`, ceilings |
 | 22 | [`pointer.md`](pointer.md) | OSC 22 mouse pointer shapes: who does what, `VtEvent::Pointer` / `PointerReset`, `Terminal::pointer_shape`, the stack per screen, queries answered from `Config::pointer_shapes` (`PointerShapes`), ceilings |
 | 23 | [`search-matchers.md`](search-matchers.md) | patterns: who does what, `SearchPattern::Regex` (feature `regex`), `GridText::span` for a matcher of your own (byte range of `as_str()` to `SearchMatch`) and its rules |
+| 24 | [`pty-platforms.md`](pty-platforms.md) | `pty` per platform: default shell, arguments, working directory, `drop` behaviour, crate threads; `conpty.dll` beside your executable; turning `pty` off |
 
 ## Features
 
