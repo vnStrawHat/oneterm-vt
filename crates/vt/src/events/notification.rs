@@ -8,7 +8,8 @@ use super::{ByteSpan, EventBatch, ParamSpans, StrSpan};
 ///
 /// The engine gathered and checked what the program sent; everything here is for the embedder
 /// to act on or to ignore. OSC 9 and OSC 777 fill the title and the body only; the other
-/// fields then hold what OSC 99 means by a key that was not sent. Text is the program's:
+/// fields then hold what OSC 99 means by a key that was not sent, and `source` is what tells
+/// such a notification from an OSC 99 one with the same text. Text is the program's:
 /// treat it as untrusted. Get it with [`EventBatch::notification`] and read its spans and
 /// lists back through the same batch ([`EventBatch::str`], [`EventBatch::bytes`],
 /// [`EventBatch::strs`]).
@@ -21,6 +22,9 @@ use super::{ByteSpan, EventBatch, ParamSpans, StrSpan};
 #[non_exhaustive]
 #[derive(PartialEq, Eq, Debug)]
 pub struct Notification {
+    /// The sequence it came from. The engine treats the three alike; a policy per source
+    /// (quieter OSC 777, say, which shells send after every command) is yours.
+    pub source: NotificationSource,
     /// The id the program gave it (OSC 99 `i`), empty when it gave none. A notification with
     /// the id of one still shown replaces it; without an id nothing is ever replaced. Reports
     /// name this id.
@@ -73,8 +77,14 @@ pub struct Notification {
 impl Notification {
     /// A notification that is a title and a body, every other field as OSC 99 defines a key
     /// that was not sent.
-    pub(crate) fn text(batch: &mut EventBatch, title: &str, body: &str) -> Notification {
+    pub(crate) fn text(
+        batch: &mut EventBatch,
+        source: NotificationSource,
+        title: &str,
+        body: &str,
+    ) -> Notification {
         Notification {
+            source,
             id: StrSpan::EMPTY,
             title: batch.text_span(title),
             body: batch.text_span(body),
@@ -93,6 +103,18 @@ impl Notification {
             report_close: false,
         }
     }
+}
+
+/// The sequence a notification came from.
+#[non_exhaustive]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum NotificationSource {
+    /// `OSC 9 ; text`: a body, no title.
+    Osc9,
+    /// `OSC 777 ; notify ; title ; body`.
+    Osc777,
+    /// `OSC 99`, the kitty protocol: the only source of the fields past title and body.
+    Osc99,
 }
 
 /// How urgent a notification is (OSC 99 `u`).

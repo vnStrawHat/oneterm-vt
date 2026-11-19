@@ -1,7 +1,9 @@
 //! OSC dispatch: routing by number and every built-in handler.
 
 use crate::cell::Semantic;
-use crate::events::{ClipboardKind, Notification, Progress, ShellMark, VtEvent};
+use crate::events::{
+    ClipboardKind, Notification, NotificationSource, Progress, ShellMark, VtEvent,
+};
 use crate::intern::{Extras, HyperlinkId};
 use crate::parser::{OscParams, StringTerm};
 
@@ -215,7 +217,8 @@ impl Handler<'_> {
             return;
         }
         self.join_lossy(params, 1);
-        let notification = Notification::text(self.out, "", &self.state.scratch);
+        let notification =
+            Notification::text(self.out, NotificationSource::Osc9, "", &self.state.scratch);
         self.out.push_notification(notification);
     }
 
@@ -238,7 +241,12 @@ impl Handler<'_> {
             self.unhandled();
             return;
         }
-        let notification = Notification::text(self.out, &title, &self.state.scratch);
+        let notification = Notification::text(
+            self.out,
+            NotificationSource::Osc777,
+            &title,
+            &self.state.scratch,
+        );
         self.out.push_notification(notification);
     }
 

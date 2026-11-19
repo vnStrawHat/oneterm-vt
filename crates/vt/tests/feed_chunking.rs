@@ -75,7 +75,8 @@ fn describe(event: &VtEvent, batch: &EventBatch) -> Option<String> {
             let notification = batch.notification(*at);
             let texts = |spans| batch.strs(spans).collect::<Vec<_>>();
             format!(
-                "Notification({}, {}, {}, {:?}, {:?}, {:?})",
+                "Notification({:?}, {}, {}, {}, {:?}, {:?}, {:?})",
+                notification.source,
                 batch.str(notification.id),
                 batch.str(notification.title),
                 batch.str(notification.body),

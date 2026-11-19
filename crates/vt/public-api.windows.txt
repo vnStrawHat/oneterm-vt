@@ -2036,6 +2036,28 @@ impl core::marker::Unpin for oneterm_vt::NotificationOccasion
 impl core::marker::UnsafeUnpin for oneterm_vt::NotificationOccasion
 impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::NotificationOccasion
 impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::NotificationOccasion
+#[non_exhaustive] pub enum oneterm_vt::NotificationSource
+pub oneterm_vt::NotificationSource::Osc777
+pub oneterm_vt::NotificationSource::Osc9
+pub oneterm_vt::NotificationSource::Osc99
+impl core::clone::Clone for oneterm_vt::NotificationSource
+pub fn oneterm_vt::NotificationSource::clone(&self) -> oneterm_vt::NotificationSource
+impl core::cmp::Eq for oneterm_vt::NotificationSource
+impl core::cmp::PartialEq for oneterm_vt::NotificationSource
+pub fn oneterm_vt::NotificationSource::eq(&self, &oneterm_vt::NotificationSource) -> bool
+impl core::fmt::Debug for oneterm_vt::NotificationSource
+pub fn oneterm_vt::NotificationSource::fmt(&self, &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for oneterm_vt::NotificationSource
+pub fn oneterm_vt::NotificationSource::hash<__H: core::hash::Hasher>(&self, &mut __H)
+impl core::marker::Copy for oneterm_vt::NotificationSource
+impl core::marker::StructuralPartialEq for oneterm_vt::NotificationSource
+impl core::marker::Freeze for oneterm_vt::NotificationSource
+impl core::marker::Send for oneterm_vt::NotificationSource
+impl core::marker::Sync for oneterm_vt::NotificationSource
+impl core::marker::Unpin for oneterm_vt::NotificationSource
+impl core::marker::UnsafeUnpin for oneterm_vt::NotificationSource
+impl core::panic::unwind_safe::RefUnwindSafe for oneterm_vt::NotificationSource
+impl core::panic::unwind_safe::UnwindSafe for oneterm_vt::NotificationSource
 pub enum oneterm_vt::NotificationUrgency
 pub oneterm_vt::NotificationUrgency::Critical
 pub oneterm_vt::NotificationUrgency::Low
@@ -2960,6 +2982,7 @@ pub oneterm_vt::Notification::occasion: oneterm_vt::NotificationOccasion
 pub oneterm_vt::Notification::report_activation: bool
 pub oneterm_vt::Notification::report_close: bool
 pub oneterm_vt::Notification::sound: oneterm_vt::StrSpan
+pub oneterm_vt::Notification::source: oneterm_vt::NotificationSource
 pub oneterm_vt::Notification::title: oneterm_vt::StrSpan
 pub oneterm_vt::Notification::urgency: core::option::Option<oneterm_vt::NotificationUrgency>
 impl core::cmp::Eq for oneterm_vt::Notification

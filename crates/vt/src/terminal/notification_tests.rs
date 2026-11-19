@@ -9,8 +9,8 @@ use super::notification::{
 use super::terminal_tests::Session;
 use super::*;
 use crate::events::{
-    Notification, NotificationExpiry, NotificationOccasion, NotificationUrgency, ParamSpans,
-    VtEvent,
+    Notification, NotificationExpiry, NotificationOccasion, NotificationSource,
+    NotificationUrgency, ParamSpans, VtEvent,
 };
 
 /// One OSC with `body`, ended by `ESC \`.
@@ -787,6 +787,51 @@ fn a_dropped_route_answers_nothing_and_a_forwarded_one_is_the_embedders() {
         .filter(|event| matches!(event, VtEvent::Osc { code: 99, .. }))
         .count();
     assert_eq!(forwarded, 2);
+}
+
+// ---- The source ----
+
+#[test]
+fn the_source_tells_apart_notifications_that_are_otherwise_equal() {
+    let mut session = Session::new(10, 4);
+    // A title and a body: OSC 777, and OSC 99 in two chunks.
+    for (bodies, source) in [
+        (&["777;notify;Build;done"][..], NotificationSource::Osc777),
+        (
+            &["99;d=0;Build", "99;p=body;done"][..],
+            NotificationSource::Osc99,
+        ),
+    ] {
+        send(&mut session, bodies);
+        assert_eq!(shown(&session), [pair("Build", "done")]);
+        let notification = only(&session);
+        assert_eq!(notification.source, source);
+        // Every other field reads as a key that was not sent.
+        let batch = &session.batch;
+        assert_eq!(batch.str(notification.id), "");
+        assert_eq!(batch.bytes(notification.icon), b"");
+        assert_eq!(batch.strs(notification.buttons).count(), 0);
+        assert_eq!(
+            (
+                notification.urgency,
+                notification.occasion,
+                notification.expiry
+            ),
+            (
+                None,
+                NotificationOccasion::Always,
+                NotificationExpiry::Platform
+            )
+        );
+    }
+
+    // A body alone: OSC 9. The same text over OSC 99 is a title.
+    send(&mut session, &["9;done"]);
+    assert_eq!(shown(&session), [pair("", "done")]);
+    assert_eq!(only(&session).source, NotificationSource::Osc9);
+    send(&mut session, &["99;p=body;done"]);
+    assert_eq!(shown(&session), [pair("done", "")]);
+    assert_eq!(only(&session).source, NotificationSource::Osc99);
 }
 
 // ---- OSC 777 ----

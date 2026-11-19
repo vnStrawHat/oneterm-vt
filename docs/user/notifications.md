@@ -11,7 +11,8 @@ it is yours.
 use std::time::Instant;
 use oneterm_vt::input::NotificationReport;
 use oneterm_vt::{
-    Config, EventBatch, NotificationSupport, NotificationUrgency, Size, Terminal, VtEvent,
+    Config, EventBatch, NotificationSource, NotificationSupport, NotificationUrgency, Size,
+    Terminal, VtEvent,
 };
 
 // Declare only what you implement: the capability query is answered from this.
@@ -36,6 +37,7 @@ term.feed("\x1b]99;i=build:p=buttons;Open log\u{2028}Dismiss\x1b\\".as_bytes(), 
 
 let VtEvent::Notification(at) = &batch.events()[0] else { panic!("a notification") };
 let notification = batch.notification(*at);
+assert_eq!(notification.source, NotificationSource::Osc99);
 assert_eq!(batch.str(notification.title), "Build failed");
 assert_eq!(batch.str(notification.body), "3 errors");
 assert_eq!(batch.strs(notification.buttons).collect::<Vec<_>>(), ["Open log", "Dismiss"]);
@@ -53,6 +55,7 @@ assert_eq!(NotificationReport::Button { id, button: 1 }.encode(), b"\x1b]99;i=bu
 |---|---|
 | reads OSC 9, OSC 777 `notify` and OSC 99; joins the chunks of a notification by its id; decodes base64; checks every key and bounds every size | show the notification with your platform's API; treat its text as untrusted |
 | answers the query `p=?` from `Config::notifications` | declare in `NotificationSupport` exactly what you implement; write the `Reply` |
+| names the sequence it came from in `Notification::source`, and treats the three alike | any policy per source: a quieter OSC 777, a note of the origin on the card |
 | hands you every key in `Notification`, whatever you declared | apply `occasion` (only you know your focus), `urgency`, `expiry`, `sound`; replace a shown notification that has the same non-empty `id` |
 | passes `icon_names`, `icon_id` and the `icon` bytes (a PNG, JPEG or GIF file, not decoded) | try the names first; decode the data and cache it under `icon_id`; show the cached image when only `icon_id` arrives |
 | reports `VtEvent::NotificationClose { id }` and `VtEvent::NotificationAliveQuery { id }` | close that notification; answer with `NotificationReport::Alive` |
@@ -60,11 +63,14 @@ assert_eq!(NotificationReport::Button { id, button: 1 }.encode(), b"\x1b]99;i=bu
 
 ## What each source fills
 
-| Source | `title` | `body` | Other fields |
-|---|---|---|---|
-| `OSC 9 ; text` (not `9;4`, which is progress) | empty | the text | as OSC 99 defines a key that was not sent |
-| `OSC 777 ; notify ; title ; body` | the title, may be empty | the rest, `;` kept | the same defaults |
-| `OSC 99 ; metadata ; payload` | never empty (a lone body becomes the title) | may be empty | every key: see `Notification` |
+| Sequence | `source` | `title` | `body` | Other fields |
+|---|---|---|---|---|
+| `OSC 9 ; text` (not `9;4`, which is progress) | `Osc9` | empty | the text | as OSC 99 defines a key that was not sent |
+| `OSC 777 ; notify ; title ; body` | `Osc777` | the title, may be empty | the rest, `;` kept | the same defaults |
+| `OSC 99 ; metadata ; payload` | `Osc99` | never empty (a lone body becomes the title) | may be empty | every key: see `Notification` |
+
+`NotificationSource` is `#[non_exhaustive]`: a `match` on it needs a wildcard arm. Without
+`source`, an OSC 99 notification of a title and a body reads exactly as an OSC 777 one.
 
 OSC 99 rules the engine applies:
 
@@ -99,6 +105,6 @@ A reset (RIS) forgets the notifications still waiting.
 - Write the `Reply` to the query; without it a program concludes OSC 99 is not understood.
 - Send a report only when the notification asked for it and you declared the ability.
 - Rate-limit: the engine reports every notification. Shells with VTE integration send
-  `OSC 777 ; notify` after every command.
+  `OSC 777 ; notify` after every command; `source` is how you single those out.
 - To turn a source off, drop its number: `config.osc_routes.route(99, OscRoute::Drop)` (also `9`,
   `777`). A dropped OSC 99 answers no query, which is how a program learns it is off.

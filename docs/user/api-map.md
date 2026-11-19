@@ -25,7 +25,7 @@ and its payload). The last row of a group lists its functions and constants.
 |---|---|---|
 | `EventBatch` | caller-owned buffer `feed` fills; resolves every span | [events](events.md) |
 | `VtEvent` | what happened: reply, title, bell, clipboard, notification, OSC, repaint | [events](events.md), [notifications](notifications.md) |
-| `Notification`, `NotificationRef`, `NotificationUrgency`, `NotificationOccasion`, `NotificationExpiry` | a desktop notification as the program described it (`EventBatch::notification(at)`): text, icon, buttons, sound, urgency, when to show and to close, which reports it wants | [notifications](notifications.md) |
+| `Notification`, `NotificationRef`, `NotificationSource`, `NotificationUrgency`, `NotificationOccasion`, `NotificationExpiry` | a desktop notification as the program described it (`EventBatch::notification(at)`): which sequence it came from, text, icon, buttons, sound, urgency, when to show and to close, which reports it wants | [notifications](notifications.md) |
 | `FeedStats` | per-feed counters: bytes, drops, truncations, `?2026` frames closed | [limits](limits.md) |
 | `ByteSpan`, `StrSpan`, `ParamSpans` | indexes into their batch; read before the next `feed` | [events](events.md) |
 | `ClipboardKind`, `Progress`, `ShellMark` | payloads of clipboard, progress and prompt-mark events | [events](events.md) |

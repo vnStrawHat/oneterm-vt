@@ -16,11 +16,13 @@ pub enum VtEvent { Notification(NotificationRef),                // OSC 9, 777, 
                    NotificationClose { id: StrSpan },            // OSC 99 p=close, id never empty
                    NotificationAliveQuery { id: StrSpan }, .. }  // OSC 99 p=alive
 #[non_exhaustive] #[derive(PartialEq, Eq, Debug)]
-pub struct Notification { pub id, title, body, app_name, icon_id, sound: StrSpan,
+pub struct Notification { pub source: NotificationSource,       // added after v0.4.0, see below
+    pub id, title, body, app_name, icon_id, sound: StrSpan,
     pub kinds, icon_names, buttons: ParamSpans, pub icon: ByteSpan,
     pub urgency: Option<NotificationUrgency>, pub occasion: NotificationOccasion,
     pub expiry: NotificationExpiry,
     pub focus_on_activation, report_activation, report_close: bool }
+#[non_exhaustive] pub enum NotificationSource { Osc9, Osc777, Osc99 }
 pub enum NotificationUrgency { Low, Normal, Critical }
 pub enum NotificationOccasion { Always, Unfocused, Invisible }      // Default: Always
 pub enum NotificationExpiry { Platform, Never, After(u32) }         // Default: Platform; After = ms
@@ -36,7 +38,14 @@ pub enum input::NotificationReport<'a> { Activated { id }, Button { id, button: 
     CloseUntracked { id }, Alive { id, alive: &'a [&'a str] } }     // .encode() -> Vec<u8>
 ```
 
-OSC 9 and OSC 777 build `Notification::text(title, body)`: every other field as below "default".
+OSC 9 and OSC 777 build `Notification::text(source, title, body)`: every other field as below
+"default".
+
+`source` (added after v0.4.0): with those defaults, an OSC 777 notification and an OSC 99 one of
+a title and a body were equal, and an embedder that treats the sources differently (OSC 777 is
+sent by shells after every command) had to guess. Each parser names itself; the engine applies
+no policy to it. The fallback of `EventBatch::notification` is `Osc99` with no title, which no
+program can send.
 
 The notifications of a feed live in the batch (`EventBatch.notifications`, cleared with it,
 shrunk back to 1,024 entries) and the event holds an index: an event stays 32 bytes and a

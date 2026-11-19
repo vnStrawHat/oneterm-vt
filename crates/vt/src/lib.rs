@@ -48,8 +48,8 @@ mod width;
 pub use cell::{Attrs, Cell, CellContent, CellWidth, Color, NamedColor, Rgb, Semantic, Style};
 pub use events::{
     ByteSpan, ClipboardKind, EventBatch, FeedStats, Notification, NotificationExpiry,
-    NotificationOccasion, NotificationRef, NotificationUrgency, ParamSpans, Progress, ShellMark,
-    StrSpan, VtEvent,
+    NotificationOccasion, NotificationRef, NotificationSource, NotificationUrgency, ParamSpans,
+    Progress, ShellMark, StrSpan, VtEvent,
 };
 pub use graphics::{GraphicData, Placement, VIRTUAL_CELL};
 pub use grid::terminal_grid::{ResizeOutcome, ResizePolicy};

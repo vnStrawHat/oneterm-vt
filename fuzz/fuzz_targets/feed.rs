@@ -29,6 +29,7 @@ fn read_spans(batch: &EventBatch) {
             VtEvent::Notification(at) => {
                 let notification = batch.notification(*at);
                 black_box((
+                    notification.source,
                     batch.str(notification.id),
                     batch.str(notification.title),
                     batch.str(notification.body),

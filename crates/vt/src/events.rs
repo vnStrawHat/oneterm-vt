@@ -11,7 +11,7 @@ pub use batch::{ByteSpan, EventBatch, NotificationRef, ParamSpans, StrSpan};
 #[cfg(test)]
 pub(crate) use batch::{EVENT_ARENA_SOFT, EVENT_LIST_SOFT, PARAM_LIST_SOFT};
 pub use notification::{
-    Notification, NotificationExpiry, NotificationOccasion, NotificationUrgency,
+    Notification, NotificationExpiry, NotificationOccasion, NotificationSource, NotificationUrgency,
 };
 
 use crate::grid::RowsScrolled;

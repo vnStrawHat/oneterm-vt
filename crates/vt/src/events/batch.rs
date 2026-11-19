@@ -1,7 +1,8 @@
 //! The event list of one `feed` call and the arena its payloads live in.
 
 use crate::events::{
-    ClipboardKind, Notification, NotificationExpiry, NotificationOccasion, VtEvent,
+    ClipboardKind, Notification, NotificationExpiry, NotificationOccasion, NotificationSource,
+    VtEvent,
 };
 use crate::grid::ScrollReport;
 use crate::parser::{MAX_OSC_PARAMS, OscParams, StringTerm};
@@ -62,6 +63,7 @@ pub struct NotificationRef {
 
 /// What [`EventBatch::notification`] answers for a reference that is not of this batch.
 static NO_NOTIFICATION: Notification = Notification {
+    source: NotificationSource::Osc99,
     id: StrSpan::EMPTY,
     title: StrSpan::EMPTY,
     body: StrSpan::EMPTY,
@@ -142,7 +144,7 @@ impl EventBatch {
     }
 
     /// The notification of a [`VtEvent::Notification`]. A reference that is not of this batch
-    /// reads as a notification without text.
+    /// reads as an OSC 99 notification without text, which no program can send.
     pub fn notification(&self, at: NotificationRef) -> &Notification {
         self.notifications
             .get(at.index as usize)

@@ -10,8 +10,8 @@
 use std::borrow::Cow;
 
 use crate::events::{
-    Notification, NotificationExpiry, NotificationOccasion, NotificationUrgency, VtEvent,
-    base64_value,
+    Notification, NotificationExpiry, NotificationOccasion, NotificationSource,
+    NotificationUrgency, VtEvent, base64_value,
 };
 use crate::input::clean_id;
 use crate::parser::{OscParams, StringTerm};
@@ -588,7 +588,7 @@ impl Handler<'_> {
             return false;
         }
         let out = &mut *self.out;
-        let mut notification = Notification::text(out, &title, &body);
+        let mut notification = Notification::text(out, NotificationSource::Osc99, &title, &body);
         notification.id = out.text_span(&pending.id);
         notification.app_name = out.text_span(&pending.app_name);
         notification.kinds = out.list(pending.kinds.iter().map(String::as_str));
