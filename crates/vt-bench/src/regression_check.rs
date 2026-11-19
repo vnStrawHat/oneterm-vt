@@ -1,19 +1,33 @@
-//! `grid --check`: tier 2 against a baseline record, a by-hand regression trip-wire.
+//! `grid --check --against BINARY ...`: tier 2 of this build and of other builds of `vt-bench`,
+//! every build run in turns on one machine.
+//!
+//! A figure in MiB/s holds only for the machine and the minute it was measured in: one hosted
+//! runner description measured an unchanged engine a factor of three apart from run to run, and
+//! one binary at half its speed for a whole job. So figures of two versions compare only when
+//! both were measured side by side: here every build runs a fixture before any runs the next
+//! one, seconds apart, and the best of several such rounds is kept. The check holds this build
+//! against the last build given; the figures of all of them are the perf history of a release.
 
 use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use anyhow::{Context, Result, bail};
 
-use crate::fixtures::{self, COLUMNS, FIXTURES, LINES};
-use crate::perf_history::{self, PLATFORM, Release, Throughput};
-use crate::throughput::{self, RUNS};
+use crate::fixtures::{COLUMNS, LINES};
+use crate::perf_history::{self, BestOfRounds, BuildThroughput, InTurnsRecord};
+use crate::throughput::RUNS;
 
-/// Parent of the per-platform record folders.
-const HISTORY_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../perf/history");
-const DEFAULT_TOLERANCE: f64 = 0.5;
-const TAKES_ONLY: &str = "'grid --check' takes only --baseline, --tolerance, --mib and --machine";
+/// A fixture fails below this share of the MiB/s of the build it is held against. Two builds of
+/// the same engine sources, measured this way on hosted runners, read up to 2% apart on
+/// Windows, 9% on Linux and 19% on macOS; a band inside that would stop releases for nothing.
+const DEFAULT_TOLERANCE: f64 = 0.75;
+/// Three, for the time of a release job: five read the same builds closer on macOS (13%, not
+/// 19%) for two thirds more minutes.
+const DEFAULT_ROUNDS: usize = 3;
+const TAKES_ONLY: &str =
+    "'grid --check' takes only --against, --tolerance, --mib, --rounds, --machine and --out";
 
 /// How this binary was built. Filled with `cfg!` in one place so the rules can be tested with
 /// any combination.
@@ -56,137 +70,110 @@ pub(crate) fn ensure_recordable(flavour: BuildFlavour) -> Result<()> {
     }
 }
 
-/// What `grid --check` printed and whether every fixture held.
+/// What a `--check` printed and whether every fixture held.
 pub(crate) struct CheckReport {
     pub(crate) text: String,
     pub(crate) passed: bool,
 }
 
+#[derive(Debug, PartialEq)]
 struct CheckOptions {
-    baseline: Option<PathBuf>,
-    tolerance: f64,
-    mib: Option<usize>,
-    /// The machine this run is on, as a record would name it.
-    machine: Option<String>,
-}
-
-/// Everything decided before the first measurement.
-struct CheckPlan {
-    /// The baseline path as printed.
-    source: String,
-    baseline: Release,
+    /// The other builds of `vt-bench`, in the order given; this build is held against the last.
+    against: Vec<PathBuf>,
     tolerance: f64,
     mib: usize,
-    band: Band,
+    rounds: usize,
+    machine: Option<String>,
+    /// Where the figures of every build go, as an in-turns record.
+    out: Option<PathBuf>,
 }
 
-/// What the ratios of a run are held against.
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum Band {
-    /// The baseline as it is: nothing is known about the machine of this run.
-    Baseline,
-    /// The baseline's machine, by its description. A hosted runner of one description is not
-    /// one speed (the same label measured 286, 529 and 927 MiB/s on one fixture in three
-    /// releases), so a run that is slower as a whole lowers the band with it: the band lies
-    /// around the median ratio of the run when that is below 1. A faster run never raises it.
-    SameMachine,
-    /// Another machine, named here. Its figures cannot be held against the baseline's as they
-    /// are: the band lies around the median ratio of the run.
-    OtherMachine(String),
+/// What one run of `grid` reported.
+#[derive(Debug, Default, PartialEq)]
+struct GridReport {
+    /// The engine version the report names; empty when it names none.
+    version: String,
+    /// `(fixture, MiB/s)` in the report's order.
+    rows: Vec<(String, f64)>,
 }
 
-impl Band {
-    /// The ratio the band lies around, given the median ratio of the run.
-    fn centre(&self, median: f64) -> f64 {
-        match self {
-            Self::Baseline => 1.0,
-            Self::SameMachine => median.min(1.0),
-            Self::OtherMachine(_) => median,
-        }
-    }
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Verdict {
+    Ok,
+    Slower,
+    /// The build this one is held against did not run the fixture.
+    NotJudged,
 }
 
 struct CheckRow {
     fixture: String,
-    /// `None` for a fixture the baseline predates: shown, never judged.
-    baseline: Option<f64>,
-    now: f64,
-    slower: bool,
+    /// The best round of every build, this one last; `None` where a build did not run it.
+    rates: Vec<Option<f64>>,
+    verdict: Verdict,
 }
 
 /// Runs `grid --check`. `Err` means no verdict (exit 2).
 pub(crate) fn check_command(args: &[String]) -> Result<CheckReport> {
-    let history = Path::new(HISTORY_DIR).join(PLATFORM);
-    let plan = prepare_check(args, BuildFlavour::current(), &history)?;
-    crate::progress("tier 2 grid");
-    let selected = fixtures::select(None)?;
-    let now = throughput::measure_tier(plan.mib, &selected, throughput::grid_pass);
-    let rows = compare(
-        &plan.baseline.record.tiers.tier2_grid,
-        &now,
-        plan.tolerance,
-        &plan.band,
-    );
-    Ok(CheckReport {
-        passed: rows.iter().all(|row| !row.slower),
-        text: render_check(&plan, &rows),
-    })
-}
-
-/// The refusals of check.md in their order: flags, build flavour, baseline.
-fn prepare_check(args: &[String], flavour: BuildFlavour, history: &Path) -> Result<CheckPlan> {
     let options = parse_check_options(args)?;
-    if let Some(reason) = skew_reason(flavour) {
+    if let Some(reason) = skew_reason(BuildFlavour::current()) {
         bail!("{reason}");
     }
-    let (source, baseline) = match options.baseline {
-        Some(path) => {
-            let source = path.display().to_string();
-            let json =
-                fs::read_to_string(&path).with_context(|| format!("{source}: cannot read file"))?;
-            let release = perf_history::parse_release(&source, &json)?;
-            (source, release)
-        }
-        None => newest_record(history, options.machine.as_deref())?,
-    };
-    check_baseline(&source, &baseline)?;
-    let band = match options.machine {
-        None => Band::Baseline,
-        Some(machine) if hardware(&machine) == hardware(&baseline.record.machine) => {
-            Band::SameMachine
-        }
-        Some(machine) => Band::OtherMachine(machine),
-    };
-    let recorded = baseline.record.mib_per_fixture as usize;
-    let recorded_or_default = if (1..=4096).contains(&recorded) {
-        recorded
-    } else {
-        crate::DEFAULT_MIB
-    };
-    Ok(CheckPlan {
-        source,
-        baseline,
-        tolerance: options.tolerance,
-        mib: options.mib.unwrap_or(recorded_or_default),
-        band,
-    })
-}
+    let mut binaries = options.against.clone();
+    binaries.push(std::env::current_exe().context("cannot find this binary to run it")?);
+    let fixtures: Vec<&str> = crate::fixtures::select(None)?
+        .iter()
+        .map(|fixture| fixture.name)
+        .collect();
 
-/// What makes two machine descriptions the same machine: all of the text but the toolchain
-/// that ends it (`.., rustc 1.96.0`).
-fn hardware(machine: &str) -> &str {
-    machine
-        .rsplit_once(", rustc ")
-        .map_or(machine, |(hardware, _)| hardware)
-        .trim()
+    let scratch = std::env::temp_dir().join(format!("vt-bench-in-turns-{}", std::process::id()));
+    let shared = shared_streams(&binaries, &fixtures, &scratch);
+    // Best effort: a left-over folder of streams is not a reason to fail the check.
+    let _ = fs::remove_dir_all(&scratch);
+    let builds = measure_in_turns(&binaries, &fixtures, &shared?, &options)?;
+
+    let rows = check_rows(&builds, options.tolerance);
+    let held_against = &binaries[binaries.len() - 2];
+    if rows.iter().all(|row| row.verdict == Verdict::NotJudged) {
+        bail!(
+            "{}: no fixture in common with this build",
+            held_against.display()
+        );
+    }
+    let labels: Vec<String> = builds
+        .iter()
+        .zip(&binaries)
+        .map(|(build, binary)| label(build, binary))
+        .collect();
+    let report = CheckReport {
+        passed: rows.iter().all(|row| row.verdict != Verdict::Slower),
+        text: render_check(&options, &labels, &rows),
+    };
+    if let Some(path) = &options.out {
+        let record = InTurnsRecord {
+            engine: "oneterm-vt".to_owned(),
+            date: perf_history::today(),
+            platform: perf_history::PLATFORM.to_owned(),
+            machine: options.machine.clone().unwrap_or_default(),
+            columns: COLUMNS as u16,
+            lines: LINES as u16,
+            mib_per_fixture: options.mib as u32,
+            rounds: options.rounds as u32,
+            runs: RUNS as u32,
+            builds,
+        };
+        crate::write_file(path, &(serde_json::to_string_pretty(&record)? + "\n"))?;
+    }
+    Ok(report)
 }
 
 fn parse_check_options(args: &[String]) -> Result<CheckOptions> {
     let mut options = CheckOptions {
-        baseline: None,
+        against: Vec::new(),
         tolerance: DEFAULT_TOLERANCE,
-        mib: None,
+        mib: crate::DEFAULT_MIB,
+        rounds: DEFAULT_ROUNDS,
         machine: None,
+        out: None,
     };
     let mut iter = args.iter();
     while let Some(flag) = iter.next() {
@@ -195,7 +182,7 @@ fn parse_check_options(args: &[String]) -> Result<CheckOptions> {
         }
         if !matches!(
             flag.as_str(),
-            "--baseline" | "--tolerance" | "--mib" | "--machine"
+            "--against" | "--tolerance" | "--mib" | "--rounds" | "--machine" | "--out"
         ) {
             bail!(TAKES_ONLY);
         }
@@ -203,7 +190,7 @@ fn parse_check_options(args: &[String]) -> Result<CheckOptions> {
             bail!("flag '{flag}' needs a value");
         };
         match flag.as_str() {
-            "--baseline" => options.baseline = Some(PathBuf::from(value)),
+            "--against" => options.against.push(PathBuf::from(value)),
             "--tolerance" => {
                 options.tolerance = value
                     .parse()
@@ -213,233 +200,298 @@ fn parse_check_options(args: &[String]) -> Result<CheckOptions> {
                         format!("--tolerance needs a number in (0, 1], got '{value}'")
                     })?;
             }
+            "--rounds" => {
+                options.rounds = value
+                    .parse()
+                    .ok()
+                    .filter(|rounds| (1..=99).contains(rounds))
+                    .with_context(|| {
+                        format!("--rounds needs a whole number 1..=99, got '{value}'")
+                    })?;
+            }
             "--machine" => options.machine = Some(value.clone()),
-            _ => options.mib = Some(crate::parse_mib(value)?),
+            "--out" => options.out = Some(PathBuf::from(value)),
+            _ => options.mib = crate::parse_mib(value)?,
         }
+    }
+    if options.against.is_empty() {
+        bail!(
+            "'grid --check' needs --against BINARY: a vt-bench built from a release to compare with"
+        );
+    }
+    if options.out.is_some() && options.machine.is_none() {
+        bail!("--out needs --machine: the record names where it was measured");
     }
     Ok(options)
 }
 
-/// The baseline `dir` offers, and its name as printed: the record with the highest version.
-/// When the machine of the run is known, the newest usable record of that same machine comes
-/// first, because figures of one machine are the closest to comparable; hosted runners of
-/// one label are several CPU models.
-fn newest_record(dir: &Path, machine: Option<&str>) -> Result<(String, Release)> {
-    let mut releases = perf_history::load_history(dir)
-        .ok()
-        .filter(|releases| !releases.is_empty())
-        .with_context(|| {
-            format!(
-                "no perf record in perf/history/{PLATFORM}; the Release workflow writes the first, or pass --baseline FILE"
-            )
-        })?;
-    let same_machine = machine.and_then(|machine| {
-        releases.iter().rposition(|release| {
-            hardware(&release.record.machine) == hardware(machine)
-                && check_baseline("", release).is_ok()
-        })
-    });
-    let newest = releases.swap_remove(same_machine.unwrap_or(releases.len() - 1));
-    // scripts/release.sh names every record v<version>.json.
-    Ok((
-        format!("perf/history/{PLATFORM}/v{}.json", newest.version),
-        newest,
-    ))
-}
-
-/// Refusals 6a-9: platform, geometry, fixture sets, usable figures.
-fn check_baseline(source: &str, baseline: &Release) -> Result<()> {
-    let record = &baseline.record;
-    if record.platform != PLATFORM {
-        bail!(
-            "{source}: baseline platform {}, this build runs on {PLATFORM}",
-            record.platform
-        );
+/// For every build, which of `fixtures` it generates byte for byte as this build (the last of
+/// `binaries`) does. A figure of another stream would say nothing about the engine, so a build
+/// runs only the fixtures it shares. Each build writes its streams, 1 MiB each, under
+/// `scratch`.
+fn shared_streams(
+    binaries: &[PathBuf],
+    fixtures: &[&str],
+    scratch: &Path,
+) -> Result<Vec<Vec<bool>>> {
+    let mut folders = Vec::new();
+    for (index, binary) in binaries.iter().enumerate() {
+        let folder = scratch.join(index.to_string());
+        let output = Command::new(binary)
+            .args(["fixtures", "--mib", "1", "--out"])
+            .arg(&folder)
+            .output()
+            .with_context(|| format!("{}: cannot run it", binary.display()))?;
+        if !output.status.success() {
+            bail!(
+                "{}: 'fixtures --mib 1' failed:\n{}",
+                binary.display(),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        folders.push(folder);
     }
-    let (columns, lines) = (usize::from(record.columns), usize::from(record.lines));
-    if (columns, lines) != (0, 0) && (columns, lines) != (COLUMNS, LINES) {
-        bail!(
-            "{source}: baseline geometry {columns}x{lines}, this build measures {COLUMNS}x{LINES}"
-        );
-    }
-    let rows = &record.tiers.tier2_grid;
-    let missing: Vec<&str> = FIXTURES
+    let stream = |folder: &Path, fixture: &str| fs::read(folder.join(format!("{fixture}.vt"))).ok();
+    let own = &folders[folders.len() - 1];
+    Ok(folders
         .iter()
-        .map(|fixture| fixture.name)
-        .filter(|name| !rows.iter().any(|row| row.fixture == *name))
-        .collect();
-    let extra: Vec<&str> = rows
-        .iter()
-        .map(|row| row.fixture.as_str())
-        .filter(|name| !FIXTURES.iter().any(|fixture| fixture.name == *name))
-        .collect();
-    // A fixture added after the baseline was recorded is skipped by `compare`; a baseline that
-    // shares no fixture with this build, or names one that is gone, is not a baseline for it.
-    if missing.len() == FIXTURES.len() || !extra.is_empty() {
-        bail!(
-            "fixture sets differ: not in baseline: {}; not measured: {}",
-            quoted_list(&missing),
-            quoted_list(&extra)
-        );
-    }
-    if let Some(row) = rows
-        .iter()
-        .find(|row| !(row.mib_per_second.is_finite() && row.mib_per_second > 0.0))
-    {
-        bail!(
-            "{source}: baseline MiB/s for `{}` is not a positive number",
-            row.fixture
-        );
-    }
-    Ok(())
-}
-
-fn quoted_list(names: &[&str]) -> String {
-    if names.is_empty() {
-        return "-".to_owned();
-    }
-    let quoted: Vec<String> = names.iter().map(|name| format!("`{name}`")).collect();
-    quoted.join(", ")
-}
-
-/// One row per measured fixture, in `FIXTURES` order. A fixture is `slower` when `now <
-/// tolerance * baseline`; exactly at the band passes. One the baseline lacks is never slower.
-///
-/// When the machine of the run is known, the band is laid around [`Band::centre`] instead of
-/// around 1: a fixture is `slower` when its ratio is below `tolerance * centre`. A slower
-/// machine, or a slower run of the same one, moves every ratio and the median with them; a
-/// fixture that fell behind the others still stands out.
-fn compare(
-    baseline: &[Throughput],
-    now: &[Throughput],
-    tolerance: f64,
-    band: &Band,
-) -> Vec<CheckRow> {
-    let mut rows: Vec<CheckRow> = FIXTURES
-        .iter()
-        .filter_map(|fixture| {
-            let after = now.iter().find(|row| row.fixture == fixture.name)?;
-            let before = baseline
+        .map(|folder| {
+            fixtures
                 .iter()
-                .find(|row| row.fixture == fixture.name)
-                .map(|row| row.mib_per_second);
-            Some(CheckRow {
-                fixture: fixture.name.to_owned(),
-                baseline: before,
-                now: after.mib_per_second,
-                slower: before.is_some_and(|before| after.mib_per_second < tolerance * before),
-            })
+                .map(|fixture| {
+                    let ours = stream(own, fixture);
+                    ours.is_some() && stream(folder, fixture) == ours
+                })
+                .collect()
+        })
+        .collect())
+}
+
+/// Every round, every fixture is run by every build that shares it before the next fixture
+/// starts: the builds of one fixture are measured seconds apart, so what the machine does over
+/// minutes falls on all of them alike.
+fn measure_in_turns(
+    binaries: &[PathBuf],
+    fixtures: &[&str],
+    shared: &[Vec<bool>],
+    options: &CheckOptions,
+) -> Result<Vec<BuildThroughput>> {
+    let mut builds: Vec<BuildThroughput> = binaries
+        .iter()
+        .map(|_| BuildThroughput {
+            version: String::new(),
+            tier2_grid: Vec::new(),
         })
         .collect();
-    if *band != Band::Baseline {
-        let centre = median_ratio(&rows).map(|median| band.centre(median));
-        for row in &mut rows {
-            row.slower = match (row.baseline, centre) {
-                (Some(before), Some(centre)) => row.now / before < tolerance * centre,
-                _ => false,
-            };
+    for round in 0..options.rounds {
+        crate::progress(&format!(
+            "tier 2 grid in turns, round {} of {}",
+            round + 1,
+            options.rounds
+        ));
+        for (index, fixture) in fixtures.iter().enumerate() {
+            for build in turn_order(binaries.len(), round) {
+                if shared[build][index] {
+                    let (version, rate) = run_grid(&binaries[build], fixture, options.mib)?;
+                    add_round(&mut builds[build], version, fixture, rate);
+                }
+            }
         }
     }
-    rows
+    Ok(builds)
 }
 
-/// The median of `now / baseline` over the fixtures that have a baseline.
-fn median_ratio(rows: &[CheckRow]) -> Option<f64> {
-    let mut ratios: Vec<f64> = rows
-        .iter()
-        .filter_map(|row| row.baseline.map(|before| row.now / before))
-        .collect();
-    ratios.sort_by(f64::total_cmp);
-    let middle = ratios.len() / 2;
-    let upper = *ratios.get(middle)?;
-    if ratios.len() % 2 == 1 {
-        return Some(upper);
+/// The order the builds run one fixture in: it shifts by one each round, so no build always
+/// goes first or runs right after the same neighbour's heat.
+fn turn_order(builds: usize, round: usize) -> impl Iterator<Item = usize> {
+    (0..builds).map(move |turn| (turn + round) % builds)
+}
+
+fn add_round(build: &mut BuildThroughput, version: String, fixture: &str, rate: f64) {
+    build.version = version;
+    match build
+        .tier2_grid
+        .iter_mut()
+        .find(|row| row.fixture == fixture)
+    {
+        Some(row) => {
+            row.mib_per_second = row.mib_per_second.max(rate);
+            row.rounds.push(rate);
+        }
+        None => build.tier2_grid.push(BestOfRounds {
+            fixture: fixture.to_owned(),
+            mib_per_second: rate,
+            rounds: vec![rate],
+        }),
     }
-    Some((ratios.get(middle - 1)? + upper) / 2.0)
 }
 
-fn render_check(plan: &CheckPlan, rows: &[CheckRow]) -> String {
-    let record = &plan.baseline.record;
-    let tolerance = plan.tolerance;
-    let version = plan.baseline.version;
-    let stamp = if record.date.is_empty() {
-        format!("v{version}")
-    } else {
-        format!("v{version}, {}", record.date)
-    };
-    let median = median_ratio(rows).unwrap_or(1.0);
-    let centre = plan.band.centre(median);
-    let (this_machine, rule) = match &plan.band {
-        Band::Baseline => (
-            String::new(),
-            format!(
-                "A fixture fails below {tolerance:.2} x its baseline MiB/s; exactly {tolerance:.2} passes."
-            ),
-        ),
-        Band::SameMachine => (
-            String::new(),
-            format!(
-                "The baseline is this machine's, and one runner description is not one speed: the band follows the median ratio of this run, {median:.2}, when it is below 1.\nA fixture fails below {tolerance:.2} x {centre:.2} ({:.2}); exactly at it passes.",
-                tolerance * centre
-            ),
-        ),
-        Band::OtherMachine(machine) => (
-            format!("This machine: {machine}\n"),
-            format!(
-                "The baseline is another machine's: fixtures are judged against the median ratio of this run, {median:.2}.\nA fixture fails below {tolerance:.2} x that median ({:.2}); exactly at it passes.",
-                tolerance * median
-            ),
-        ),
-    };
-    // Named by what the band lies around: 1 is the baseline itself.
-    let band = match &plan.band {
-        Band::OtherMachine(_) => "the median ratio",
-        Band::SameMachine if centre < 1.0 => "the median ratio",
-        Band::Baseline | Band::SameMachine => "baseline",
-    };
-    let mut text = format!(
-        "# vt-bench grid --check\n\nBaseline: {} ({stamp})\nBaseline machine: {}\n{this_machine}Run: {COLUMNS}x{LINES}, {} MiB per fixture, median of {RUNS} cycles after 1 warm-up.\n{rule}\n\n| Fixture | baseline MiB/s | now MiB/s | ratio | verdict |\n|---|---:|---:|---:|---|\n",
-        plan.source, record.machine, plan.mib
-    );
-    for row in rows {
-        // Writing to a String cannot fail.
-        let (baseline, ratio, verdict) = match row.baseline {
-            Some(before) => (
-                format!("{before:.1}"),
-                format!("{:.2}", row.now / before),
-                if row.slower { "SLOWER" } else { "ok" },
-            ),
-            None => ("-".to_owned(), "-".to_owned(), "no baseline"),
-        };
-        let _ = writeln!(
-            text,
-            "| `{}` | {baseline} | {:.1} | {ratio} | {verdict} |",
-            row.fixture, row.now
+/// One `grid --fixture NAME --mib N` of `binary`, as a process of its own: every build is
+/// measured the same way, each from a cold start. Returns the version it names and the MiB/s.
+fn run_grid(binary: &Path, fixture: &str, mib: usize) -> Result<(String, f64)> {
+    let output = Command::new(binary)
+        .args(["grid", "--fixture", fixture, "--mib"])
+        .arg(mib.to_string())
+        .output()
+        .with_context(|| format!("{}: cannot run it", binary.display()))?;
+    if !output.status.success() {
+        bail!(
+            "{}: 'grid --fixture {fixture} --mib {mib}' failed:\n{}",
+            binary.display(),
+            String::from_utf8_lossy(&output.stderr)
         );
     }
-    let judged = rows.iter().filter(|row| row.baseline.is_some()).count();
-    let unjudged: Vec<String> = rows
+    let report = parse_grid_report(&String::from_utf8_lossy(&output.stdout));
+    let rate = report
+        .rows
         .iter()
-        .filter(|row| row.baseline.is_none())
-        .map(|row| format!("`{}`", row.fixture))
-        .collect();
-    if !unjudged.is_empty() {
-        let _ = writeln!(text, "\nNot judged, no baseline: {}", unjudged.join(", "));
+        .find(|(name, _)| name == fixture)
+        .map(|(_, rate)| *rate)
+        .with_context(|| {
+            format!(
+                "{}: 'grid --fixture {fixture} --mib {mib}' printed no row for it",
+                binary.display()
+            )
+        })?;
+    Ok((report.version, rate))
+}
+
+/// Reads what `grid` prints: the version from `# vt-bench: oneterm-vt 0.4.2`, and from each
+/// table row, `` | `fixture` | MiB/s | .. ``, the name and the first figure.
+fn parse_grid_report(text: &str) -> GridReport {
+    let mut report = GridReport::default();
+    for line in text.lines() {
+        if let Some(title) = line.strip_prefix("# vt-bench: ") {
+            title
+                .rsplit(' ')
+                .next()
+                .unwrap_or_default()
+                .clone_into(&mut report.version);
+            continue;
+        }
+        let mut cells = line.strip_prefix('|').unwrap_or_default().split('|');
+        let fixture = cells.next().unwrap_or_default().trim();
+        let rate = cells
+            .next()
+            .and_then(|cell| cell.trim().parse::<f64>().ok());
+        let name = fixture
+            .strip_prefix('`')
+            .and_then(|name| name.strip_suffix('`'));
+        if let (Some(name), Some(rate)) = (name, rate.filter(|rate| *rate > 0.0)) {
+            report.rows.push((name.to_owned(), rate));
+        }
     }
+    report
+}
+
+/// How a build is named in the report: the version it reported, or its file name when it ran
+/// nothing.
+fn label(build: &BuildThroughput, binary: &Path) -> String {
+    if build.version.is_empty() {
+        binary.file_name().map_or_else(
+            || binary.display().to_string(),
+            |name| name.to_string_lossy().into_owned(),
+        )
+    } else {
+        build.version.clone()
+    }
+}
+
+/// One row per fixture of this build (the last of `builds`), in its order. A fixture is slower
+/// when this build is below `tolerance` x the build before it, the last one given; exactly at
+/// the band passes, and a fixture that build did not run is not judged.
+fn check_rows(builds: &[BuildThroughput], tolerance: f64) -> Vec<CheckRow> {
+    let Some((this, others)) = builds.split_last() else {
+        return Vec::new();
+    };
+    let rate_of = |build: &BuildThroughput, fixture: &str| {
+        build
+            .tier2_grid
+            .iter()
+            .find(|row| row.fixture == fixture)
+            .map(|row| row.mib_per_second)
+    };
+    this.tier2_grid
+        .iter()
+        .map(|row| {
+            let held_against = others.last().and_then(|build| rate_of(build, &row.fixture));
+            let verdict = match held_against {
+                None => Verdict::NotJudged,
+                Some(before) if row.mib_per_second < tolerance * before => Verdict::Slower,
+                Some(_) => Verdict::Ok,
+            };
+            CheckRow {
+                fixture: row.fixture.clone(),
+                rates: builds
+                    .iter()
+                    .map(|build| rate_of(build, &row.fixture))
+                    .collect(),
+                verdict,
+            }
+        })
+        .collect()
+}
+
+/// `labels` names every build, this one last.
+fn render_check(options: &CheckOptions, labels: &[String], rows: &[CheckRow]) -> String {
+    let tolerance = options.tolerance;
+    let others = &labels[..labels.len().saturating_sub(1)];
+    let held_against = others.last().map_or("", String::as_str);
+    let mut text = format!(
+        "# vt-bench grid --check\n\nThis build: oneterm-vt {}\nOther builds, in the order given: {}\nRun: {COLUMNS}x{LINES}, {} MiB per fixture, {} rounds; in a round every build runs a fixture before any runs the next one. A run is the median of {RUNS} cycles after 1 warm-up; a figure is the best round, in MiB/s.\nA fixture fails below {tolerance:.2} x the figure of {held_against}, the last build given; exactly {tolerance:.2} passes.\n\n| Fixture |",
+        env!("CARGO_PKG_VERSION"),
+        others.join(", "),
+        options.mib,
+        options.rounds,
+    );
+    // Writing to a String cannot fail.
+    for other in others {
+        let _ = write!(text, " {other} |");
+    }
+    let _ = writeln!(text, " this build | this / {held_against} | verdict |");
+    let _ = writeln!(text, "|---|{}---:|---|", "---:|".repeat(others.len() + 1));
+    for row in rows {
+        let _ = write!(text, "| `{}` |", row.fixture);
+        for rate in &row.rates {
+            match rate {
+                Some(rate) => {
+                    let _ = write!(text, " {rate:.1} |");
+                }
+                None => text.push_str(" - |"),
+            }
+        }
+        let this = row.rates.last().copied().flatten().unwrap_or_default();
+        let before = row.rates.iter().rev().nth(1).copied().flatten();
+        let (ratio, verdict) = match (row.verdict, before) {
+            (Verdict::Slower, Some(before)) => (format!("{:.2}", this / before), "SLOWER"),
+            (Verdict::Ok, Some(before)) => (format!("{:.2}", this / before), "ok"),
+            _ => ("-".to_owned(), "not judged"),
+        };
+        let _ = writeln!(text, " {ratio} | {verdict} |");
+    }
+    if rows.iter().any(|row| row.rates.contains(&None)) {
+        text.push_str(
+            "\n`-`: the build has no such fixture or generates another stream for it, so it did not run it.\n",
+        );
+    }
+    let judged = rows
+        .iter()
+        .filter(|row| row.verdict != Verdict::NotJudged)
+        .count();
     let slower: Vec<String> = rows
         .iter()
-        .filter(|row| row.slower)
+        .filter(|row| row.verdict == Verdict::Slower)
         .map(|row| format!("`{}`", row.fixture))
         .collect();
     if slower.is_empty() {
         let _ = writeln!(
             text,
-            "\nPASS: {judged} of {judged} fixtures at or above {tolerance:.2} x {band}"
+            "\nPASS: {judged} of {judged} fixtures at or above {tolerance:.2} x {held_against}"
         );
     } else {
         let _ = writeln!(
             text,
-            "\nFAIL: {} of {judged} fixtures below {tolerance:.2} x {band}: {}",
+            "\nFAIL: {} of {judged} fixtures below {tolerance:.2} x {held_against}: {}",
             slower.len(),
             slower.join(", ")
         );
@@ -448,749 +500,5 @@ fn render_check(plan: &CheckPlan, rows: &[CheckRow]) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use crate::perf_history::{PerfRecord, Tiers};
-
-    use super::*;
-
-    const CLEAN: BuildFlavour = BuildFlavour {
-        debug: false,
-        paranoid: false,
-        profiling: false,
-    };
-
-    fn strings(parts: &[&str]) -> Vec<String> {
-        parts.iter().map(ToString::to_string).collect()
-    }
-
-    fn error_text<T>(result: Result<T>) -> String {
-        format!("{:#}", result.err().expect("expected an error"))
-    }
-
-    fn row(fixture: &str, mib_per_second: f64) -> Throughput {
-        Throughput {
-            fixture: fixture.to_owned(),
-            mib_per_second,
-            ns_per_byte: 0.0,
-            spread_percent: 0.0,
-        }
-    }
-
-    fn all_rows(mib_per_second: f64) -> Vec<Throughput> {
-        FIXTURES
-            .iter()
-            .map(|fixture| row(fixture.name, mib_per_second))
-            .collect()
-    }
-
-    fn release(
-        version: &str,
-        columns: u16,
-        lines: u16,
-        mib: u32,
-        rows: Vec<Throughput>,
-    ) -> Release {
-        Release {
-            version: version.parse().unwrap(),
-            record: PerfRecord {
-                engine: "oneterm-vt".to_owned(),
-                version: version.to_owned(),
-                date: "2026-11-30".to_owned(),
-                platform: PLATFORM.to_owned(),
-                machine: "box".to_owned(),
-                columns,
-                lines,
-                mib_per_fixture: mib,
-                runs: 5,
-                tiers: Tiers {
-                    tier1_parser: Vec::new(),
-                    tier2_grid: rows,
-                    tier3_render: Vec::new(),
-                    tier4_resize: Vec::new(),
-                    tier5_memory: Vec::new(),
-                },
-            },
-        }
-    }
-
-    /// A scratch directory under the temp dir, removed on drop.
-    struct TempDir(PathBuf);
-
-    impl TempDir {
-        fn new(test: &str) -> Self {
-            let dir =
-                std::env::temp_dir().join(format!("vt-bench-check-{}-{test}", std::process::id()));
-            let _ = fs::remove_dir_all(&dir);
-            fs::create_dir_all(&dir).unwrap();
-            Self(dir)
-        }
-
-        fn write_record(&self, name: &str, release: &Release) -> PathBuf {
-            let path = self.0.join(name);
-            fs::write(&path, serde_json::to_string(&release.record).unwrap()).unwrap();
-            path
-        }
-    }
-
-    impl Drop for TempDir {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.0);
-        }
-    }
-
-    #[test]
-    fn skew_reason_names_each_flavour() {
-        let flavour = |debug, paranoid, profiling| BuildFlavour {
-            debug,
-            paranoid,
-            profiling,
-        };
-        assert_eq!(skew_reason(CLEAN), None);
-        assert_eq!(
-            skew_reason(flavour(true, false, false)),
-            Some("--check needs a release build (cargo run --release)")
-        );
-        assert_eq!(
-            skew_reason(flavour(false, true, false)),
-            Some("--check refuses under vt-paranoid: the whole-history walk dominates the timing")
-        );
-        assert_eq!(
-            skew_reason(flavour(false, false, true)),
-            Some("--check refuses under hotpath-profiling: measurement sites change the timing")
-        );
-        assert_eq!(
-            skew_reason(flavour(true, true, true)),
-            skew_reason(flavour(true, false, false))
-        );
-        assert_eq!(
-            skew_reason(flavour(false, true, true)),
-            skew_reason(flavour(false, true, false))
-        );
-    }
-
-    #[test]
-    fn json_refused_in_skewed_build() {
-        let skewed = BuildFlavour {
-            paranoid: true,
-            ..CLEAN
-        };
-        assert_eq!(
-            error_text(ensure_recordable(skewed)),
-            "refusing --json: --check refuses under vt-paranoid: the whole-history walk dominates the timing"
-        );
-        assert!(ensure_recordable(CLEAN).is_ok());
-    }
-
-    #[test]
-    fn tolerance_range() {
-        let tolerance = |value: &str| parse_check_options(&strings(&["--tolerance", value]));
-        for bad in ["0", "-0.5", "1.01", "x", "NaN", "inf"] {
-            assert_eq!(
-                error_text(tolerance(bad)),
-                format!("--tolerance needs a number in (0, 1], got '{bad}'")
-            );
-        }
-        for (good, expected) in [("0.01", 0.01), ("0.5", 0.5), ("1", 1.0)] {
-            assert_eq!(tolerance(good).unwrap().tolerance, expected);
-        }
-        assert_eq!(parse_check_options(&[]).unwrap().tolerance, 0.5);
-    }
-
-    #[test]
-    fn check_takes_only_its_flags() {
-        for extra in [
-            &["--json"][..],
-            &["--out", "F"],
-            &["--frames", "5"],
-            &["--fixture", "plain_ascii"],
-        ] {
-            let mut args = strings(&["--check"]);
-            args.extend(strings(extra));
-            assert_eq!(
-                error_text(parse_check_options(&args)),
-                "'grid --check' takes only --baseline, --tolerance, --mib and --machine"
-            );
-        }
-        let with_machine = parse_check_options(&strings(&["--check", "--machine", "M"])).unwrap();
-        assert_eq!(with_machine.machine.as_deref(), Some("M"));
-        assert!(parse_check_options(&strings(&["--check", "--mib", "0"])).is_err());
-        assert_eq!(
-            error_text(parse_check_options(&strings(&["--check", "--baseline"]))),
-            "flag '--baseline' needs a value"
-        );
-    }
-
-    #[test]
-    fn exactly_at_band_passes() {
-        let baseline = all_rows(100.0);
-        let at_band = compare(&baseline, &all_rows(50.0), 0.5, &Band::Baseline);
-        assert!(at_band.iter().all(|row| !row.slower));
-        let below = compare(&baseline, &all_rows(49.99), 0.5, &Band::Baseline);
-        assert!(below.iter().all(|row| row.slower));
-    }
-
-    #[test]
-    fn rows_follow_fixture_order() {
-        let mut baseline = all_rows(100.0);
-        baseline.reverse();
-        let rows = compare(&baseline, &all_rows(90.0), 0.5, &Band::Baseline);
-        let names: Vec<&str> = rows.iter().map(|row| row.fixture.as_str()).collect();
-        let expected: Vec<&str> = FIXTURES.iter().map(|fixture| fixture.name).collect();
-        assert_eq!(names, expected);
-    }
-
-    #[test]
-    fn missing_fixture_on_either_side_refuses() {
-        let mut rows: Vec<Throughput> = all_rows(1.0)
-            .into_iter()
-            .filter(|row| row.fixture != "sixel")
-            .collect();
-        rows.push(row("old_name", 1.0));
-        let baseline = release("0.1.0", 160, 45, 32, rows);
-        assert_eq!(
-            error_text(check_baseline("b.json", &baseline)),
-            "fixture sets differ: not in baseline: `sixel`; not measured: `old_name`"
-        );
-
-        let baseline = release("0.1.0", 160, 45, 32, Vec::new());
-        let every = FIXTURES
-            .iter()
-            .map(|fixture| format!("`{}`", fixture.name))
-            .collect::<Vec<_>>()
-            .join(", ");
-        assert_eq!(
-            error_text(check_baseline("b.json", &baseline)),
-            format!("fixture sets differ: not in baseline: {every}; not measured: -")
-        );
-    }
-
-    /// The first ten fixtures: what every record written before the newer ones holds.
-    fn early_rows(mib_per_second: f64) -> Vec<Throughput> {
-        let mut rows = all_rows(mib_per_second);
-        rows.truncate(10);
-        rows
-    }
-
-    #[test]
-    fn fixtures_newer_than_the_baseline_are_skipped() {
-        let baseline = release("0.1.0", 160, 45, 32, early_rows(100.0));
-        check_baseline("b.json", &baseline).unwrap();
-
-        // The new fixtures run far below any band; they still cannot fail the check.
-        let rows = compare(&early_rows(100.0), &all_rows(1.0), 0.5, &Band::Baseline);
-        assert_eq!(rows.len(), FIXTURES.len());
-        let unjudged: Vec<&str> = rows
-            .iter()
-            .filter(|row| row.baseline.is_none())
-            .map(|row| row.fixture.as_str())
-            .collect();
-        assert_eq!(
-            unjudged,
-            [
-                "grapheme_clusters",
-                "hyperlinks",
-                "mode_churn",
-                "sixel_large",
-                "unique_styles",
-                "unique_links",
-                "kitty_images"
-            ]
-        );
-        assert!(rows.iter().all(|row| row.baseline.is_none() != row.slower));
-        let plan = CheckPlan {
-            source: "b.json".to_owned(),
-            baseline,
-            tolerance: 0.5,
-            mib: 32,
-            band: Band::Baseline,
-        };
-        let text = render_check(&plan, &rows);
-        assert!(text.contains("| `hyperlinks` | - | 1.0 | - | no baseline |\n"));
-        assert!(text.contains(
-            "\nNot judged, no baseline: `grapheme_clusters`, `hyperlinks`, `mode_churn`, `sixel_large`, `unique_styles`, `unique_links`, `kitty_images`\n"
-        ));
-        assert!(text.ends_with("\nFAIL: 10 of 10 fixtures below 0.50 x baseline: `plain_ascii`, `long_lines`, `heavy_sgr`, `tui_redraw`, `scroll_region`, `cjk_wide`, `dense_cells`, `scrolling`, `sixel`, `osc_9_7`\n"));
-    }
-
-    #[test]
-    fn a_baseline_of_old_fixtures_passes_end_to_end() {
-        let dir = TempDir::new("early");
-        let path = dir.write_record(
-            "early.json",
-            &release("0.1.0", 160, 45, 32, early_rows(1.0)),
-        );
-        let args = strings(&["--check", "--baseline", path.to_str().unwrap()]);
-        assert!(prepare_check(&args, CLEAN, &dir.0).is_ok());
-    }
-
-    #[test]
-    fn the_shipped_history_still_checks() {
-        let (source, newest) = newest_record(&Path::new(HISTORY_DIR).join(PLATFORM), None).unwrap();
-        check_baseline(&source, &newest).unwrap();
-    }
-
-    #[test]
-    fn nonpositive_baseline_refuses() {
-        for bad in [0.0, -1.0, f64::NAN, f64::INFINITY] {
-            let mut rows = all_rows(1.0);
-            rows[2].mib_per_second = bad;
-            let baseline = release("0.1.0", 160, 45, 32, rows);
-            assert_eq!(
-                error_text(check_baseline("b.json", &baseline)),
-                "b.json: baseline MiB/s for `heavy_sgr` is not a positive number"
-            );
-        }
-    }
-
-    #[test]
-    fn foreign_platform_baseline_refuses() {
-        let mut baseline = release("0.1.0", 160, 45, 32, all_rows(1.0));
-        baseline.record.platform = "elsewhere".to_owned();
-        let expected =
-            format!("b.json: baseline platform elsewhere, this build runs on {PLATFORM}");
-        assert_eq!(error_text(check_baseline("b.json", &baseline)), expected);
-
-        let dir = TempDir::new("foreign");
-        let path = dir.write_record("b.json", &baseline);
-        let args = strings(&["--check", "--baseline", path.to_str().unwrap()]);
-        let expected = format!(
-            "{}: baseline platform elsewhere, this build runs on {PLATFORM}",
-            path.display()
-        );
-        assert_eq!(error_text(prepare_check(&args, CLEAN, &dir.0)), expected);
-    }
-
-    #[test]
-    fn geometry_mismatch_refuses() {
-        let baseline = release("0.1.0", 80, 24, 32, all_rows(1.0));
-        assert_eq!(
-            error_text(check_baseline("b.json", &baseline)),
-            "b.json: baseline geometry 80x24, this build measures 160x45"
-        );
-        for (columns, lines) in [(0, 0), (160, 45)] {
-            let baseline = release("0.1.0", columns, lines, 32, all_rows(1.0));
-            assert!(check_baseline("b.json", &baseline).is_ok());
-        }
-    }
-
-    #[test]
-    fn newest_record_is_highest_version() {
-        let dir = TempDir::new("newest");
-        for version in ["0.9.0", "0.10.0", "0.2.0"] {
-            dir.write_record(
-                &format!("v{version}.json"),
-                &release(version, 160, 45, 32, all_rows(1.0)),
-            );
-        }
-        let (source, newest) = newest_record(&dir.0, None).unwrap();
-        assert_eq!(source, format!("perf/history/{PLATFORM}/v0.10.0.json"));
-        assert_eq!(newest.record.version, "0.10.0");
-    }
-
-    #[test]
-    fn empty_or_missing_history_refuses() {
-        let dir = TempDir::new("empty");
-        fs::write(dir.0.join("notes.txt"), "not a record").unwrap();
-        for history in [dir.0.clone(), dir.0.join("missing")] {
-            let message = error_text(prepare_check(&strings(&["--check"]), CLEAN, &history));
-            assert_eq!(
-                message,
-                format!(
-                    "no perf record in perf/history/{PLATFORM}; the Release workflow writes the first, or pass --baseline FILE"
-                )
-            );
-        }
-    }
-
-    #[test]
-    fn refusals_come_in_order() {
-        let dir = TempDir::new("order");
-        let debug = BuildFlavour {
-            debug: true,
-            ..CLEAN
-        };
-        // A bad flag wins over the build flavour, the flavour over the baseline.
-        let bad_flag = error_text(prepare_check(&strings(&["--bogus"]), debug, &dir.0));
-        assert!(bad_flag.contains("takes only"), "{bad_flag}");
-        let flavour = error_text(prepare_check(&[], debug, &dir.0));
-        assert!(flavour.contains("release build"), "{flavour}");
-
-        let missing = dir.0.join("nope.json");
-        let args = strings(&["--baseline", missing.to_str().unwrap()]);
-        let unreadable = error_text(prepare_check(&args, CLEAN, &dir.0));
-        assert!(
-            unreadable.contains("nope.json: cannot read file"),
-            "{unreadable}"
-        );
-
-        let garbage = dir.0.join("garbage.json");
-        fs::write(&garbage, "{").unwrap();
-        let args = strings(&["--baseline", garbage.to_str().unwrap()]);
-        let invalid = error_text(prepare_check(&args, CLEAN, &dir.0));
-        assert!(
-            invalid.contains("garbage.json: invalid record"),
-            "{invalid}"
-        );
-    }
-
-    #[test]
-    fn mib_follows_the_baseline() {
-        let dir = TempDir::new("mib");
-        let plan = |recorded: u32, extra: &[&str]| {
-            let path = dir.write_record(
-                "base.json",
-                &release("0.1.0", 160, 45, recorded, all_rows(1.0)),
-            );
-            let mut args = strings(&["--check", "--baseline", path.to_str().unwrap()]);
-            args.extend(strings(extra));
-            prepare_check(&args, CLEAN, &dir.0).unwrap().mib
-        };
-        assert_eq!(plan(8, &[]), 8);
-        assert_eq!(plan(0, &[]), 32);
-        assert_eq!(plan(8, &["--mib", "4"]), 4);
-    }
-
-    #[test]
-    fn report_is_exact() {
-        let mut baseline = release("0.1.0", 160, 45, 32, Vec::new());
-        baseline.record.machine = "i7-12700 12C/20T, Windows 11 26200, rustc 1.96.0".to_owned();
-        let plan = CheckPlan {
-            source: "perf/history/linux/v0.1.0.json".to_owned(),
-            baseline,
-            tolerance: 0.5,
-            mib: 32,
-            band: Band::Baseline,
-        };
-        let check_row = |fixture: &str, baseline, now, slower| CheckRow {
-            fixture: fixture.to_owned(),
-            baseline,
-            now,
-            slower,
-        };
-        let rows = [
-            check_row("plain_ascii", Some(82.9), 81.0, false),
-            check_row("heavy_sgr", Some(204.1), 90.2, true),
-        ];
-        let header = "\
-# vt-bench grid --check
-
-Baseline: perf/history/linux/v0.1.0.json (v0.1.0, 2026-11-30)
-Baseline machine: i7-12700 12C/20T, Windows 11 26200, rustc 1.96.0
-Run: 160x45, 32 MiB per fixture, median of 5 cycles after 1 warm-up.
-A fixture fails below 0.50 x its baseline MiB/s; exactly 0.50 passes.
-
-| Fixture | baseline MiB/s | now MiB/s | ratio | verdict |
-|---|---:|---:|---:|---|
-";
-        assert_eq!(
-            render_check(&plan, &rows),
-            format!(
-                "{header}| `plain_ascii` | 82.9 | 81.0 | 0.98 | ok |\n| `heavy_sgr` | 204.1 | 90.2 | 0.44 | SLOWER |\n\nFAIL: 1 of 2 fixtures below 0.50 x baseline: `heavy_sgr`\n"
-            )
-        );
-        assert_eq!(
-            render_check(&plan, &rows[..1]),
-            format!(
-                "{header}| `plain_ascii` | 82.9 | 81.0 | 0.98 | ok |\n\nPASS: 1 of 1 fixtures at or above 0.50 x baseline\n"
-            )
-        );
-    }
-
-    #[test]
-    fn report_without_a_date_drops_the_comma() {
-        let mut baseline = release("0.1.0", 160, 45, 32, Vec::new());
-        baseline.record.date.clear();
-        let plan = CheckPlan {
-            source: "base.json".to_owned(),
-            baseline,
-            tolerance: 0.25,
-            mib: 8,
-            band: Band::Baseline,
-        };
-        let text = render_check(&plan, &[]);
-        assert!(text.contains("Baseline: base.json (v0.1.0)\n"));
-        assert!(text.contains("fails below 0.25 x its baseline MiB/s; exactly 0.25 passes."));
-    }
-    // ---- A run on another machine than the baseline's ----
-
-    fn other() -> Band {
-        Band::OtherMachine("another box".to_owned())
-    }
-
-    fn slower_names(rows: &[CheckRow]) -> Vec<&str> {
-        rows.iter()
-            .filter(|row| row.slower)
-            .map(|row| row.fixture.as_str())
-            .collect()
-    }
-
-    #[test]
-    fn hardware_is_the_machine_without_its_toolchain() {
-        assert_eq!(hardware("box, 4 vCPU X, rustc 1.96.0"), "box, 4 vCPU X");
-        assert_eq!(
-            hardware("box, 4 vCPU X, rustc 1.97.1"),
-            hardware("box, 4 vCPU X, rustc 1.96.0")
-        );
-        assert_eq!(hardware("box"), "box");
-        assert_ne!(
-            hardware("box, 4 vCPU X, rustc 1.96.0"),
-            hardware("box, 4 vCPU Y, rustc 1.96.0")
-        );
-    }
-
-    #[test]
-    fn another_machine_is_judged_against_the_median_of_its_run() {
-        // A slower runner: every fixture near 0.6 of the baseline, one at 0.48.
-        let baseline = all_rows(100.0);
-        let mut now = all_rows(60.0);
-        now[9].mib_per_second = 48.0;
-        assert_eq!(
-            slower_names(&compare(&baseline, &now, 0.5, &Band::Baseline)),
-            ["osc_9_7"]
-        );
-        assert!(slower_names(&compare(&baseline, &now, 0.5, &other())).is_empty());
-
-        // A fixture at half of what the others hold is exactly at the band; below it fails.
-        now[9].mib_per_second = 30.0;
-        assert!(slower_names(&compare(&baseline, &now, 0.5, &other())).is_empty());
-        now[9].mib_per_second = 29.9;
-        assert_eq!(
-            slower_names(&compare(&baseline, &now, 0.5, &other())),
-            ["osc_9_7"]
-        );
-
-        // A faster runner does not hide a fixture that fell behind.
-        let mut now = all_rows(200.0);
-        now[2].mib_per_second = 90.0;
-        assert!(slower_names(&compare(&baseline, &now, 0.5, &Band::Baseline)).is_empty());
-        assert_eq!(
-            slower_names(&compare(&baseline, &now, 0.5, &other())),
-            ["heavy_sgr"]
-        );
-    }
-
-    #[test]
-    fn a_slower_run_of_the_same_machine_lowers_the_band() {
-        // The shape of a release run on a hosted runner: every fixture near 0.55 of the
-        // record of the same runner description, some at 0.31 to 0.46.
-        let baseline = all_rows(100.0);
-        let mut now = all_rows(55.0);
-        now[0].mib_per_second = 31.0;
-        now[9].mib_per_second = 46.0;
-        assert_eq!(
-            slower_names(&compare(&baseline, &now, 0.5, &Band::Baseline)),
-            ["plain_ascii", "osc_9_7"]
-        );
-        assert!(slower_names(&compare(&baseline, &now, 0.5, &Band::SameMachine)).is_empty());
-
-        // Half of what the others hold is exactly at the band; below it fails.
-        now[0].mib_per_second = 27.5;
-        assert!(slower_names(&compare(&baseline, &now, 0.5, &Band::SameMachine)).is_empty());
-        now[0].mib_per_second = 27.4;
-        assert_eq!(
-            slower_names(&compare(&baseline, &now, 0.5, &Band::SameMachine)),
-            ["plain_ascii"]
-        );
-
-        // A faster run does not raise the band: the baseline's own figures still hold.
-        let mut now = all_rows(200.0);
-        now[2].mib_per_second = 90.0;
-        assert!(slower_names(&compare(&baseline, &now, 0.5, &Band::SameMachine)).is_empty());
-        now[2].mib_per_second = 49.0;
-        assert_eq!(
-            slower_names(&compare(&baseline, &now, 0.5, &Band::SameMachine)),
-            ["heavy_sgr"]
-        );
-    }
-
-    #[test]
-    fn the_median_ratio_skips_fixtures_without_a_baseline() {
-        let check_row = |baseline, now| CheckRow {
-            fixture: "f".to_owned(),
-            baseline,
-            now,
-            slower: false,
-        };
-        assert_eq!(median_ratio(&[]), None);
-        assert_eq!(median_ratio(&[check_row(None, 5.0)]), None);
-        let odd = [
-            check_row(Some(100.0), 90.0),
-            check_row(None, 1.0),
-            check_row(Some(100.0), 30.0),
-            check_row(Some(100.0), 60.0),
-        ];
-        assert_eq!(median_ratio(&odd), Some(0.6));
-        assert_eq!(median_ratio(&odd[..3]), Some(0.6));
-        // A fixture new since the baseline is never slower, on any machine.
-        let rows = compare(&early_rows(100.0), &all_rows(1.0), 0.5, &other());
-        assert!(slower_names(&rows).is_empty());
-    }
-
-    fn record_on(dir: &TempDir, version: &str, machine: &str, rows: Vec<Throughput>) {
-        let mut release = release(version, 160, 45, 32, rows);
-        release.record.machine = machine.to_owned();
-        dir.write_record(&format!("v{version}.json"), &release);
-    }
-
-    #[test]
-    fn the_baseline_is_the_newest_record_of_the_same_machine() {
-        let dir = TempDir::new("machines");
-        record_on(&dir, "0.1.0", "runner, cpu A, rustc 1.95.0", all_rows(1.0));
-        record_on(&dir, "0.2.0", "runner, cpu B, rustc 1.96.0", all_rows(1.0));
-        record_on(&dir, "0.3.0", "runner, cpu B, rustc 1.96.0", all_rows(1.0));
-        let plan = |machine: Option<&str>| {
-            let mut args = strings(&["--check"]);
-            if let Some(machine) = machine {
-                args.extend(strings(&["--machine", machine]));
-            }
-            let plan = prepare_check(&args, CLEAN, &dir.0).unwrap();
-            (plan.baseline.record.version.clone(), plan.band)
-        };
-        // Nothing is known about this machine: the newest record, held as it is.
-        assert_eq!(plan(None), ("0.3.0".to_owned(), Band::Baseline));
-        // The same machine with a newer toolchain is the same machine.
-        assert_eq!(
-            plan(Some("runner, cpu B, rustc 1.99.0")),
-            ("0.3.0".to_owned(), Band::SameMachine)
-        );
-        // An older record of this machine beats a newer one of another.
-        assert_eq!(
-            plan(Some("runner, cpu A, rustc 1.96.0")),
-            ("0.1.0".to_owned(), Band::SameMachine)
-        );
-        // No record of this machine: the newest one, judged against the median.
-        let unknown = "runner, cpu C, rustc 1.96.0";
-        assert_eq!(
-            plan(Some(unknown)),
-            ("0.3.0".to_owned(), Band::OtherMachine(unknown.to_owned()))
-        );
-    }
-
-    #[test]
-    fn a_record_of_the_same_machine_that_is_no_baseline_is_passed_over() {
-        let dir = TempDir::new("stale");
-        let mut stale = all_rows(1.0);
-        stale.push(row("a_fixture_since_removed", 1.0));
-        record_on(&dir, "0.1.0", "runner, cpu A, rustc 1.95.0", stale);
-        record_on(&dir, "0.2.0", "runner, cpu B, rustc 1.96.0", all_rows(1.0));
-        let machine = "runner, cpu A, rustc 1.96.0";
-        let args = strings(&["--check", "--machine", machine]);
-        let plan = prepare_check(&args, CLEAN, &dir.0).unwrap();
-        assert_eq!(plan.baseline.record.version, "0.2.0");
-        assert_eq!(plan.band, Band::OtherMachine(machine.to_owned()));
-    }
-
-    #[test]
-    fn a_named_baseline_of_another_machine_is_judged_against_the_median() {
-        let dir = TempDir::new("named");
-        let path = dir.write_record("base.json", &release("0.1.0", 160, 45, 32, all_rows(1.0)));
-        let plan = |machine: &str| {
-            let args = strings(&[
-                "--check",
-                "--baseline",
-                path.to_str().unwrap(),
-                "--machine",
-                machine,
-            ]);
-            prepare_check(&args, CLEAN, &dir.0).unwrap().band
-        };
-        assert_eq!(plan("box"), Band::SameMachine);
-        assert_eq!(plan("another box"), other());
-    }
-
-    #[test]
-    fn report_for_another_machine_is_exact() {
-        let plan = CheckPlan {
-            source: "perf/history/linux/v0.3.0.json".to_owned(),
-            baseline: release("0.3.0", 160, 45, 32, Vec::new()),
-            tolerance: 0.5,
-            mib: 32,
-            band: other(),
-        };
-        let check_row = |fixture: &str, now, slower| CheckRow {
-            fixture: fixture.to_owned(),
-            baseline: Some(100.0),
-            now,
-            slower,
-        };
-        let rows = [
-            check_row("plain_ascii", 60.0, false),
-            check_row("heavy_sgr", 20.0, true),
-            check_row("osc_9_7", 48.0, false),
-        ];
-        let header = "\
-# vt-bench grid --check
-
-Baseline: perf/history/linux/v0.3.0.json (v0.3.0, 2026-11-30)
-Baseline machine: box
-This machine: another box
-Run: 160x45, 32 MiB per fixture, median of 5 cycles after 1 warm-up.
-The baseline is another machine's: fixtures are judged against the median ratio of this run, 0.48.
-A fixture fails below 0.50 x that median (0.24); exactly at it passes.
-
-| Fixture | baseline MiB/s | now MiB/s | ratio | verdict |
-|---|---:|---:|---:|---|
-";
-        assert_eq!(
-            render_check(&plan, &rows),
-            format!(
-                "{header}| `plain_ascii` | 100.0 | 60.0 | 0.60 | ok |\n| `heavy_sgr` | 100.0 | 20.0 | 0.20 | SLOWER |\n| `osc_9_7` | 100.0 | 48.0 | 0.48 | ok |\n\nFAIL: 1 of 3 fixtures below 0.50 x the median ratio: `heavy_sgr`\n"
-            )
-        );
-        let text = render_check(&plan, &rows[..1]);
-        assert!(
-            text.ends_with("\nPASS: 1 of 1 fixtures at or above 0.50 x the median ratio\n"),
-            "{text}"
-        );
-    }
-
-    #[test]
-    fn report_for_a_run_of_the_same_machine_is_exact() {
-        let plan = CheckPlan {
-            source: "perf/history/linux/v0.3.0.json".to_owned(),
-            baseline: release("0.3.0", 160, 45, 32, Vec::new()),
-            tolerance: 0.5,
-            mib: 32,
-            band: Band::SameMachine,
-        };
-        let check_row = |fixture: &str, now, slower| CheckRow {
-            fixture: fixture.to_owned(),
-            baseline: Some(100.0),
-            now,
-            slower,
-        };
-        let rows = [
-            check_row("plain_ascii", 60.0, false),
-            check_row("heavy_sgr", 20.0, true),
-            check_row("osc_9_7", 48.0, false),
-        ];
-        let header = "\
-# vt-bench grid --check
-
-Baseline: perf/history/linux/v0.3.0.json (v0.3.0, 2026-11-30)
-Baseline machine: box
-Run: 160x45, 32 MiB per fixture, median of 5 cycles after 1 warm-up.
-The baseline is this machine's, and one runner description is not one speed: the band follows the median ratio of this run, 0.48, when it is below 1.
-A fixture fails below 0.50 x 0.48 (0.24); exactly at it passes.
-
-| Fixture | baseline MiB/s | now MiB/s | ratio | verdict |
-|---|---:|---:|---:|---|
-";
-        assert_eq!(
-            render_check(&plan, &rows),
-            format!(
-                "{header}| `plain_ascii` | 100.0 | 60.0 | 0.60 | ok |\n| `heavy_sgr` | 100.0 | 20.0 | 0.20 | SLOWER |\n| `osc_9_7` | 100.0 | 48.0 | 0.48 | ok |\n\nFAIL: 1 of 3 fixtures below 0.50 x the median ratio: `heavy_sgr`\n"
-            )
-        );
-        // A run as fast as the baseline or faster is held against the baseline itself.
-        let text = render_check(&plan, &[check_row("plain_ascii", 120.0, false)]);
-        assert!(
-            text.contains("\nA fixture fails below 0.50 x 1.00 (0.50); exactly at it passes.\n"),
-            "{text}"
-        );
-        assert!(
-            text.ends_with("\nPASS: 1 of 1 fixtures at or above 0.50 x baseline\n"),
-            "{text}"
-        );
-    }
-}
+#[path = "regression_check_tests.rs"]
+mod regression_check_tests;

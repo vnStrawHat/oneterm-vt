@@ -52,7 +52,7 @@ it is noise.
 | `scroll_region` | 90.3 | 10% | `osc_9_7` | 160.3 | 11% |
 
 Each release's own runs are `perf/history/<platform>/v<version>.json` (`linux`, `windows`,
-`macos`); `perf/chart-<platform>.svg` compares releases on one platform.
+`macos`); `perf/chart-<platform>.svg` compares the last releases on one platform.
 
 ## Reproduce
 
@@ -71,46 +71,14 @@ cargo run -p oneterm-vt-bench --release -- all --mib 32 --json --machine "<runne
 
 ## History and chart
 
-The Release workflow stores one tier 1-5 run per release on each of its hosted Linux, Windows
-and macOS runners (paths above; the chart plots tier-1 and tier-2 MiB/s per fixture across
-releases).
+The Release workflow measures the last five releases beside the new one on each of its hosted
+Linux, Windows and macOS runners, every build in turns in one job, and draws the chart from
+that: tier-2 MiB/s per fixture across those builds. It is also the gate before the tag. How it
+measures, and what may be compared with what: [performance across releases](performance-releases.md).
 
-The GitHub release carries only GitHub's source archives; read records and charts in the
-repository at the tag. Each chart has two panels, tier 1 (parser) above tier 2 (grid). Compare runs from one platform and one machine only; the record's `platform` and `machine` name
-them. The record schema is in [docs/perf/README.md](../perf/README.md).
-
-## The trip-wire
-
-```bash
-cargo run -p oneterm-vt-bench --release -- grid --check
-```
-
-Measures tier 2 and compares each fixture with a baseline record. It catches structural
-regressions (a clone per cell, a linear scan in a per-byte loop, a lost fast path), not drift.
-
-- Baseline: the newest record in `perf/history/<platform>/` for the platform the tool was built
-  for, or `--baseline FILE` (any `grid --json` output of the same platform).
-- `--tolerance R` (default `0.5`): a fixture fails below `R` x its baseline, exactly `R` passes.
-  `--mib N` defaults to the baseline's input size.
-- `--machine TEXT` names the machine of the run, as a record does. The baseline is then the
-  newest record of that same machine (the toolchain at the end of the text aside), and a run
-  that is slower as a whole lowers the band with it: a fixture fails below `R` x the median
-  ratio of the run when that median is below 1. With no record of that machine, every fixture
-  is judged against the median ratio, above 1 or below. Either way a slowdown shared by most
-  fixtures looks like a slower machine and is not caught.
-- Exit codes: `0` pass, `1` at least one fixture `SLOWER`, `2` no verdict.
-- No verdict (exit 2): bad flag; debug, `vt-paranoid` or `hotpath-profiling` build; no history
-  and no `--baseline`; unreadable baseline; baseline from another platform; baseline geometry
-  not 160x45; no fixture in common, or one that no longer exists; a baseline figure that is not a
-  positive number. A fixture newer than the baseline shows as `no baseline` and is not judged.
-- The build refusals read `vt-bench`'s own features; `--features oneterm-vt/vt-paranoid` on the
-  command line bypasses them, so do not.
-- The Release workflow runs it with `--machine` on each platform before tagging; hosted runners
-  of one label are several CPU models, and one model is not one speed from run to run, which is
-  what the rule above is for. The wide band
-  catches only structural regressions. The table above is the verdict.
-- Each platform's job summary shows the full run (tiers 1-5, markdown tables) followed by the
-  trip-wire table. The trip-wire stays on tier 2 only: tier-1 spreads are too noisy for a band.
+Each release also stores its own tier 1-5 run (paths above). The GitHub release carries only
+GitHub's source archives; read records and charts in the repository at the tag. The record
+schemas are in [docs/perf/record.md](../perf/record.md).
 
 ## Profiling
 

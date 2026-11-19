@@ -12,7 +12,6 @@ mod throughput;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
 
@@ -38,12 +37,16 @@ Measure:
   fixtures --out DIR [--mib N] [--compare]
                                    write every benchmark stream as DIR/<name>.vt;
                                    --compare adds the 9 cross-engine streams
-  grid --check [--baseline FILE] [--tolerance R] [--mib N] [--machine TEXT]
-                                   compare tier 2 with the newest perf/history/<os> record
+  grid --check --against BINARY [--against BINARY ...] [--tolerance R] [--mib N]
+      [--rounds N] [--machine TEXT --out FILE]
+                                   tier 2 of this build and of other builds of vt-bench
+                                   (the last releases, oldest first), every fixture run by
+                                   each build in turn; this build is held against the last
+                                   one given; --out writes the figures of all of them
 
 Report:
-  chart --history DIR --out FILE   SVG of tier-1 and tier-2 MiB/s per release of one platform,
-                                   one panel per tier, one line per fixture
+  chart --in-turns FILE --out FILE SVG of the tier-2 MiB/s of every build in FILE, as
+                                   written by grid --check --out: one line per fixture
 
   help | --help | -h               print this text
 ";
@@ -98,7 +101,7 @@ fn run(args: &[String]) -> ExitCode {
     }
 }
 
-/// `grid --check`: 0 when every fixture held, 1 when one is slower than the band.
+/// `grid --check`: 0 when every fixture held, 1 when one is below the band.
 fn exit_code_for(passed: bool) -> ExitCode {
     if passed {
         ExitCode::SUCCESS
@@ -107,14 +110,14 @@ fn exit_code_for(passed: bool) -> ExitCode {
     }
 }
 
-/// Reads `--history DIR` and `--out FILE`, writes the SVG, returns the output path.
+/// Reads `--in-turns FILE` and `--out FILE`, writes the SVG, returns the output path.
 fn chart_command(args: &[String]) -> Result<PathBuf> {
-    let mut history = None;
+    let mut in_turns = None;
     let mut out = None;
     let mut iter = args.iter();
     while let Some(flag) = iter.next() {
         let slot = match flag.as_str() {
-            "--history" => &mut history,
+            "--in-turns" => &mut in_turns,
             "--out" => &mut out,
             _ => bail!("unknown flag '{flag}' for 'chart'"),
         };
@@ -123,11 +126,11 @@ fn chart_command(args: &[String]) -> Result<PathBuf> {
         };
         *slot = Some(PathBuf::from(value));
     }
-    let history = history.context("missing --history DIR")?;
+    let in_turns = in_turns.context("missing --in-turns FILE")?;
     let out = out.context("missing --out FILE")?;
 
-    let releases = perf_history::load_history(&history)?;
-    write_file(&out, &chart::render_svg(&releases)?)?;
+    let record = perf_history::load_in_turns(&in_turns)?;
+    write_file(&out, &chart::render_svg(&record))?;
     Ok(out)
 }
 
@@ -346,13 +349,10 @@ fn render_report(options: &MeasureOptions, measured: &Measured) -> String {
 }
 
 fn render_json(options: &MeasureOptions, measured: Measured) -> Result<String> {
-    let seconds = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_secs());
     let record = PerfRecord {
         engine: "oneterm-vt".to_owned(),
         version: env!("CARGO_PKG_VERSION").to_owned(),
-        date: perf_history::utc_date(seconds),
+        date: perf_history::today(),
         platform: perf_history::PLATFORM.to_owned(),
         machine: options.machine.clone().unwrap_or_default(),
         columns: COLUMNS as u16,
@@ -404,8 +404,19 @@ mod tests {
     #[test]
     fn usage_lists_every_command() {
         for name in [
-            "all", "parser", "grid", "render", "resize", "rss", "fixtures", "chart", "help",
-            "--help", "-h",
+            "all",
+            "parser",
+            "grid",
+            "render",
+            "resize",
+            "rss",
+            "fixtures",
+            "chart",
+            "help",
+            "--help",
+            "-h",
+            "grid --check --against",
+            "chart --in-turns",
         ] {
             assert!(USAGE.contains(name), "{name}");
         }
@@ -572,7 +583,10 @@ mod tests {
 
     #[test]
     fn usage_names_the_new_flags() {
-        assert!(USAGE.contains("--tolerance R] [--mib N]"));
+        assert!(
+            USAGE.contains("--against BINARY [--against BINARY ...] [--tolerance R] [--mib N]")
+        );
+        assert!(USAGE.contains("[--rounds N] [--machine TEXT --out FILE]"));
         assert!(USAGE.contains("--fixture NAME"));
         assert!(!USAGE.contains("lands phase by phase"));
     }
@@ -624,10 +638,13 @@ mod tests {
     #[test]
     fn chart_requires_both_flags_and_values() {
         let args = |parts: &[&str]| parts.iter().map(ToString::to_string).collect::<Vec<_>>();
-        let missing_out = chart_command(&args(&["--history", "x"])).unwrap_err();
+        let missing_out = chart_command(&args(&["--in-turns", "x"])).unwrap_err();
         assert!(format!("{missing_out:#}").contains("--out"));
-        let missing_history = chart_command(&args(&["--out", "x"])).unwrap_err();
-        assert!(format!("{missing_history:#}").contains("--history"));
+        let missing_record = chart_command(&args(&["--out", "x"])).unwrap_err();
+        assert!(format!("{missing_record:#}").contains("--in-turns"));
+        // The record-per-release chart is gone with its flag.
+        let old_flag = chart_command(&args(&["--history", "x"])).unwrap_err();
+        assert!(format!("{old_flag:#}").contains("--history"));
         let no_value = chart_command(&args(&["--out"])).unwrap_err();
         assert!(format!("{no_value:#}").contains("--out"));
         let unknown = chart_command(&args(&["--bogus"])).unwrap_err();

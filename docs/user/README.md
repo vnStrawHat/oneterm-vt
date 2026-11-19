@@ -34,7 +34,7 @@ working example, and names exact API items. Every Rust block is compiled by `car
 | 09 | [`conformance.md`](conformance.md) | supported sequences and modes, inert modes and their DECRQM answers, the DECRQCRA gate, known gaps |
 | 10 | [`pty.md`](pty.md) | `pty::PseudoConsole` polled with your own `polling::Poller`: the two tokens, the read/write return values, `OnResize`, `pty::Registered` (registration without `unsafe`), what you owe (drain, `TERM` in `Options::env`) |
 | 11 | [`versioning.md`](versioning.md) | what to pin, the semver promise, MSRV, features |
-| 12 | [`performance.md`](performance.md) | what is measured and what is not, reproducing a run, history and chart, the `vt-bench grid --check` trip-wire, profiling with `hotpath-profiling`, why the numbers are not a promise |
+| 12 | [`performance.md`](performance.md) | what is measured and what is not, reproducing a run, history and chart, profiling with `hotpath-profiling`, why the numbers are not a promise |
 | 13 | [`api-map.md`](api-map.md) | every public type and trait, one row each, grouped by module, with the chapter that teaches it |
 | 14 | [`parser.md`](parser.md) | `parser::Parser` and `Dispatch` without a grid: strip, record, sniff sequences |
 | 15 | [`cells-and-styles.md`](cells-and-styles.md) | `Cell`, `Style`, resolving ids through `intern::Interner`, `scalar_width` / `cluster_width` |
@@ -47,6 +47,7 @@ working example, and names exact API items. Every Rust block is compiled by `car
 | 22 | [`pointer.md`](pointer.md) | OSC 22 mouse pointer shapes: who does what, `VtEvent::Pointer` / `PointerReset`, `Terminal::pointer_shape`, the stack per screen, queries answered from `Config::pointer_shapes` (`PointerShapes`), ceilings |
 | 23 | [`search-matchers.md`](search-matchers.md) | patterns: who does what, `SearchPattern::Regex` (feature `regex`), `GridText::span` for a matcher of your own (byte range of `as_str()` to `SearchMatch`) and its rules |
 | 24 | [`pty-platforms.md`](pty-platforms.md) | `pty` per platform: default shell, arguments, working directory, `drop` behaviour, crate threads; `conpty.dll` beside your executable; turning `pty` off |
+| 25 | [`performance-releases.md`](performance-releases.md) | how releases are compared: `grid --check --against` runs the last releases and this build in turns; the gate before a release, the in-turns record, what the chart shows |
 
 ## Features
 

@@ -3,7 +3,8 @@
 **Goal:** every tier-2 fixture meets its target in [docs/perf/README.md](../../perf/README.md)
 on the target machine, or carries an owner-approved waiver; `hotpath-profiling` measures five
 hot functions; `vt-bench grid --check` is a by-hand regression trip-wire against the newest
-`perf/history` record; user chapter 12 explains all of it.
+`perf/history` record; user chapter 12 explains all of it. (After v0.4.2 the check runs the
+last releases and this build in turns in one job, and the chart draws that: check.md.)
 
 **Non-goals:** CI perf gates; targets for tiers 3-5; a criterion/`benches/` harness; new public
 items; changing `scripts/release.sh`; committing anything under `perf/` (phase 13 does).
@@ -11,8 +12,8 @@ items; changing `scripts/release.sh`; committing anything under `perf/` (phase 1
 | File | Covers |
 |---|---|
 | [targets.md](targets.md) | measurement rules, where we stand, miss procedure (profile, fix, waiver), waiver record |
-| [check.md](check.md) | `grid --check` flags, default baseline, refusals, verdict, exact output, exit codes, why never CI |
-| [check-machine.md](check-machine.md) | `--machine`: the default baseline and the band on the same machine and on another |
+| [check.md](check.md) | `grid --check --against`: flags, method, refusals, exact output, exit codes, the chart |
+| [check-evidence.md](check-evidence.md) | why builds in turns and a fixture at a time: the three designs and what the runners read in each; the band, the rounds |
 | [hotpath.md](hotpath.md) | feature wiring, the five sites, no-op build, bench feature and guard, `--fixture`, recipe, CI |
 | [history.md](history.md) | release.sh unchanged, first record, release dry run, `docs/user/performance.md` outline, perf/README edits |
 | [tests.md](tests.md) | unit tests, build checks, manual checks |

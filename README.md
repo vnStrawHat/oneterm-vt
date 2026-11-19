@@ -46,21 +46,22 @@ Next: [docs/user/](docs/user/README.md); AI agents start at [for-agents.md](docs
 
 ## Performance
 
-The Release workflow regenerates these charts at every release: tier 1 (parser) and tier 2 (grid)
-throughput per platform. Details: [docs/user/performance.md](docs/user/performance.md). The
-tier 1 panel appears from the first release after v0.1.1.
+The Release workflow regenerates these charts at every release. From the first release after
+v0.4.2 a chart shows tier 2 (parse + grid) of the last five releases and the new one, all
+measured in turns in one job, so its lines compare the code and not the runners. Details:
+[docs/user/performance-releases.md](docs/user/performance-releases.md).
 
 ### Linux
 
-![Linux: parser and grid throughput per release](perf/chart-linux.svg)
+![Linux: grid throughput of the last releases](perf/chart-linux.svg)
 
 ### Windows
 
-![Windows: parser and grid throughput per release](perf/chart-windows.svg)
+![Windows: grid throughput of the last releases](perf/chart-windows.svg)
 
 ### macOS
 
-![macOS: parser and grid throughput per release](perf/chart-macos.svg)
+![macOS: grid throughput of the last releases](perf/chart-macos.svg)
 
 ## Layout
 

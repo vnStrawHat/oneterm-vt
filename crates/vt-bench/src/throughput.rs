@@ -50,6 +50,11 @@ pub(crate) fn measure_tier(
 }
 
 /// Times one whole terminal over `bytes`; stream generation is not part of the measurement.
+///
+/// Out of line, so that what is timed does not depend on who calls it: when `feed` became a
+/// second caller, the same engine sources measured 0.76 x on `plain_ascii` on Apple silicon,
+/// and 1.01 x again with this attribute.
+#[inline(never)]
 pub(crate) fn grid_pass(bytes: &[u8]) -> Duration {
     let size = Size {
         rows: LINES as u16,
@@ -69,7 +74,9 @@ pub(crate) fn grid_pass(bytes: &[u8]) -> Duration {
     elapsed
 }
 
-/// Times one parser over `bytes`; stream generation is not part of the measurement.
+/// Times one parser over `bytes`; stream generation is not part of the measurement. Out of
+/// line for the reason [`grid_pass`] is.
+#[inline(never)]
 pub(crate) fn parser_pass(bytes: &[u8]) -> Duration {
     let mut parser = Parser::new();
     let mut sink = NullDispatch;

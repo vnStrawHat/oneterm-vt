@@ -5,6 +5,7 @@ on:
       kind: { description: "Bump kind (ignored when version is set)", type: choice, options: [patch, minor, major], default: patch }
       version: { description: "Explicit X.Y.Z; overrides kind", type: string, required: false }
       dry_run: { description: "Do everything except push and release", type: boolean, default: true }
+      throughput_tolerance: { description: "A fixture may fall to this share of the last release's MiB/s", type: string, default: "0.75" }
 permissions:
   contents: read
 concurrency:
@@ -79,13 +80,22 @@ jobs:
           esac
           rustc="$(rustc --version | cut -d ' ' -f 2)"
           echo "VT_BENCH_MACHINE=GitHub $RUNNER_LABEL, $os, $cores vCPU $cpu, rustc $rustc" >>"$GITHUB_ENV"
-      - name: Test, trip-wire, record
+      - name: Test, measure in turns, record
+        env: { VT_BENCH_THROUGHPUT_TOLERANCE: "${{ inputs.throughput_tolerance }}" }
         run: bash scripts/release.sh bench
       - uses: actions/upload-artifact@v4
         with:
           name: record-${{ matrix.platform }}
           path: perf/history/${{ matrix.platform }}/${{ needs.bump.outputs.tag }}.json
           if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+      # Absent only at the first release: there is no earlier one to measure beside it.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: in-turns-${{ matrix.platform }}
+          path: perf/in-turns/${{ matrix.platform }}/${{ needs.bump.outputs.tag }}.json
+          if-no-files-found: ignore
           retention-days: 7
           overwrite: true
   fuzz:
@@ -136,6 +146,8 @@ jobs:
         with: { name: bump, path: .tmp/bump }
       - uses: actions/download-artifact@v4
         with: { pattern: "record-*", path: .tmp/records }
+      - uses: actions/download-artifact@v4
+        with: { pattern: "in-turns-*", path: .tmp/in-turns }
       - name: Check out the bump commit, add the records
         run: |
           git fetch .tmp/bump/bump.bundle main
@@ -143,6 +155,10 @@ jobs:
           for platform in linux windows macos; do
             mkdir -p "perf/history/$platform"
             cp ".tmp/records/record-$platform/$TAG.json" "perf/history/$platform/"
+            if [ -e ".tmp/in-turns/in-turns-$platform/$TAG.json" ]; then
+              mkdir -p "perf/in-turns/$platform"
+              cp ".tmp/in-turns/in-turns-$platform/$TAG.json" "perf/in-turns/$platform/"
+            fi
           done
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2

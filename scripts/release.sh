@@ -5,12 +5,17 @@
 # usage: scripts/release.sh bump <patch|minor|major|X.Y.Z>
 #        VT_BENCH_MACHINE="<runner, os, cores, cpu, rustc>" scripts/release.sh bench
 #        scripts/release.sh commit
+# bench builds the last five releases beside this one and runs them all in turns; a fixture may
+# fall to VT_BENCH_THROUGHPUT_TOLERANCE (default 0.75) of the last release's MiB/s.
 # A kind bumps the current workspace.package.version; an explicit X.Y.Z is used as given.
 # Under 0.x, major gives 0.(x+1).0 and minor or patch give 0.x.(y+1); from 1.0, plain semver.
 # Bash 3.2 compatible (macOS /bin/bash): no ${x,,}, no mapfile, no associative arrays.
 set -euo pipefail
 
 PLATFORMS="linux windows macos"
+# How many earlier releases a bench job measures beside this one. Each costs the job a build
+# and its share of every round.
+HISTORY=5
 
 usage() {
     cat >&2 <<'EOF'
@@ -88,6 +93,7 @@ cmd_bump() {
     local p
     for p in $PLATFORMS; do
         [ ! -e "perf/history/$p/v$v.json" ] || fail "perf/history/$p/v$v.json already exists"
+        [ ! -e "perf/in-turns/$p/v$v.json" ] || fail "perf/in-turns/$p/v$v.json already exists"
     done
 
     mkdir -p .tmp
@@ -112,11 +118,52 @@ cmd_bump() {
     echo "bumped v$v"
 }
 
-# The machine is named so that a runner of another CPU model than the baseline's is judged
-# against the median of its own run, not against figures it cannot reach.
-trip_wire() {
-    cargo run -p oneterm-vt-bench --release -- grid --check --machine "$VT_BENCH_MACHINE" |
-        tee -a "$GITHUB_STEP_SUMMARY"
+# Builds vt-bench of the last $HISTORY releases for platform $1 and prints one path per line,
+# oldest first; prints nothing when no release is tagged yet. HEAD is the bump commit, so every
+# tag it contains is an earlier release.
+previous_benches() {
+    local tags tag newest toolchain tree=.tmp/previous exe=""
+    tags=$(git tag --list 'v[0-9]*' --merged HEAD --sort=v:refname | tail -n "$HISTORY")
+    [ -n "$tags" ] || return 0
+    newest=$(printf '%s\n' "$tags" | tail -n 1)
+    [ "$1" != windows ] || exe=".exe"
+    # Read here, outside the tags' tree: their rust-toolchain.toml must not pick another
+    # compiler, or the builds would differ in more than the code.
+    toolchain=$(rustup show active-toolchain | cut -d ' ' -f 1)
+    git worktree add --detach "$tree/src" "$newest" >&2
+    for tag in $tags; do
+        git -C "$tree/src" checkout --quiet --detach "$tag" >&2
+        # One target folder for every tag: what they share is built once.
+        if (cd "$tree/src" && RUSTUP_TOOLCHAIN="$toolchain" cargo build -p oneterm-vt-bench --release --target-dir ../target) >&2; then
+            cp "$tree/target/release/vt-bench$exe" "$tree/vt-bench-$tag$exe"
+            echo "$tree/vt-bench-$tag$exe"
+        elif [ "$tag" = "$newest" ]; then
+            fail "$tag does not build with $toolchain: this release cannot be held against it"
+        else
+            echo "warning: $tag does not build with $toolchain; it is left out" | tee -a "$GITHUB_STEP_SUMMARY" >&2
+        fi
+    done
+}
+
+# Tier 2 of this build ($2) and of the last releases, every build run in turns in this job: the
+# trip-wire (this build against the newest of them) and the figures the chart draws. A figure
+# in MiB/s of a hosted runner cannot be held against one of another run: the same runner
+# description measured an unchanged engine a factor of three apart.
+in_turns() {
+    local previous binary against=""
+    previous=$(previous_benches "$1")
+    for binary in $previous; do
+        against="$against --against $binary"
+    done
+    if [ -z "$against" ]; then
+        echo "no earlier release to measure beside this one: no trip-wire, no in-turns record"
+        return 0
+    fi
+    mkdir -p "perf/in-turns/$1"
+    # shellcheck disable=SC2086 # $against is a list of flags
+    cargo run -p oneterm-vt-bench --release -- grid --check $against \
+        --tolerance "${VT_BENCH_THROUGHPUT_TOLERANCE:-0.75}" \
+        --machine "$VT_BENCH_MACHINE" --out "perf/in-turns/$1/v$2.json" | tee -a "$GITHUB_STEP_SUMMARY"
 }
 
 record() {
@@ -138,17 +185,11 @@ cmd_bench() {
     v=$(workspace_version)
     require_release_head "$v"
     [ ! -e "perf/history/$p/v$v.json" ] || fail "perf/history/$p/v$v.json already exists"
+    [ ! -e "perf/in-turns/$p/v$v.json" ] || fail "perf/in-turns/$p/v$v.json already exists"
 
     cargo test --workspace
-    # The trip-wire compares with the platform's previous record, so it runs before the new one
-    # exists; the first record of a platform is compared with itself.
-    if [ -d "perf/history/$p" ]; then
-        trip_wire
-        record "$p" "$v"
-    else
-        record "$p" "$v"
-        trip_wire
-    fi
+    in_turns "$p" "$v"
+    record "$p" "$v"
     echo "recorded perf/history/$p/v$v.json"
 }
 
@@ -161,9 +202,13 @@ cmd_commit() {
     for p in $PLATFORMS; do
         [ -e "perf/history/$p/v$v.json" ] || fail "perf/history/$p/v$v.json is missing"
     done
-    for p in $PLATFORMS; do
-        cargo run -p oneterm-vt-bench --release -- chart --history "perf/history/$p" --out "perf/chart-$p.svg"
-    done
+    # Only the first release has no earlier one to be measured beside, and so no chart.
+    if git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD >/dev/null 2>&1; then
+        for p in $PLATFORMS; do
+            [ -e "perf/in-turns/$p/v$v.json" ] || fail "perf/in-turns/$p/v$v.json is missing"
+            cargo run -p oneterm-vt-bench --release -- chart --in-turns "perf/in-turns/$p/v$v.json" --out "perf/chart-$p.svg"
+        done
+    fi
     [ -z "$(git status --porcelain -- . ':(exclude)perf')" ] || fail "files outside perf/ changed; the release commit takes only perf/"
 
     git add perf

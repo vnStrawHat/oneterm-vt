@@ -173,5 +173,9 @@ mod user_guide_search_matchers {}
 mod user_guide_pty_platforms {}
 
 #[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/performance-releases.md")]
+mod user_guide_performance_releases {}
+
+#[cfg(doctest)]
 #[doc = include_str!("../../../README.md")]
 mod readme {}

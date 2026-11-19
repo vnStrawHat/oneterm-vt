@@ -42,8 +42,10 @@ comparing perf records across platforms.
 3. Snapshot tool: `cargo-public-api 0.52.0` on `nightly-2026-05-25` (public-api.md).
 4. `check` diffs the host's file only; `update` writes both via `--target` (public-api.md).
 5. Perf: the phase-12 target table, measured by hand on the quiet i7-12700, is the quality verdict.
-   Release records come from the three hosted runners; `grid --check` on each is a 0.5-band trip-wire
-   against that platform's previous record. Records are compared only within one platform.
+   Release records come from the three hosted runners; `grid --check --against` on each runs
+   the last five releases and the new build in turns: a 0.75-band trip-wire against the last
+   release, and the in-turns record the chart draws (0013 check.md). Versions are compared
+   only inside one in-turns record.
 6. Fuzzing runs on Linux (WSL counts); cargo-fuzz does not support Windows. The Release workflow runs every target for 200 s before tagging; pushes and pull requests do not fuzz.
 7. No new public item; `api-map.md`, `for-agents.md` and the example use roadmap items only.
 8. `performance.md` keeps its phase-12 table and links the per-platform history and charts.
