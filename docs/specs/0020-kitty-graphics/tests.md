@@ -47,7 +47,7 @@
 | `graphics/placement.rs` | shared-image accounting in `admit`, `release`, `push_pending`; `retire`; layer-aware `release_covered` |
 | `terminal/graphics.rs` | `place` takes a `Picture` and a `Layout` |
 | `terminal/kitty.rs` (new) | the actions, replies, cursor rule, deletion |
-| `terminal/dispatch.rs` | `apc_start` / `apc_put` / `apc_end` routing |
+| `terminal/dispatch.rs` | `apc_start` / `apc_put_bytes` / `apc_end` routing |
 | `snapshot/state.rs` | the mirrored fields |
 | `docs/user/` | `graphics-kitty.md` (new), `graphics.md`, `limits.md`, `conformance.md`, `versioning.md`, the README index |
 | `.github/workflows/ci.yml` | clippy and tests for `--no-default-features --features kitty-graphics` |

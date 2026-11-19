@@ -421,30 +421,37 @@ impl KittyState {
         self.control.clear();
     }
 
-    /// One payload byte of the string.
+    /// Payload bytes of the string, in order; any split of them gives the same result.
     ///
-    /// Inlined by force, with `put_base64` and the handler's `apc_put`: the parser hands the
-    /// payload over byte by byte, and left to the optimiser an unrelated change in the
-    /// handler decided whether each byte cost a call (`kitty_images`: 340 or 455 MiB/s).
-    #[inline(always)]
-    pub(crate) fn put(&mut self, byte: u8) {
-        match self.phase {
-            Phase::Ignoring => {}
-            Phase::Introducer => {
-                self.phase = if byte == b'G' {
-                    Phase::Control
-                } else {
-                    Phase::Ignoring
-                };
+    /// Out of line, with the base64 loop in it: the parser hands over a run at a time. When it
+    /// was a call per byte inlined into the parser's loop, unrelated changes in the handler
+    /// moved `kitty_images` by 8% to 25%.
+    #[inline(never)]
+    pub(crate) fn put(&mut self, mut bytes: &[u8]) {
+        while let Some((&byte, rest)) = bytes.split_first() {
+            match self.phase {
+                Phase::Ignoring => return,
+                // Nothing in the payload ends it: the rest of the run is payload too.
+                Phase::Payload => return self.put_base64(bytes),
+                Phase::Introducer => {
+                    self.phase = if byte == b'G' {
+                        Phase::Control
+                    } else {
+                        Phase::Ignoring
+                    };
+                }
+                Phase::Control if byte == b';' => self.open_payload(),
+                Phase::Control if self.control.len() < CONTROL_MAX_BYTES => {
+                    self.control.push(byte);
+                }
+                Phase::Control => {
+                    // Control data this long is no command; a load it would have continued is
+                    // lost.
+                    self.load = None;
+                    self.phase = Phase::Ignoring;
+                }
             }
-            Phase::Control if byte == b';' => self.open_payload(),
-            Phase::Control if self.control.len() < CONTROL_MAX_BYTES => self.control.push(byte),
-            Phase::Control => {
-                // Control data this long is no command; a load it would have continued is lost.
-                self.load = None;
-                self.phase = Phase::Ignoring;
-            }
-            Phase::Payload => self.put_base64(byte),
+            bytes = rest;
         }
     }
 
@@ -472,32 +479,35 @@ impl KittyState {
         (self.bits, self.bit_count) = (0, 0);
     }
 
-    #[inline(always)]
-    fn put_base64(&mut self, byte: u8) {
+    fn put_base64(&mut self, bytes: &[u8]) {
         let Some(load) = &mut self.load else {
             return;
         };
-        if byte == b'=' {
-            (self.bits, self.bit_count) = (0, 0);
-            return;
+        let (mut bits, mut bit_count) = (self.bits, self.bit_count);
+        for &byte in bytes {
+            if byte == b'=' {
+                (bits, bit_count) = (0, 0);
+                continue;
+            }
+            let value = BASE64[usize::from(byte)];
+            if value == NOT_BASE64 {
+                load.bad_base64 = true;
+                continue;
+            }
+            bits = (bits << 6) | u32::from(value);
+            bit_count += 6;
+            if bit_count < 8 {
+                continue;
+            }
+            bit_count -= 8;
+            if load.data.len() >= LOAD_MAX_BYTES {
+                load.too_large = true;
+                continue;
+            }
+            // Truncation keeps the eight bits just completed.
+            load.data.push((bits >> bit_count) as u8);
         }
-        let value = BASE64[usize::from(byte)];
-        if value == NOT_BASE64 {
-            load.bad_base64 = true;
-            return;
-        }
-        self.bits = (self.bits << 6) | u32::from(value);
-        self.bit_count += 6;
-        if self.bit_count < 8 {
-            return;
-        }
-        self.bit_count -= 8;
-        if load.data.len() >= LOAD_MAX_BYTES {
-            load.too_large = true;
-            return;
-        }
-        // Truncation keeps the eight bits just completed.
-        load.data.push((self.bits >> self.bit_count) as u8);
+        (self.bits, self.bit_count) = (bits, bit_count);
     }
 
     /// The end of the string.

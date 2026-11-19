@@ -47,8 +47,9 @@ pub(crate) fn png_bytes(
 /// Reads one `APC` string whose body (after the introducer) is `body`.
 fn read(state: &mut KittyState, body: &str) -> Outcome {
     state.start(b'_');
+    // Byte by byte, as the worst split the parser can make.
     for byte in body.bytes() {
-        state.put(byte);
+        state.put(&[byte]);
     }
     state.end(false)
 }
@@ -151,7 +152,7 @@ fn only_an_apc_that_starts_with_g_is_a_command() {
     assert!(matches!(read(&mut state, "Ga=tt"), Outcome::Ignored));
     // SOS and PM strings are never commands.
     state.start(b'X');
-    "Ga=q".bytes().for_each(|byte| state.put(byte));
+    state.put(b"Ga=q");
     assert!(matches!(state.end(false), Outcome::Ignored));
 }
 
@@ -172,6 +173,38 @@ fn the_payload_is_base64_with_or_without_padding() {
         let bare = padded.trim_end_matches('=');
         assert_eq!(load(&format!("G;{bare}")).data, data, "{bare}");
     }
+}
+
+#[test]
+fn a_string_reads_the_same_however_its_bytes_are_split() {
+    let data: Vec<u8> = (0..40usize).map(|n| (n * 37 + 201) as u8).collect();
+    // Keys, a payload with padding inside it and a byte outside the alphabet at the end.
+    let body = format!(
+        "Ga=T,i=9,f=24;{}{}!",
+        base64(&data[..10]),
+        base64(&data[10..])
+    );
+    let whole = |pieces: &[&[u8]]| {
+        let mut state = KittyState::default();
+        state.start(b'_');
+        pieces.iter().for_each(|piece| state.put(piece));
+        match state.end(false) {
+            Outcome::Command(load) => (load.command.image_id, load.data, load.bad_base64),
+            other => panic!("not a whole command: {other:?}"),
+        }
+    };
+    let expected = (9, data, true);
+    assert_eq!(whole(&[body.as_bytes()]), expected);
+    for cut in 0..=body.len() {
+        let (head, tail) = body.as_bytes().split_at(cut);
+        assert_eq!(whole(&[head, tail]), expected, "cut at {cut}");
+    }
+    // The helper `read` feeds byte by byte.
+    let byte_wise = load(&body);
+    assert_eq!(
+        (byte_wise.command.image_id, byte_wise.data),
+        (9, expected.1)
+    );
 }
 
 #[test]
@@ -205,7 +238,7 @@ fn an_aborted_chunk_drops_the_load() {
         Outcome::Chunk
     ));
     state.start(b'_');
-    "Gm=1;AA".bytes().for_each(|byte| state.put(byte));
+    state.put(b"Gm=1;AA");
     assert!(matches!(state.end(true), Outcome::Ignored));
     let Outcome::Command(load) = read(&mut state, "Ga=q,i=2;AAAA") else {
         panic!("a fresh command");
@@ -217,7 +250,7 @@ fn an_aborted_chunk_drops_the_load() {
         Outcome::Chunk
     ));
     state.start(b'_');
-    state.put(b'x');
+    state.put(b"x");
     assert!(matches!(state.end(true), Outcome::Ignored));
     assert!(
         matches!(read(&mut state, "Gm=0;AAAA"), Outcome::Command(load) if load.data.len() == 6)

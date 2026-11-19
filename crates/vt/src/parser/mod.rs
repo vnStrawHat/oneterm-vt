@@ -94,6 +94,15 @@ pub trait Dispatch {
     /// [`DCS_MAX_BYTES`] per start.
     fn apc_put(&mut self, _byte: u8) {}
 
+    /// A run of APC, SOS or PM payload bytes, in order: what the parser calls. By default each
+    /// byte goes to [`apc_put`](Self::apc_put). Override it to take a run at once (a decoder
+    /// with a loop of its own); `apc_put` is then yours to call or to leave. Never empty.
+    fn apc_put_bytes(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.apc_put(byte);
+        }
+    }
+
     /// The end of an APC, SOS or PM string, exactly once per [`apc_start`](Self::apc_start)
     /// unless [`Parser::reset`] intervened. `aborted` is set when `CAN`/`SUB` cancelled it or the
     /// size cap was hit.

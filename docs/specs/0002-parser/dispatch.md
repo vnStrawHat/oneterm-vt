@@ -19,6 +19,7 @@ pub trait Dispatch {
     fn dcs_unhook(&mut self, _aborted: bool) {}
     fn apc_start(&mut self, _introducer: u8) {}
     fn apc_put(&mut self, _byte: u8) {}
+    fn apc_put_bytes(&mut self, bytes: &[u8]) { for &byte in bytes { self.apc_put(byte); } }  // added later
     fn apc_end(&mut self, _aborted: bool) {}
 }
 ```
@@ -37,6 +38,7 @@ pub trait Dispatch {
 | `dcs_unhook` | ESC, CAN/SUB, or the cap | exactly once per `dcs_hook`, except after `reset`; `aborted` = CAN/SUB or cap |
 | `apc_start` | `ESC _`, `ESC X`, `ESC ^` | `introducer` is `b'_'` (APC), `b'X'` (SOS), `b'^'` (PM) |
 | `apc_put` | one payload byte | at most `DCS_MAX_BYTES` per start; any byte but CAN/SUB/ESC |
+| `apc_put_bytes` | a run of payload bytes, never empty (0019 parser.md) | the only APC payload call the parser makes; the default forwards each byte to `apc_put`; the same bytes and cap, any split |
 | `apc_end` | ESC, CAN/SUB, or the cap | exactly once per `apc_start`, except after `reset` |
 
 Ordering:

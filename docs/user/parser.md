@@ -99,6 +99,8 @@ assert_eq!(sink.last.as_deref(), Some("build"));
 - Keep `osc_allows_large` pure: its answer may depend on `code` only. It raises a memory ceiling, it is not a policy.
 - A bare `ESC \` (the usual OSC/DCS/APC end) arrives as `esc(.., b'\\')`: treat it as a no-op.
 - DCS and APC payloads arrive byte by byte between `dcs_hook`/`dcs_unhook` and `apc_start`/`apc_end`; buffer them yourself.
+  For APC the parser calls `apc_put_bytes` with a run of bytes, which by default calls `apc_put` for each: override it
+  when your decoder is faster over a slice. Run boundaries carry no meaning.
 - OSC slices live only during the call; copy what you keep. `Parser::reset` calls nothing on the sink: reset your own DCS/APC state.
 - `print_str` run boundaries carry no meaning; controls and chunk ends split runs.
 

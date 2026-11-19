@@ -294,7 +294,7 @@ impl Parser {
     }
 
     /// Consumes APC, SOS or PM payload bytes while the state is `ApcString`: every byte
-    /// `apc_put` takes, counted against the cap in one step. The run stops before `CAN`, `SUB`
+    /// `apc_put_bytes` takes, handed over as one run and counted against the cap in one step. The run stops before `CAN`, `SUB`
     /// and `ESC`, which the per-byte table then takes.
     pub(super) fn apc_run<'a, D: Dispatch + ?Sized>(
         &mut self,
@@ -311,8 +311,8 @@ impl Parser {
         }
         let room = DCS_MAX_BYTES - self.string_bytes.min(DCS_MAX_BYTES);
         let (passed, over) = payload.split_at(payload.len().min(room));
-        for &byte in passed {
-            dispatch.apc_put(byte);
+        if !passed.is_empty() {
+            dispatch.apc_put_bytes(passed);
         }
         self.string_bytes += passed.len();
         if !over.is_empty() {
@@ -410,7 +410,7 @@ impl Parser {
                 self.state = State::Escape;
             }
             _ => match self.take_string_byte() {
-                StringByte::Pass => dispatch.apc_put(byte),
+                StringByte::Pass => dispatch.apc_put_bytes(std::slice::from_ref(&byte)),
                 StringByte::CapReached => dispatch.apc_end(true),
                 StringByte::Drop => {}
             },

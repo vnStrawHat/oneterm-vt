@@ -1349,6 +1349,7 @@ pub const oneterm_vt::parser::OSC_LARGE: usize
 pub trait oneterm_vt::parser::Dispatch
 pub fn oneterm_vt::parser::Dispatch::apc_end(&mut self, bool)
 pub fn oneterm_vt::parser::Dispatch::apc_put(&mut self, u8)
+pub fn oneterm_vt::parser::Dispatch::apc_put_bytes(&mut self, &[u8])
 pub fn oneterm_vt::parser::Dispatch::apc_start(&mut self, u8)
 pub fn oneterm_vt::parser::Dispatch::csi(&mut self, &oneterm_vt::parser::Params, &[u8], bool, u8)
 pub fn oneterm_vt::parser::Dispatch::dcs_hook(&mut self, &oneterm_vt::parser::Params, &[u8], bool, u8)
