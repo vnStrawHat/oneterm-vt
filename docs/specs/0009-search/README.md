@@ -14,6 +14,7 @@ cursor/"next" state, tab-run collapsing (copy does it, search does not), bench t
 | [regex.md](regex.md) | feature and dependency, `Regex` variant, per-logical-line matching, `docs/user/search.md` gating |
 | [tests.md](tests.md) | unit tests, golden table run in every build, hostile rows, chapter outline |
 | [files.md](files.md) | files, shared helpers moved from `selection`, `lib.rs`, Cargo, gate, commit |
+| [span.md](span.md) | added later: public `GridText::span` for a matcher of the embedder's own, its refusals, tests |
 
 **Public API:** `search::{GridText::{from_terminal, oldest, rows}, SearchMatch::{row, start_col,
 end_col, grid_line, display_row}, SearchOptions { case_sensitive, whole_word }, SearchPattern::

@@ -27,7 +27,7 @@ working example, and names exact API items. Every Rust block is compiled by `car
 | 02 | [`threading.md`](threading.md) | who owns the lock, the two-phase hand-off, when to draw, `?2026` and its timeout, `feed_frame` |
 | 03 | [`events.md`](events.md) | `EventBatch` and every `VtEvent`; answering `Reply`, `ColorQuery` (`ColorKey::color_reply`), `ClipboardLoad`; `OscRoutes` |
 | 04 | [`input.md`](input.md) | `input::encode_key_event` / `Terminal::encode_key`: the four-rung ladder (legacy, `modifyOtherKeys`, kitty flags), `KeyEvent` fields; `encode_mouse_*` per reporting mode and encoding; what the embedder still owes (paste, focus, alternate scroll) |
-| 05 | [`search.md`](search.md) | `search::GridText` and `search_grid_text`: copy under the lock, search without it; matches across wrapped rows, `SearchMatch` to viewport rows, `MAX_MATCHES`; `regex` feature |
+| 05 | [`search.md`](search.md) | `search::GridText` and `search_grid_text`: copy under the lock, search without it; matches across wrapped rows, `SearchMatch` to viewport rows, `MAX_MATCHES` |
 | 06 | [`graphics.md`](graphics.md) | image lifecycle (Sixel and kitty): `Terminal::take_graphics` (`GraphicData`), `Placement` / `SnapshotPlacement`, images and placements, drawing by cells with `graphic_offset`, `VtEvent::GraphicReleased`, `set_cell_pixels` and `VIRTUAL_CELL`, ceilings |
 | 07 | [`resize.md`](resize.md) | `grid::TerminalGrid::resize`, `ResizePolicy` (PTY vs ConPTY), `ResizeOutcome`; what reflow keeps, what dies |
 | 08 | [`limits.md`](limits.md) | every ceiling on hostile input and what happens past it; each `FeedStats` counter |
@@ -45,6 +45,7 @@ working example, and names exact API items. Every Rust block is compiled by `car
 | 20 | [`color-scheme.md`](color-scheme.md) | `Terminal::set_color_scheme` and `ColorScheme`: answering `CSI ? 996 n`, reporting a theme switch under `?2031` |
 | 21 | [`notifications.md`](notifications.md) | `VtEvent::Notification` from OSC 9, OSC 777 and OSC 99: who does what, every field of `Notification`, declaring abilities in `NotificationSupport`, reports back with `input::NotificationReport`, ceilings |
 | 22 | [`pointer.md`](pointer.md) | OSC 22 mouse pointer shapes: who does what, `VtEvent::Pointer` / `PointerReset`, `Terminal::pointer_shape`, the stack per screen, queries answered from `Config::pointer_shapes` (`PointerShapes`), ceilings |
+| 23 | [`search-matchers.md`](search-matchers.md) | patterns: who does what, `SearchPattern::Regex` (feature `regex`), `GridText::span` for a matcher of your own (byte range of `as_str()` to `SearchMatch`) and its rules |
 
 ## Features
 
@@ -52,7 +53,7 @@ working example, and names exact API items. Every Rust block is compiled by `car
 |---|---|---|
 | `pty` | on | `oneterm_vt::pty` (ConPTY / `openpty`); deps `polling` + `windows-sys` or `libc` |
 | `kitty-graphics` | on | the kitty graphics protocol (`APC G`); deps `png` + `miniz_oxide` |
-| `regex` | off | `search::SearchPattern::Regex`; dep `regex` |
+| `regex` | off | `search::SearchPattern::Regex`; dep `regex`. Not needed for a matcher of your own (`GridText::span`) |
 | `vt-paranoid` | off | whole-history integrity walk after every mutation; tests and fuzzing only |
 | `hotpath-profiling` | off | `hotpath::measure` sites on hot paths; dep `hotpath` |
 

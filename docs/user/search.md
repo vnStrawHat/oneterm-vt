@@ -123,32 +123,7 @@ them on `VtEvent::RowsTrimmed { oldest }` (rows older than `oldest` are gone) an
 resize that reflows (`ResizeOutcome::reflowed`): primary rows get fresh ids, so copy and search
 again. The alternate screen has no history; search it while it is active.
 
-## Regex (feature `regex`)
+## Patterns: regex, or your own matcher
 
-Enable it with `oneterm-vt = { version = "..", features = ["regex"] }`. It adds
-`SearchPattern::Regex(&regex::Regex)`: you compile the pattern (flags, size limit), the crate runs
-it over each logical line. `^` and `$` anchor to the line's first char and its content end;
-`SearchOptions` is ignored, so write `(?i)` and `\b` in the pattern. A pattern that matches the
-empty string yields one empty match per char boundary. The block compiles without the feature
-(`main` is empty there).
-
-```rust
-#[cfg(feature = "regex")]
-fn main() {
-    use std::time::Instant;
-    use oneterm_vt::search::{GridText, SearchOptions, SearchPattern, search_grid_text};
-    use oneterm_vt::{Config, EventBatch, Size, Terminal};
-    let mut term = Terminal::new(Size { rows: 3, cols: 30 }, Config::default());
-    term.feed(b"error 404 not found", &mut EventBatch::new(), Instant::now());
-    let text = GridText::from_terminal(&term);
-
-    let regex = regex::Regex::new(r"error\s+\d+").expect("a valid pattern");
-    let found = search_grid_text(&text, SearchPattern::Regex(&regex), SearchOptions::default());
-    assert_eq!(found.len(), 1);
-    assert_eq!((found[0].start_col, found[0].end_col), (0, 9));
-}
-#[cfg(not(feature = "regex"))]
-fn main() {}
-```
-
-`SearchPattern` is `#[non_exhaustive]`: a `match` on it needs a wildcard arm.
+[`search-matchers.md`](search-matchers.md): `SearchPattern::Regex` (feature `regex`), and
+`GridText::span` for a matcher you already ship, with no feature.

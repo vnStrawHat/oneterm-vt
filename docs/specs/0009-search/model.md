@@ -68,7 +68,7 @@ trailing wide glyph; its spacer must be in the table so a match ends at the pair
 - Allocation: reserve `rows` exactly (live row count + 1); `text` and `columns` grow amortised
   (trimmed rows make a full-width reserve wasteful). No per-row allocation.
 
-## Byte offset -> cell (crate-private, used by both matchers)
+## Byte offset -> cell (`line_span`, used by both matchers; public as `span`: span.md)
 
 All offsets are char boundaries. `rel = p - row.text_start`; `cols(i)` = the row's table slice.
 

@@ -516,3 +516,103 @@ fn the_copy_is_readable_as_text() {
     let copy = GridText::from_terminal(&term);
     assert_eq!(copy.as_str(), "wrapped line\nab\n\u{4e16}x\n");
 }
+
+// A matcher of the embedder's own: `GridText::span`.
+
+/// The spans of every `needle` in every logical line, found with `str::match_indices`.
+fn own_matcher(text: &GridText, needle: &str) -> Vec<SearchMatch> {
+    let mut found = Vec::new();
+    let mut line_start = 0;
+    for line in text.as_str().split_inclusive('\n') {
+        for (at, hit) in line.match_indices(needle) {
+            let start = line_start + at;
+            found.push(
+                text.span(start, start + hit.len())
+                    .expect("a range in one line"),
+            );
+        }
+        line_start += line.len();
+    }
+    found
+}
+
+#[test]
+fn span_gives_an_own_matcher_the_matches_of_the_literal_one() {
+    // A wrapped line, wide glyphs, a cluster, a blank row, a row that ends on its last column.
+    let bytes = "\x1b[?2027hab日本ab語 👍🏽ab\r\n\r\n0123456ab\r\nxab";
+    let term = terminal(9, 8, bytes.as_bytes());
+    let text = GridText::from_terminal(&term);
+    for needle in ["ab", "b日", "本ab語", "👍🏽a", "6ab", "x"] {
+        let expected =
+            search_grid_text(&text, SearchPattern::Literal(needle), options(true, false));
+        assert!(!expected.is_empty(), "{needle}");
+        assert_eq!(own_matcher(&text, needle), expected, "{needle}");
+    }
+}
+
+#[test]
+fn span_maps_a_wrap_seam_as_the_matchers_do() {
+    let term = terminal(10, 3, b"0123456789abc");
+    let text = GridText::from_terminal(&term);
+    let span = |start, end| hits(&term, &[text.span(start, end).expect("in the line")]);
+    assert_eq!(span(8, 12), [(0, 8, 1, 2)]);
+    // An end at the seam stays on the first row; a start there is the next row's first cell.
+    assert_eq!(span(0, 10), [(0, 0, 0, 10)]);
+    assert_eq!(span(10, 13), [(1, 0, 1, 3)]);
+    assert_eq!(span(10, 10), [(1, 0, 1, 0)]);
+}
+
+#[test]
+fn span_takes_the_whole_cell_of_an_offset_inside_its_text() {
+    // Three bytes and two columns per glyph.
+    let term = terminal(10, 2, "日本語".as_bytes());
+    let text = GridText::from_terminal(&term);
+    let span = |start, end| hits(&term, &[text.span(start, end).expect("in the line")]);
+    assert_eq!(span(4, 5), [(0, 2, 0, 4)]);
+    assert_eq!(span(1, 7), [(0, 0, 0, 6)]);
+    assert_eq!(span(5, 5), [(0, 2, 0, 2)]);
+
+    // A cluster of two scalars in one cell: its second scalar alone is the cell.
+    let term = terminal(10, 2, "\x1b[?2027ha👍🏽b".as_bytes());
+    let text = GridText::from_terminal(&term);
+    let span = |start, end| hits(&term, &[text.span(start, end).expect("in the line")]);
+    assert_eq!(text.as_str(), "a👍🏽b\n\n");
+    assert_eq!(span(5, 9), [(0, 1, 0, 3)]);
+    assert_eq!(span(9, 10), [(0, 3, 0, 4)]);
+}
+
+#[test]
+fn span_of_an_empty_range_is_one_cell_edge() {
+    // The first row is full and ends its line; the copy is "0123456789\nab\n\n".
+    let term = terminal(10, 3, b"0123456789\r\nab");
+    let text = GridText::from_terminal(&term);
+    assert_eq!(text.as_str(), "0123456789\nab\n\n");
+    let span = |at| hits(&term, &[text.span(at, at).expect("in the line")]);
+    assert_eq!(span(0), [(0, 0, 0, 0)]);
+    // On a line's `\n`: the content end, which is `cols` on a full row.
+    assert_eq!(span(10), [(0, 10, 0, 10)]);
+    assert_eq!(span(13), [(1, 2, 1, 2)]);
+    // The blank last row is a line of its own.
+    assert_eq!(span(14), [(2, 0, 2, 0)]);
+}
+
+#[test]
+fn span_refuses_a_range_that_is_not_in_one_line() {
+    let term = terminal(10, 2, b"ab\r\ncd");
+    let text = GridText::from_terminal(&term);
+    assert_eq!(text.as_str(), "ab\ncd\n");
+    // Backwards, past the text, at the text's end.
+    assert_eq!(text.span(2, 1), None);
+    assert_eq!(text.span(4, 7), None);
+    assert_eq!(text.span(6, 6), None);
+    assert_eq!(text.span(usize::MAX, usize::MAX), None);
+    // A line end inside the range: across two lines, and the `\n` itself.
+    assert_eq!(text.span(1, 4), None);
+    assert_eq!(text.span(2, 3), None);
+    assert_eq!(text.span(5, 6), None);
+    // Up to the line end is the line.
+    assert_eq!(
+        hits(&term, &[text.span(3, 5).expect("the second line")]),
+        [(1, 0, 1, 2)]
+    );
+}

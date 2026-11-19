@@ -13,7 +13,8 @@ pub(super) fn search(text: &GridText, regex: &::regex::Regex) -> Vec<SearchMatch
             break;
         };
         for found in regex.find_iter(line) {
-            let Some(span) = text.span(line_start + found.start(), line_start + found.end()) else {
+            let Some(span) = text.line_span(line_start + found.start(), line_start + found.end())
+            else {
                 return matches;
             };
             matches.push(span);

@@ -1545,6 +1545,7 @@ pub fn oneterm_vt::search::GridText::as_str(&self) -> &str
 pub fn oneterm_vt::search::GridText::from_terminal(&oneterm_vt::Terminal) -> oneterm_vt::search::GridText
 pub fn oneterm_vt::search::GridText::oldest(&self) -> oneterm_vt::grid::RowId
 pub fn oneterm_vt::search::GridText::rows(&self) -> usize
+pub fn oneterm_vt::search::GridText::span(&self, usize, usize) -> core::option::Option<oneterm_vt::search::SearchMatch>
 impl core::clone::Clone for oneterm_vt::search::GridText
 pub fn oneterm_vt::search::GridText::clone(&self) -> oneterm_vt::search::GridText
 impl core::cmp::Eq for oneterm_vt::search::GridText

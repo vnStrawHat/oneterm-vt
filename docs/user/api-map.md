@@ -126,8 +126,8 @@ and its payload). The last row of a group lists its functions and constants.
 
 | Item | What it is for | Chapter |
 |---|---|---|
-| `search::GridText` | a copy of the scrollback text you search without the lock; `as_str` is the plain-text dump | [search](search.md) |
-| `search::SearchPattern`, `search::SearchOptions` | literal or regex (`regex` feature); case and word options | [search](search.md) |
+| `search::GridText` | a copy of the scrollback text you search without the lock; `as_str` is the plain-text dump; `span` turns a byte range of it into a `SearchMatch` (your own matcher) | [search](search.md), [search-matchers](search-matchers.md) |
+| `search::SearchPattern`, `search::SearchOptions` | literal or regex (`regex` feature); case and word options | [search](search.md), [search-matchers](search-matchers.md) |
 | `search::SearchMatch` | one hit, across wrapped rows | [search](search.md) |
 | function, constant | `search_grid_text`; `MAX_MATCHES` | [search](search.md) |
 

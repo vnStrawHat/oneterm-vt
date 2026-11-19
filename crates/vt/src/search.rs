@@ -253,9 +253,31 @@ impl GridText {
         }
     }
 
-    /// The match covering text bytes `start..end`; `None` only if the tables disagree with
-    /// the text, which they cannot.
-    fn span(&self, start: usize, end: usize) -> Option<SearchMatch> {
+    /// The cells that hold bytes `start..end` of [`as_str`](Self::as_str): how a matcher of
+    /// your own gets a [`SearchMatch`]. Run it over one logical line at a time (the text
+    /// between two `'\n'`) and pass each hit's byte range within the whole text.
+    ///
+    /// - An offset inside a cell's text (a cluster, a char of several bytes) takes the whole
+    ///   cell: the start rounds down to it, the end rounds up past it.
+    /// - `start == end` is an empty match at that cell; on a line's `'\n'` it sits at the
+    ///   line's content end.
+    /// - `None` when the range is not one of a single line: `start > end`, an end past the
+    ///   text, a start at the text's end, or a `'\n'` inside the range. A match never crosses
+    ///   a line end, as with the matchers of [`search_grid_text`].
+    ///
+    /// The cost is two binary searches over the rows, plus a scan of the range for `'\n'`.
+    /// [`MAX_MATCHES`] is not applied here: the loop, and its cap, are yours.
+    pub fn span(&self, start: usize, end: usize) -> Option<SearchMatch> {
+        let range = self.text.as_bytes().get(start..end)?;
+        if start == self.text.len() || memchr::memchr(b'\n', range).is_some() {
+            return None;
+        }
+        self.line_span(start, end)
+    }
+
+    /// The match covering text bytes `start..end`, which lie in one logical line; `None` only
+    /// if the tables disagree with the text, which they cannot.
+    fn line_span(&self, start: usize, end: usize) -> Option<SearchMatch> {
         let (row, start_col) = self.locate(start, Edge::Start)?;
         let (end_row, end_col) = if end <= start {
             (row, start_col)

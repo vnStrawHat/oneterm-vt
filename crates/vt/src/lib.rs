@@ -165,5 +165,9 @@ mod user_guide_notifications {}
 mod user_guide_pointer {}
 
 #[cfg(doctest)]
+#[doc = include_str!("../../../docs/user/search-matchers.md")]
+mod user_guide_search_matchers {}
+
+#[cfg(doctest)]
 #[doc = include_str!("../../../README.md")]
 mod readme {}

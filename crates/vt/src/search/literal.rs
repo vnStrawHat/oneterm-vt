@@ -48,7 +48,7 @@ pub(super) fn search(text: &GridText, needle: &str, options: SearchOptions) -> V
             from = start + char_len_at(haystack, start);
             continue;
         }
-        let Some(found) = text.span(start, end) else {
+        let Some(found) = text.line_span(start, end) else {
             break;
         };
         matches.push(found);
